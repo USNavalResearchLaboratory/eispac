@@ -1,0 +1,387 @@
+__all__ = ['EISFitResult', 'create_fit_dict']
+
+import copy
+from datetime import datetime
+import numpy as np
+import eispac.core.fitting_functions as fit_fns
+from eispac.core.read_template import create_funcinfo
+
+# try:
+#     import eispac.fitting_functions as fit_fns
+#     from eispac.read_template import create_funcinfo
+# except ImportError:
+#     print('Notice: Loading local version of eispac.fitting_functions')
+#     import fitting_functions as fit_fns
+#     from read_template import create_funcinfo
+
+class EISFitResult:
+    """Object containing the results from fitting one or more EIS window spectra
+
+    Parameters
+    ----------
+    wave : array_like
+        Wavelength values of the data being fit. Used mostly to
+        determine the correct dimensions for the output arrays.
+    template : dict
+        Fit template parameters and metadata contained in the 'template' attribute
+        of an EISFitTemplate object.
+    parinfo : dict
+        Fit parameter initial values and constraints in the format expectd by
+        mpfit. Normally found in the 'parinfo' attribute of an EISFitTemplate object
+    func_name : str, optional
+        String name of function that will be fit to the data. Must be one of the
+        functions defined in the eispac.fitting_functions submodule. Default is
+        'multigaussian'.
+
+    Attributes
+    ----------
+    template : dict
+        Full copy of the input template dictionary
+    parinfo : list of dicts
+        Full copy of the input parinfo list
+    funcinfo : dict
+        Function component information generated from the template dict
+    n_pxls : int
+        Number of pixels along the y-axis
+    n_steps : int
+        Number of raster steps or sit-and-stare exposures in the observation
+    n_wave : int
+        Number of wavelength values in the window
+    n_gauss : int
+        Number of Guassian functions in the fit
+    n_poly : int
+        Number of terms in the polynomial background
+    func_name : str
+        Name of the function fit to the data
+    fit_func : function
+        Copy of the actual Python function named by 'fit_func'
+    fit : dict
+        Dictionary of output fit parameters
+
+    Methods
+    -------
+    get_fit_profile(y_pixel, x_pixel, component=None, num_wavelengths=100)
+        Calculate the fit intensity profile (total or component) at a location.
+    """
+
+    def __init__(self, wave=None, template=None, parinfo=None,
+                 func_name='multigaussian', empty=False):
+        self.date_fit = datetime.now().replace(microsecond=0).isoformat()
+        self.meta = dict()
+        self.template = copy.deepcopy(template)
+        self.parinfo = copy.deepcopy(parinfo)
+        self.funcinfo = None
+        self.n_pxls = 11
+        self.n_steps = 22
+        self.n_wave = 33
+        self.n_gauss = 1
+        self.n_poly = 1
+        self.fit_module = 'unknown'
+        self.fit_method = 'unknown'
+        self.func_name = func_name
+        self.fit_func = None
+        self.fit = None
+
+        # Determine input data shape, create fit dictionary, and copy misc. info
+        if not empty:
+            num_dims = wave.ndim
+            dims_size = wave.shape
+            self.n_wave = dims_size[-1] # last dim is always wavelength
+            if num_dims == 1:
+                self.n_pxls = 1
+                self.n_steps = 1
+            elif num_dims == 2:
+                self.n_pxls = dims_size[0]
+                self.n_steps = 1
+            elif num_dims == 3:
+                self.n_pxls = dims_size[0]
+                self.n_steps = dims_size[1]
+
+            self.n_gauss = template['n_gauss']
+            self.n_poly = template['n_poly']
+            self.funcinfo = create_funcinfo(self.template)
+            self.fit_func = getattr(fit_fns, func_name)
+
+            fit = create_fit_dict(self.n_pxls, self.n_steps, self.n_wave,
+                                  self.n_gauss, self.n_poly)
+            line_ids = template['line_ids']
+            # if isinstance(line_ids, np.ndarray):
+            #     line_ids = line_ids.tolist() # multiple entries = array of strings
+            # else:
+            #     line_ids = [line_ids.decode('utf-8')] # single entry = byte array
+            fit['line_ids'] = line_ids
+            fit['main_component'] = template['component']
+            self.fit = fit
+        else:
+            # Initialize an empty EISFitResult (used by eispac.read_fit)
+            self.fit = create_fit_dict(11, 22, 33, 1, 1)
+
+    def _validate_component_num(self, component):
+        """Helper function for validating functional component number.
+
+        Note: unless there is an error, the output is a numpy array
+        """
+        num_comp = self.n_gauss + 1 if self.n_poly > 0 else self.n_gauss
+        if component is not None:
+            if np.size(component) == 1:
+                use_comp = np.array([component], dtype=int)
+            else:
+                use_comp = np.array(component, dtype=int)
+            use_comp = use_comp.round(0).astype(int)
+            for c in range(use_comp.size):
+                if use_comp[c] < 0:
+                    # Converted a negative index to the correct positive value
+                    use_comp[c] = num_comp + use_comp[c]
+                elif use_comp[c] >= num_comp:
+                    print('Error: input component number is too large!')
+                    use_comp = 'error'
+        else:
+            use_comp = None
+
+        return use_comp
+
+    def _validate_coords(self, coords):
+        """Helper function for validating pixel coordinate pairs.
+        """
+        if coords is not None:
+            if np.size(coords) == 2:
+                use_coords = [int(coords[0]), int(coords[1])]
+                if use_coords[0] < 0:
+                    use_coords[0] = self.n_pxls + use_coords[0]
+                if use_coords[1] < 0:
+                    use_coords[1] = self.n_steps + use_coords[1]
+                if use_coords[0] >= self.n_pxls or use_coords[1] >= self.n_steps:
+                    print('Error: requested coordinates are outside the range'
+                          +' of available results!')
+                    use_coords = 'error'
+            else:
+                print('Error: please input a valid coordinate pair or'
+                      +' "set coords=None"')
+                use_coords = 'error'
+        else:
+            use_coords = None
+
+        return use_coords
+
+    def _validate_param_name(self, param_name, casefold):
+        """Helper function for validating a single parameter name.
+        """
+        if param_name is not None and not isinstance(param_name, str):
+            print('Error: please set param_name to either a single string value'
+                  +' or None')
+            use_name = "0"
+        else:
+            use_name = param_name
+
+        if casefold:
+            use_name = use_name.lower()
+
+        return use_name
+
+    def _get_param_filter(self, component=None, param_name=None):
+        print('Sorry, _get_param_filter() is not implemented at this time.')
+        return None
+
+    def get_params(self, component=None, param_name=None, coords=None,
+                   casefold=False):
+        """Extract parameters values by component number, name, or pixel coords
+
+        Parameters
+        ----------
+        component : int or list, optional
+            Integer number (or list of ints) of the functional component(s).
+            If set to None, will return the total combined fit profile.
+            Default is None.
+        param_name : str, optional
+            String name of the requested parameter. If set to None, will not
+            filter based on paramater name. Default is None
+        coords : list or tupple, optional
+            (Y, X) coordinates of the requested datapoint. If set to None, will
+            instead return the parameters at all locations. Default is None
+        casefold : bool, optional
+            If set to True, will ignore case when extracting parameters by
+            name. Default is False.
+
+        Returns
+        -------
+        param_vals : numpy array
+            Parameter values
+        param_errs : numpy array
+            Estimated parameter errors
+        """
+        # Validate input values
+        use_comp = self._validate_component_num(component)
+        use_coords = self._validate_coords(coords)
+        use_name = self._validate_param_name(param_name, casefold)
+        if (isinstance(use_coords, str)) or (isinstance(use_comp, str)) or (use_name == '0'):
+            return None, None
+
+        # Now, create create index array and apply filters
+        num_params = self.fit['param_names'].size
+        p_name_arr = self.fit['param_names']
+        if casefold:
+            p_name_arr = p_name_arr.lower()
+        p_ind = np.full(num_params, False, dtype=bool)
+        if (param_name is None) and (component is None):
+            p_ind[:] = True
+
+        if param_name is not None:
+            loc_name = np.char.startswith(p_name_arr, use_name)
+        else:
+            loc_name = np.full(num_params, True, dtype=bool)
+
+        if component is not None:
+            for c in range(use_comp.size):
+                loc_comp = np.where((self.fit['component'] == use_comp[c])
+                                    & (loc_name == True))
+                p_ind[loc_comp] = True
+        elif param_name is not None:
+            p_ind[loc_name] = True
+
+        # Finally, extract the parameters at the given coords
+        if coords is not None:
+            param_vals = self.fit['params'][coords[0], coords[1], p_ind]
+            param_errs = self.fit['perror'][coords[0], coords[1], p_ind]
+        else:
+            param_vals = self.fit['params'][:, :, p_ind]
+            param_errs = self.fit['perror'][:, :, p_ind]
+
+        return param_vals, param_errs
+
+    def get_fit_profile(self, component=None, coords=None, num_wavelengths=None):
+        """Calculate the fit intensity profile (total or component) at a location.
+
+        Parameters
+        ----------
+        component : int or list, optional
+            Integer number (or list of ints) of the functional component(s).
+            If set to None, will return the total combined fit profile.
+            Default is None.
+        coords : list or tupple, optional
+            (Y, X) coordinates of the requested datapoint. If set to None, will
+            instead return the parameters at all locations. Default is None
+        num_wavelengths : int, optional
+            Number of wavelength values to compute the fit intensity at. These
+            values will be equally spaced and span the entire fit window. If set
+            to None, will use the observed wavelength values. Default is None.
+
+        Returns
+        -------
+        fit_wave : numpy array
+            Wavelength values
+        fit_inten : numpy array
+            Fit intensity values
+        """
+        # Validate input values
+        use_comp = self._validate_component_num(component)
+        use_coords = self._validate_coords(coords)
+        if (isinstance(use_coords, str)) or (isinstance(use_comp, str)):
+            return None, None
+
+        # Check for valid fit results
+        # if np.sum(self.fit['params'][y_pixel, x_pixel, :]) <= 0:
+        #     print('No valid fit found!')
+        #     return None, None
+
+        # Determine numbers and types of components in output profile
+        full_num_comp = self.n_gauss + 1 if self.n_poly > 0 else self.n_gauss
+        if use_comp is None:
+            num_use_gauss = self.n_gauss
+            num_use_poly = self.n_poly
+        else:
+            if (self.n_poly > 0) and (full_num_comp-1 in use_comp):
+                num_use_gauss = use_comp.size - 1
+                num_use_poly = self.n_poly
+            else:
+                num_use_gauss = use_comp.size
+                num_use_poly = 0
+
+        # Extract the parameters for either the total or component profile
+        # Note: all poly terms are considered part of a single background component
+        param_vals, param_errs = self.get_params(component=use_comp, coords=use_coords)
+
+        if coords is not None:
+            # Create output wavelength array and then calculate the fit profile
+            if num_wavelengths == None:
+                fit_wave = self.fit['wavelength'][use_coords[0], use_coords[1], :]
+            else:
+                fit_wave = np.linspace(*self.fit['wavelength'][use_coords[0], use_coords[1], [0,-1]],
+                                       num_wavelengths)
+            fit_inten = self.fit_func(param_vals, fit_wave, num_use_gauss, num_use_poly)
+        else:
+            # Create output arrays
+            if num_wavelengths == None:
+                fit_wave = self.fit['wavelength'][:,:,:]
+                fit_inten = np.zeros((self.n_pxls, self.n_steps, self.n_wave))
+            else:
+                fit_wave = np.linspace(np.median(self.fit['wavelength'][:,:,0]),
+                                       np.median(self.fit['wavelength'][:,:,1]),
+                                       num_wavelengths)
+                fit_inten = np.zeros((self.n_pxls, self.n_steps, num_wavelengths))
+            # Loop over locations and calculate each fit profile
+            for ii in range(self.n_pxls):
+                for jj in range(self.n_steps):
+                    fit_inten[ii,jj,:] = self.fit_func(param_vals[ii,jj,:],
+                                                       fit_wave[ii,jj,:],
+                                                       num_use_gauss, num_use_poly)
+
+        return fit_wave, fit_inten
+
+def create_fit_dict(n_pxls, n_steps, n_wave, n_gauss, n_poly):
+    """Dictionary to hold the fit parameters returned by fit_spectra()
+
+    Parameters
+    ----------
+    n_pxls : int
+        Number of pixels along each data slit
+    n_steps : int
+        Number of steps in the raster or sit-and-stare observation set
+    n_wave : int
+        number of wavelength points
+    n_gauss :
+        Number of Gaussian functions in the combinted fit profile
+    n_poly :
+        Degree of background polynomial
+
+    Returns
+    -------
+    output : dict
+        Empty dictionary with the correct dimensions and keys for a fit result.
+    """
+
+    n_param = 3*n_gauss + n_poly
+
+    output = {'line_ids': np.zeros(n_gauss, dtype='<U32'),
+              'main_component': 0,
+              'n_gauss': n_gauss,
+              'n_poly': n_poly,
+              'status': np.zeros((n_pxls, n_steps)),
+              'chi2': np.zeros((n_pxls, n_steps)),
+              'wavelength': np.zeros((n_pxls, n_steps, n_wave)),
+              'int': np.zeros((n_pxls, n_steps, n_gauss)),
+              'err_int': np.zeros((n_pxls, n_steps, n_gauss)),
+              # 'peak': np.zeros((n_pxls, n_steps, n_gauss)),
+              # 'err_peak': np.zeros((n_pxls, n_steps, n_gauss)),
+              # 'centroid': np.zeros((n_pxls, n_steps, n_gauss)),
+              # 'err_centroid': np.zeros((n_pxls, n_steps, n_gauss)),
+              # 'width': np.zeros((n_pxls, n_steps, n_gauss)),
+              # 'err_width': np.zeros((n_pxls, n_steps, n_gauss)),
+              # 'background': np.zeros((n_pxls, n_steps, n_poly)),
+              # 'err_background': np.zeros((n_pxls, n_steps, n_poly)),
+              'params': np.zeros((n_pxls, n_steps, n_param)),
+              'perror': np.zeros((n_pxls, n_steps, n_param)),
+              'component': np.zeros(n_param, dtype='int'),
+              'param_names': np.zeros(n_param, dtype='<U32')}
+
+    # Create string labels for each component parameter
+    # TODO: standardize name system to better match Astropy.modeling
+    num_comp = n_gauss + 1 if n_poly > 0 else n_gauss
+    for s in range(num_comp):
+        if s == n_gauss and n_poly > 0:
+            output['component'][3*n_gauss:] = s
+            output['param_names'][3*n_gauss:] = ['c0', 'c1', 'c2', 'c3', 'c4'][0:n_poly]
+        else:
+            output['component'][3*s:3*s+3] = s
+            output['param_names'][3*s:3*s+3] = ['peak', 'centroid', 'width']
+
+    return output

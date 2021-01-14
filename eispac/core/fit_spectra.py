@@ -1,0 +1,419 @@
+__all__ = ['fit_spectra']
+
+import sys
+import copy
+import pathlib
+import inspect
+from datetime import datetime
+import multiprocessing as mp
+import numpy as np
+import eispac.core.fitting_functions as fit_fns
+from eispac.core.eiscube import EISCube
+from eispac.core.read_cube import read_cube
+from eispac.core.read_template import EISFitTemplate
+from eispac.core.read_template import read_template
+from eispac.core.eisfitresult import EISFitResult
+from eispac.core.eisfitresult import create_fit_dict
+from eispac.core.scale_guess import scale_guess
+from eispac.core.mpfit import mpfit
+
+# i'm sure that there is a better way to do this!
+cntr = mp.Value("i", 0) # a counter
+nexp = mp.Value("i", 0) # total exposures
+
+def check_for_name_guard():
+    """Check to see if the top level script has a "name guard" that will
+    protect against multiprocessing spawning infinite child processes.
+    """
+    name_guard = False
+    # Walk up the call stack and find the first program or script with
+    # __name__ == "__main__". This should be the top-level program.
+    call_stack = inspect.stack()
+    for s in range(len(call_stack)):
+        frame = call_stack[s][0]
+        frame_filename = call_stack[s][1]
+        if '__name__' in frame.f_locals:
+            if frame.f_locals['__name__'] == '__main__':
+                if not frame_filename.endswith('.py'):
+                    # Probably running in a Python terminal or interactive shell
+                    name_guard = False
+                else:
+                    if pathlib.Path(frame_filename).is_file() == False:
+                        # Probably running in an entry point executable
+                        name_guard = True
+                        break
+                    # Examine the source code of __main__ script
+                    with open(frame_filename, 'r') as f_file:
+                        for line in f_file.readlines():
+                            sl = line.replace(' ','') # Remove whitespace
+                            sl = sl.replace('"', "'") # Convert " to '
+                            if sl.startswith("if__name__=='__main__':"):
+                                name_guard = True
+                break
+
+    return name_guard
+
+def fit_with_mpfit(wave_cube, inten_cube, errs_cube, template, parinfo,
+                   min_points=10, chunk=1):
+    """Helper function for fit_spectra(). Fits one or more intensity spectra
+    using the mpfit module.
+    """
+
+    with cntr.get_lock():
+        cntr.value += 1
+    #print(f' + working on exposure {cntr.value:03d}') #, end='\r')
+    print(f' + working on exposure {chunk:03d}', end='\r')
+
+    inten_size = inten_cube.shape
+    n_pxls = inten_size[0]
+    n_steps = inten_size[1]
+    n_wave = inten_size[2]
+    line_ids = template['line_ids']
+    if isinstance(line_ids, bytes):
+        line_ids = [line_ids.decode('utf-8')]
+
+    # Extract fit information from template
+    n_gauss = template['n_gauss']
+    n_poly = template['n_poly']
+    oldguess = template['fit']
+
+    # get fit structure and parameter indices
+    fit_dict = create_fit_dict(n_pxls, n_steps, n_wave, n_gauss, n_poly)
+    fit_dict['line_ids'] = line_ids
+    loc_peaks = np.arange(n_gauss)*3
+    loc_cen = np.arange(n_gauss)*3+1
+    loc_wid = np.arange(n_gauss)*3+2
+    loc_backs = n_gauss*3
+
+    # loop over pixel positions and slit steps in the entire raster
+    for ii in range(n_pxls):
+        for jj in range(n_steps):
+
+            # Extract a single profile from the raster
+            wave_ij = wave_cube[ii,jj,::]
+            inten_ij = inten_cube[ii,jj,::]
+            errs_ij = errs_cube[ii,jj,::]
+
+            # Only use good data
+            loc_good = np.where(errs_ij > 0)
+            if len(loc_good[0]) < min_points:
+                fit_dict['status'][ii,jj] = -1
+                continue
+            wave_ij = wave_ij[loc_good]
+            inten_ij = inten_ij[loc_good]
+            errs_ij = errs_ij[loc_good]
+
+            # Scale guess parameters to data (should speed up fitting some)
+            newguess = scale_guess(wave_ij, inten_ij, oldguess, n_gauss, n_poly)
+
+            # Plug in new guess values to parinfo
+            for i in range(len(newguess)):
+                parinfo[i]['value'] = newguess[i]
+
+            # Assemble dict of extra args to pass to mpfit
+            fa = {'x': wave_ij, 'y': inten_ij, 'error': errs_ij,
+                  'n_gauss': n_gauss, 'n_poly': n_poly}
+
+            # Fit the profile
+            out = mpfit(fit_fns.multigaussian_deviates, parinfo=parinfo,
+                        functkw=fa, xtol=1.0E-6, ftol=1.0E-6, gtol=1.0E-6,
+                        maxiter=2000, quiet=1)
+
+            # compute line intensities and errors directly
+            fpeaks = out.params[loc_peaks]
+            fwdths = out.params[loc_wid]
+            epeaks = out.perror[loc_peaks]
+            ewdths = out.perror[loc_wid]
+            l_inten = np.sqrt(2*np.pi)*fpeaks*fwdths
+            e_inten = np.zeros(n_gauss)
+            for n in range(n_gauss):
+                if fpeaks[n] != 0 and fwdths[n] != 0:
+                    e_inten[n] = (l_inten[n]*np.sqrt((epeaks[n]/fpeaks[n])**2
+                                                    +(ewdths[n]/fwdths[n])**2))
+                else:
+                    e_inten[n] = 0.0
+
+            # check convergence status
+            if out.status > 0:
+                # assemble fit structure
+                fit_dict['status'][ii,jj] = out.status
+                fit_dict['chi2'][ii,jj] = out.fnorm/out.dof
+                fit_dict['wavelength'][ii,jj,::] = wave_cube[ii,jj,::]
+                fit_dict['params'][ii,jj,::] = out.params
+                fit_dict['perror'][ii,jj,::] = out.perror
+                fit_dict['int'][ii,jj,::] = l_inten
+                fit_dict['err_int'][ii,jj,::] = e_inten
+            else:
+                print(' ! fit did not converge!')
+                fit_dict['status'][ii,jj] = out.status
+
+    return fit_dict
+
+def fit_spectra(inten, template, parinfo=None, wave=None, errs=None,
+                min_points=10, ncpu='max', skip_fitting=False):
+    """Fit one or more EIS line spectra using mpfit (with multiprocessing).
+
+    Parameters
+    ----------
+    inten : EISCube object, array_like, or filepath
+        One or more intensity profiles to be fit. The code will loop over the data
+        according to its dimensionality. 3D data is assumed to be a full EIS raster
+        (or a sub region), 2D data is assumed to be a single EIS slit, and 1D data
+        is assumed to be a single profile.
+    template : EISFitTemplate object, dict, or filepath
+        Either an EISFitTemplate, a 'template' dictionary, or the path to a
+        template file.
+    parinfo : list, optional
+        List of dictionaries with fit parameters formatted for use with mpfit.
+        Will supercede any parinfo lists loaded from an EISFitTemplate. Required
+        if the 'template' parameter is given as a dictionary.
+    wave : array_like, optional
+        Associated wavelength values for the spectra. Required if 'inten' is
+        given as an array and ignored otherwise.
+    errs : array_like, optional
+        Intensity error values for the spectra. Required if 'inten' is given as
+        an array and ignored otherwise.
+    min_points : int, optional
+        Minimum number of good quality data points (i.e. non-zero values & errs)
+        to be used in each fit. Spectra with fewer data points will be skipped.
+        Default is 10.
+    ncpu : int, optional
+        Number of cpu processes to parallelize over. Must be less than or equal
+        to the total number of cores the system has. If set to 'max' or None, the
+        code will use the maximum number of cores available. Default is 'max'.
+        Important: due to the specifics of how the multiprocessing library works, 
+        any statements that call fit_spectra() using ncpu > 1 MUST be wrapped in
+        a "if __name__ == __main__:" statement in the top-level program. If such
+        a "name guard" statement is not detected, this function will fall back to
+        using a single process.
+    skip_fitting : bool, optional
+        If set to True, will skip the fitting altogether and just return an empty
+        EISFitResult instance. Used mainly for testing.
+
+    Returns
+    -------
+    fit_res : EISFitResult class instance
+        An EISFitResult object containing the output fit parameters.
+    """
+    # Validate template & parinfo and read / copy as needed
+    if isinstance(template, (str, pathlib.Path)):
+        template_obj = read_template(template)
+        if template_obj is None:
+            return None
+        template_copy = copy.deepcopy(template_obj.template)
+        parinfo_copy = copy.deepcopy(template_obj.parinfo)
+        tmplt_filename = template_obj.filename_temp
+    elif isinstance(template, EISFitTemplate):
+        template_copy = copy.deepcopy(template.template)
+        parinfo_copy = copy.deepcopy(template.parinfo)
+        tmplt_filename = template.filename_temp
+    elif isinstance(template, dict):
+        template_copy = copy.deepcopy(template)
+        parinfo_copy = None
+        tmplt_filename = 'unknown'
+    else:
+        print('Please input either the path to a template file, an'
+             +' EISFitTemplate instance, or dictionary.', file=sys.stderr)
+        return None
+
+    if isinstance(parinfo, list):
+        # Direct user-input always supercedes automatically loaded data
+        parinfo_copy = copy.deepcopy(parinfo)
+    elif parinfo_copy is None:
+        print('Please input a parinfo list or a full EISFitTemplate.', file=sys.stderr)
+        return None
+
+    # If given an EISCube, extract data arrays and zero out masked values.
+    # Otherwise, make local copies and just zero out negative values
+    # TODO: Add more validation for the case of input arrays
+    if isinstance(inten, (str, pathlib.Path)):
+        central_wave = np.mean([template_copy['wmin'], template_copy['wmax']])
+        eis_cube = read_cube(inten, window=float(central_wave))
+        if eis_cube is None:
+            return None
+        wave_cube = eis_cube.wavelength.copy()
+        errs_cube = eis_cube.uncertainty.array.copy()
+        inten_cube = eis_cube.data.copy()
+        metadata = eis_cube.meta
+        loc_masked = np.where(eis_cube.mask == True)
+        inten_cube[loc_masked] = 0
+        errs_cube[loc_masked] = 0
+        del eis_cube
+    elif isinstance(inten, EISCube):
+        wave_cube = inten.wavelength.copy()
+        errs_cube = inten.uncertainty.array.copy()
+        inten_cube = inten.data.copy()
+        metadata = inten.meta
+        loc_masked = np.where(inten.mask == True)
+        inten_cube[loc_masked] = 0
+        errs_cube[loc_masked] = 0
+    elif isinstance(inten, np.ndarray):
+        if not isinstance(wave, np.ndarray):
+            print('Please input a wavelength array or a full EISCube.', file=sys.stderr)
+            return None
+        elif not isinstance(errs, np.ndarray):
+            print('Please input an error array or a full EISCube.', file=sys.stderr)
+            return None
+        wave_cube = wave.copy()
+        errs_cube = errs.copy()
+        inten_cube = inten.copy()
+        metadata = {'filename_data':'unknown', 'index':{}, 'pointing':{}}
+        loc_neg = np.where(inten_cube < 0)
+        inten_cube[loc_neg] = 0
+        errs_cube[loc_neg] = 0
+    else:
+        print('Error: missing or invalid data. Please input a filepath, EISCube,'
+             +' or complete set of intensity, wavelength, and error arrays.', file=sys.stderr)
+        return None
+
+    # Validate input ncpu value
+    if str(ncpu).lower() == 'max' or str(ncpu).lower() == 'none':
+        ncpu = mp.cpu_count()
+    else:
+        ncpu = int(ncpu)
+
+    if ncpu <= 0:
+        ncpu = 1
+    elif ncpu > mp.cpu_count():
+        ncpu = mp.cpu_count()
+
+    # Ensure that multiprocessing will not spawn infinite child processes
+    if ncpu > 1:
+        name_guard = check_for_name_guard()
+        if name_guard == False:
+            ncpu = 1
+            print('WARNING: no name guard found in the top level script!'
+                  +' Falling back to a single process for safety.')
+
+    # Check the dimensions of input data.
+    # If the the arrays are not 3D, add shallow dimensions of size 1
+    num_dims = inten_cube.ndim
+    dims_size = inten_cube.shape
+    if num_dims == 1:
+        n_pxls = 1
+        n_steps = 1
+        wave_cube = wave_cube[np.newaxis, np.newaxis, :]
+        inten_cube = inten_cube[np.newaxis, np.newaxis, :]
+        errs_cube = errs_cube[np.newaxis, np.newaxis, :]
+    elif num_dims == 2:
+        n_pxls = dims_size[0]
+        n_steps = 1
+        wave_cube = wave_cube[:, np.newaxis, :]
+        inten_cube = inten_cube[:, np.newaxis, :]
+        errs_cube = errs_cube[:, np.newaxis, :]
+    elif num_dims == 3:
+        n_pxls = dims_size[0]
+        n_steps = dims_size[1]
+        wave_cube = wave_cube
+        inten_cube = inten_cube
+        errs_cube = errs_cube
+
+    # Initalize output object which will contain the fit results
+    fit_res = EISFitResult(wave_cube, template_copy, parinfo_copy, func_name='multigaussian')
+    fit_res.meta = metadata
+    fit_res.meta['filename_template'] = tmplt_filename
+    fit_res.fit_module = 'mpfit'
+    fit_res.fit_method = 'LevMarLSQ'
+
+    if skip_fitting != True:
+        t1 = datetime.now() # start a simple timer
+        nexp.value = n_steps
+        print(f' + computing fits for {n_steps:d} exposures')
+
+        # Run fitting in either a single process (default) or using multiprocessing
+        if ncpu == 1:
+            print(' + running mpfit in a single process')
+            fit_dict = fit_with_mpfit(wave_cube, inten_cube, errs_cube,
+                                      template_copy, parinfo_copy, min_points)
+            fit_res.fit = fit_dict
+        else:
+            if ncpu > n_steps:
+                ncpu = n_steps
+            print(f' + running mpfit on {ncpu:d} cores (of {mp.cpu_count():d})')
+
+            # initialize pool of workers
+            pool = mp.Pool(processes=ncpu)
+
+            # Split out the data for each single slit and run the pool
+            args = [(wave_cube[:,jj:jj+1,:], inten_cube[:,jj:jj+1,:], errs_cube[:,jj:jj+1,:],
+                     template_copy, parinfo_copy, min_points, jj+1) for jj in range(n_steps)]
+            pool_out = pool.starmap(fit_with_mpfit, args)
+            pool.close()
+
+            # Now, loop over each slit and copy fit results values to full output object
+            for jj in range(n_steps):
+                fit_res.fit['status'][:,jj] = pool_out[jj]['status'][:,0]
+                fit_res.fit['chi2'][:,jj] = pool_out[jj]['chi2'][:,0]
+                fit_res.fit['wavelength'][:,jj,:] = pool_out[jj]['wavelength'][:,0,:]
+                fit_res.fit['params'][:,jj,:] = pool_out[jj]['params'][:,0,:]
+                fit_res.fit['perror'][:,jj,:] = pool_out[jj]['perror'][:,0,:]
+                fit_res.fit['int'][:,jj,:] = pool_out[jj]['int'][:,0,:]
+                fit_res.fit['err_int'][:,jj,:] = pool_out[jj]['err_int'][:,0,:]
+
+        # print status
+        t2 = datetime.now() # end timer
+        print(' + fit completed!')
+        print(' + fit runtime : {}'.format(t2-t1))
+
+        # reset global counters
+        cntr.value = 0
+        nexp.value = 0
+
+    return fit_res
+
+
+if __name__ == '__main__':
+    import matplotlib.pyplot as plt
+    import astropy.units as u
+    # from read_cube import read_cube
+    # from read_template import read_template
+
+    # input data and template files
+    # file_data = './data/eis_20120924_105026.head.h5'
+    file_data = './data/eis_20190404_131513.data.h5'
+    file_template = './templates/eis_template_dir/fe_12_195_119.2c.template.h5'
+
+    # read fit template
+    Fe_XII_195_119 = read_template(file_template)
+
+    # read spectra window
+    raster = read_cube(file_data, Fe_XII_195_119.central_wave)
+
+    # fit profile
+    # wave_coords = raster.axis_world_coords('em.wl')
+    # lower_corner = (300*u.arcsec, 50*u.arcsec, wave_coords[0])
+    # upper_corner = (400*u.arcsec, 150*u.arcsec, wave_coords[-1])
+    # sub_raster = raster.crop_by_coords(lower_corner, upper_corner=upper_corner)
+    sub_raster = raster[0:10, 0:10, :]
+
+    fit_res = fit_spectra(sub_raster, Fe_XII_195_119, ncpu=4)
+
+    # Quick plot raster
+    plot_aspect_ratio = raster.meta['pointing']['y_scale']/raster.meta['pointing']['x_scale']
+    raster.sum_spectra().plot(aspect=plot_aspect_ratio)
+
+    # Plot example fit
+    ex_pxl_coords = [5, 5]
+    # ex_pxl_coords = [4, 8]
+    fit_x, fit_y = fit_res.get_fit_profile(coords=ex_pxl_coords, num_wavelengths=100)
+    c0_fit_x, c0_fit_y = fit_res.get_fit_profile(component=0, coords=ex_pxl_coords,
+                                                 num_wavelengths=100)
+    c1_fit_x, c1_fit_y = fit_res.get_fit_profile(component=1, coords=ex_pxl_coords,
+                                                 num_wavelengths=100)
+    c2_fit_x, c2_fit_y = fit_res.get_fit_profile(component=2, coords=ex_pxl_coords,
+                                                 num_wavelengths=100)
+    sub_data = sub_raster.data[ex_pxl_coords[0], ex_pxl_coords[1], :]
+    sub_wave = sub_raster.wavelength[ex_pxl_coords[0], ex_pxl_coords[1], :]
+    sub_err = sub_raster.uncertainty.array[ex_pxl_coords[0], ex_pxl_coords[1], :]
+
+    fig = plt.figure()
+    profile_subplt = fig.add_subplot(111)
+    profile_subplt.errorbar(sub_wave, sub_data, yerr=sub_err,
+                            ls='', marker='o', color='k')
+    profile_subplt.plot(fit_x, fit_y, color='b')
+    profile_subplt.plot(c0_fit_x, c0_fit_y, color='r')
+    profile_subplt.plot(c1_fit_x, c1_fit_y, color='r', ls='--')
+    profile_subplt.plot(c2_fit_x, c2_fit_y, color='g')
+    profile_subplt.set_xlabel(r'Wavelength [$\AA$]')
+    profile_subplt.set_ylabel('Intensity ['+raster.unit.to_string()+']')
+    plt.show()

@@ -1,0 +1,15 @@
+*.o
+*.so
+*.exe
+*.DS_Store
+*__pycache__
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.toc
+eispac/old_pyeis_test/
+EAG/tufte-latex/
