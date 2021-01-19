@@ -1,12 +1,12 @@
 # A Quick and Dirty Guide to the Updated eispac Software
-_version 0.42_
+_version 0.7_
 
 Once installed, the package can be imporated as you would expect using
 `import eispac`
 
-There are currently only three main scripts you will need to use - `read_cube`,
-`read_template`, and `fit_spectra`. Details concerning their usage can be found
-below. Please also see the example program `eis_fit_cube_example.py`.
+The three most important functions are `read_cube`, `read_template`, and `fit_spectra`. 
+Details concerning their usage can be found below. Please also see the example program 
+`eis_fit_cube_example.py`.
 
 ## read_cube
 Example call signature,
@@ -32,13 +32,12 @@ The `EISCube` subclass extends `ndcube` by including two additional features.
 First, an extra `wavelength` attribute has been added which contains a 3D array
 with the corrected wavelength values at all locations within the cube. Slicing
 an `EISCube` will also appropriately slice the wavelength array. Secondly, there
-is now a `total_intensity()` method which returns a new, 2D `NDCube` containing
-the sum along the wavelength axis.
+are a few extra methods for your convenience, such as `.sum_spectra()` which returns 
+a new, 2D `NDCube` containing the sum along the wavelength axis.
 
 A few more notes about `EISCube` objects,
-* Currently, the data axes are in the same order as the array stored in the HDF5
-  file and used in the previous version of "pyeis". Namely, the order is
-  (slit_pixel, raster_step, wavelength), i.e. (solar-y, solar-x, wavelength).
+* Data axes are in the same order as the array stored in the HDF5 file. Namely, the 
+  order is (slit_pixel, raster_step, wavelength), i.e. (solar-y, solar-x, wavelength).
 * All of the EIS metadata and header information are stored as seperate keys in
   the `meta` dictionary attribute (e.g. the original FITS header is in `.meta['index']`
   while the updated pointing information is in `.meta['pointing']`).
@@ -65,12 +64,12 @@ fit_spectra(eis_raster, fit_template)
 
 This is the main fitting routine. The simplest way to use `fit_spectra()` is to
 give it two arguments:
-1. _inten_ (EISCube object) - An EISCube class instance (or slice) containing one
-   or more intensity profiles to be fit. Wavelength and error values will be
-   extracted as needed from the EISCube.
-2. _template_ (EISFitTemplate object) - An EISFitTemplate class instance containing
-   both the general template information (in the `template` attribute) and a
-   `parinfo` attribute with the fit parameter dictionary.
+1. _inten_ (EISCube object or filepath) - An EISCube class instance (or slice) 
+   containing one or more intensity profiles to be fit. Wavelength and error values 
+   will be extracted as needed from the EISCube.
+2. _template_ (EISFitTemplate object or filepath) - An EISFitTemplate class instance 
+   containing both the general template information (in the `template` attribute) and 
+   a `parinfo` attribute with the fit parameter dictionary.
 
 Alternatively, you may provide the function with individual data arrays using a
 call signature like this,
@@ -84,7 +83,7 @@ assumed to be a full EIS raster (or a sub region), 2D data is assumed to be a
 single EIS slit, and 1D data is assumed to be a single profile.
 
 `fit_spectra()` returns a `EISFitResult` class instance containing the fit
-parameter values. As well as assorted metadata. There are two important class
+parameter values. As well as assorted metadata, there are two important class
 methods that may be of use `.get_params()` and `.get_fit_profile()`.
 
 The method `.get_params()` extracts parameters values by either component number,
@@ -116,7 +115,7 @@ up to three arguments:
 1. _component_ (int or None, optional) - Integer number (or list of ints) of the
    functional component(s). If set to None, will return the total combined fit
    profile. Default is None.
-2. _coords_ (list or tupple, optional) - (Y, X) coordinates of the requested
+2. _coords_ (list or tuple, optional) - (Y, X) coordinates of the requested
    datapoint. If set to None, will instead return the parameters at all locations.
    Default is None
 3. _num_wavelengths_ (int, optional) - Number of wavelength values to compute the
