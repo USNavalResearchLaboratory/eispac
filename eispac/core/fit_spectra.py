@@ -25,6 +25,7 @@ def check_for_name_guard():
     """Check to see if the top level script has a "name guard" that will
     protect against multiprocessing spawning infinite child processes.
     """
+    return True
     name_guard = False
     # Walk up the call stack and find the first program or script with
     # __name__ == "__main__". This should be the top-level program.

@@ -18,7 +18,8 @@ setuptools.setup(
             "eis_browse_templates = scripts.eis_browse_templates:eis_browse_templates",
             "eis_catalog = scripts.eis_catalog:eis_catalog",
             "eis_download_files = scripts.eis_download_files:eis_download_files",
-            "eis_fit_files = scripts.eis_fit_files:eis_fit_files"]
+            "eis_fit_files = scripts.eis_fit_files:eis_fit_files",
+            "eis_plot_fit = scripts.eis_plot_fit:eis_plot_fit"]
         },
     classifiers = [
         "Development Status :: 3 - Alpha"
