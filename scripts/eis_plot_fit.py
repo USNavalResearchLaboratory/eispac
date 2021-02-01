@@ -112,14 +112,14 @@ class eis_plot_fit:
         plt.savefig(opf, dpi=200)
         print(f' + saved {opf}')
         plt.show()
-        
-if __name__ == '__main__':
 
+def main():
     if len(sys.argv) != 2:
         print(' ! input the name of an EIS fit file')
         print(' > eis_plot_fit data_eis/eis_20190404_131513.fe_12_195_119.2c-0.fit.h5')
         exit()
 
-    eis_fit_file = sys.argv[1]
-
-    o = eis_plot_fit(eis_fit_file)
+    o = eis_plot_fit(sys.argv[1])
+        
+if __name__ == '__main__':
+    main()
