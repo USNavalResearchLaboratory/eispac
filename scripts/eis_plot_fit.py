@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+__all__ = ['eis_plot_fit']
 
 import matplotlib.pyplot as plt
 import sys
@@ -13,7 +14,7 @@ vmax = 40.  # velocity max scaling in km/s
 wmin = 25   # width min scaling in mA
 wmax = 45   # width max scaling in mA
 
-class eis_plot_fit:
+class EIS_PLOT_FIT:
 
     def __init__(self, eis_fit_file=None):
         if eis_fit_file is not None:
@@ -113,13 +114,13 @@ class eis_plot_fit:
         print(f' + saved {opf}')
         plt.show()
 
-def main():
+def eis_plot_fit():
     if len(sys.argv) != 2:
         print(' ! input the name of an EIS fit file')
         print(' > eis_plot_fit data_eis/eis_20190404_131513.fe_12_195_119.2c-0.fit.h5')
         exit()
 
-    o = eis_plot_fit(sys.argv[1])
+    o = EIS_PLOT_FIT(sys.argv[1])
         
 if __name__ == '__main__':
-    main()
+    eis_plot_fit()
