@@ -553,16 +553,16 @@ def eis_catalog():
                     ssw_dir = test_dir
                     print('SSW found in '+ssw_dir)
                     break
-            if ssw_dir is not None:
-                db_file = os.path.join(ssw_dir, 'hinode', 'eis', 'database',
-                'catalog', 'eis_cat.sqlite')
-            else:
-                # option 3 - use local database stored within eispac
-                print('WARNING: No SSW installation found.')
-                print('   Attempting to use local eis database.')
-                import eispac
-                module_dir = os.path.dirname(eispac.download.__file__)
-                db_file = os.path.join(module_dir, 'eis_cat.sqlite')
+        if ssw_dir is not None:
+            db_file = os.path.join(ssw_dir, 'hinode', 'eis', 'database',
+                                   'catalog', 'eis_cat.sqlite')
+        else:
+            # option 3 - use local database stored within eispac
+            print('WARNING: No SSW installation found.')
+            print('   Attempting to use local eis database.')
+            import eispac
+            module_dir = os.path.dirname(eispac.download.__file__)
+            db_file = os.path.join(module_dir, 'eis_cat.sqlite')
 
     app = QtWidgets.QApplication([])
     topthing = Top(db_file)
