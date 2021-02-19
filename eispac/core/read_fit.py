@@ -127,6 +127,12 @@ def read_fit(filename, verbose=False):
     # Make sure the .fit['Line_ids'] is ALWAYS an array (for code consistency)
     fit_result.fit['line_ids'] = np.array(fit_result.fit['line_ids'])
 
+    # Add 'wave_range' to fits saved before 2021-02-19
+    if 'wave_range' not in fit_result.fit.keys():
+        fit_result.fit['wave_range'] = np.zeros(2)
+        fit_result.fit['wave_range'][0] = fit_result.template['data_x'][0]
+        fit_result.fit['wave_range'][1] = fit_result.template['data_x'][-1]
+
     # Restore recarray of .meta['wininfo'] (stored in HDF5 as dict of arrays)
     if 'wininfo' in fit_result.meta.keys():
         wi_dict = fit_result.meta['wininfo']

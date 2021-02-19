@@ -11,7 +11,8 @@ from eispac.core.eiscube import EISCube
 from eispac.core.read_wininfo import read_wininfo
 from eispac.instr.calc_read_noise import calc_read_noise
 
-def read_cube(filename=None, window=0, apply_radcal=True, debug=False):
+def read_cube(filename=None, window=0, apply_radcal=True,
+              abs_errs=True, count_offset=None, debug=False):
     """Load a single window of EIS data from an HDF5 file into an EISCube object
 
     Parameters
@@ -26,6 +27,19 @@ def read_cube(filename=None, window=0, apply_radcal=True, debug=False):
         found in the HDF5 header file and set units to erg/(cm^2 s sr). If set
         to False, will simply return the data in units of photon counts. Default
         is True.
+    abs_errs : bool, optional
+        If set to True, will calulate errors based on the absolute value of the
+        counts. This allows for reasonable errors to be estimated for valid
+        negative count values that are the result of the dark count subtraction
+        method (not bad or filled data). Default it True.
+    count_offset : int or float, optional
+        Constant value to add to the count array before error estimate or
+        calibration. Could be useful for testing data processing methods.
+        Default is None (no count offset).
+    debug : bool, optional
+        If set to True, will return a dictionary with the raw counts and metadata
+        instead of an EISCube class instance. Useful for examining data files that
+        fail to load properly.
 
     Returns
     -------
@@ -280,20 +294,23 @@ def read_cube(filename=None, window=0, apply_radcal=True, debug=False):
         # Create the WCS object
         clean_wcs = astropy.wcs.WCS(basic_hdr, fix=True)
 
-        # Calculate intensity values and then create the EISCube
-        lv_1_inten = lv_1_counts*meta['radcal']
-        lv_1_inten = u.Quantity(lv_1_inten, 'erg / (cm2 s sr)')
-
-        # Masking zero or negative vlues
-        loc_neg_counts = np.where(lv_1_counts < 0)
-        lv_1_counts[loc_neg_counts] = 0.0
-        data_mask = lv_1_counts <= 0 # mask negative or zero values
+        # Add a user-supplied constant value to the count array
+        if count_offset is not None:
+            lv_1_counts = lv_1_counts + count_offset
 
         # Calculate errors due to Poisson noise and read noise
+        # Also create data mask to flag invalid values
         read_noise = calc_read_noise(corrected_wave)
-        # lv_1_count_errs = np.sqrt(lv_1_counts)
-        lv_1_count_errs = np.sqrt(lv_1_counts + read_noise**2)
+        if abs_errs == True:
+            data_mask = lv_1_counts <= -100 # mask missing data
+            lv_1_count_errs = np.sqrt(np.abs(lv_1_counts) + read_noise**2)
+        else:
+            data_mask = lv_1_counts <= 0 # mask ALL negative or zero values
+            clean_lv_1_counts = lv_1_counts.copy()
+            clean_lv_1_counts[data_mask] = 0.0
+            lv_1_count_errs = np.sqrt(clean_lv_1_counts + read_noise**2)
 
+        lv_1_count_errs[data_mask] = -100 # EIS missing data err value (in IDL)
         if apply_radcal:
             cube_data = lv_1_counts*meta['radcal']
             cube_errs = lv_1_count_errs*meta['radcal']

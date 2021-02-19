@@ -21,19 +21,28 @@ from eispac.core.mpfit import mpfit
 cntr = mp.Value("i", 0) # a counter
 nexp = mp.Value("i", 0) # total exposures
 
-def check_for_name_guard():
+def check_for_name_guard(debug=False):
     """Check to see if the top level script has a "name guard" that will
     protect against multiprocessing spawning infinite child processes.
     """
-    return True
     name_guard = False
     # Walk up the call stack and find the first program or script with
     # __name__ == "__main__". This should be the top-level program.
+    if debug:
+        print('')
+        print('Checking call stack for a name guard...')
     call_stack = inspect.stack()
     for s in range(len(call_stack)):
         frame = call_stack[s][0]
         frame_filename = call_stack[s][1]
+        if debug:
+            print('Stack frame index:', s)
+            print('   filename = ', frame_filename)
         if '__name__' in frame.f_locals:
+            if debug:
+                print('   __name__ = ', frame.f_locals['__name__'])
+                print('   pathlib.Path.is_file() = ',
+                      str(pathlib.Path(frame_filename).is_file()))
             if frame.f_locals['__name__'] == '__main__':
                 if not frame_filename.endswith('.py'):
                     # Probably running in a Python terminal or interactive shell
@@ -76,11 +85,16 @@ def fit_with_mpfit(wave_cube, inten_cube, errs_cube, template, parinfo,
     # Extract fit information from template
     n_gauss = template['n_gauss']
     n_poly = template['n_poly']
+    min_wave = template['data_x'][0]
+    max_wave = template['data_x'][-1]
     oldguess = template['fit']
 
-    # get fit structure and parameter indices
+    # Create fit dictionary, mask array, and parameter indices
     fit_dict = create_fit_dict(n_pxls, n_steps, n_wave, n_gauss, n_poly)
     fit_dict['line_ids'] = line_ids
+    fit_dict['wave_range'][0] = min_wave
+    fit_dict['wave_range'][1] = max_wave
+    mask_ij = np.ones(n_wave)
     loc_peaks = np.arange(n_gauss)*3
     loc_cen = np.arange(n_gauss)*3+1
     loc_wid = np.arange(n_gauss)*3+2
@@ -95,9 +109,17 @@ def fit_with_mpfit(wave_cube, inten_cube, errs_cube, template, parinfo,
             inten_ij = inten_cube[ii,jj,::]
             errs_ij = errs_cube[ii,jj,::]
 
-            # Only use good data
-            loc_good = np.where(errs_ij > 0)
-            if len(loc_good[0]) < min_points:
+            # Cut data to only "good" nonzero errs within the wavelength range
+            mask_ij[0:-1] = 1 # reset the mask (remember: 1 = True = masked val)
+            loc_good = np.where((errs_ij > 0) & (wave_ij >= min_wave)
+                                & (wave_ij <= max_wave))
+            num_good_data = len(loc_good[0])
+            if num_good_data > 0:
+                mask_ij[loc_good] = 0 # unmask good data
+
+            fit_dict['mask'][ii,jj,:] = mask_ij[:] # always save the mask
+
+            if num_good_data < min_points:
                 fit_dict['status'][ii,jj] = -1
                 continue
             wave_ij = wave_ij[loc_good]
@@ -120,7 +142,7 @@ def fit_with_mpfit(wave_cube, inten_cube, errs_cube, template, parinfo,
                         functkw=fa, xtol=1.0E-6, ftol=1.0E-6, gtol=1.0E-6,
                         maxiter=2000, quiet=1)
 
-            # compute line intensities and errors directly
+            # compute line intensities and errors directly (may need to revisit)
             fpeaks = out.params[loc_peaks]
             fwdths = out.params[loc_wid]
             epeaks = out.perror[loc_peaks]
@@ -139,19 +161,20 @@ def fit_with_mpfit(wave_cube, inten_cube, errs_cube, template, parinfo,
                 # assemble fit structure
                 fit_dict['status'][ii,jj] = out.status
                 fit_dict['chi2'][ii,jj] = out.fnorm/out.dof
-                fit_dict['wavelength'][ii,jj,::] = wave_cube[ii,jj,::]
-                fit_dict['params'][ii,jj,::] = out.params
-                fit_dict['perror'][ii,jj,::] = out.perror
-                fit_dict['int'][ii,jj,::] = l_inten
-                fit_dict['err_int'][ii,jj,::] = e_inten
+                fit_dict['wavelength'][ii,jj,:] = wave_cube[ii,jj,:]
+                fit_dict['params'][ii,jj,:] = out.params
+                fit_dict['perror'][ii,jj,:] = out.perror
+                fit_dict['int'][ii,jj,:] = l_inten
+                fit_dict['err_int'][ii,jj,:] = e_inten
             else:
                 print(' ! fit did not converge!')
                 fit_dict['status'][ii,jj] = out.status
 
     return fit_dict
 
-def fit_spectra(inten, template, parinfo=None, wave=None, errs=None,
-                min_points=10, ncpu='max', skip_fitting=False):
+def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=10,
+                ncpu='max', unsafe_mp=False, ignore_warnings=False,
+                skip_fitting=False, debug=False):
     """Fit one or more EIS line spectra using mpfit (with multiprocessing).
 
     Parameters
@@ -182,14 +205,26 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None,
         Number of cpu processes to parallelize over. Must be less than or equal
         to the total number of cores the system has. If set to 'max' or None, the
         code will use the maximum number of cores available. Default is 'max'.
-        Important: due to the specifics of how the multiprocessing library works, 
+        Important: due to the specifics of how the multiprocessing library works,
         any statements that call fit_spectra() using ncpu > 1 MUST be wrapped in
         a "if __name__ == __main__:" statement in the top-level program. If such
         a "name guard" statement is not detected, this function will fall back to
         using a single process.
+    unsafe_mp : bool, optional
+        If set to True, will use multiprocessing even if there is no name guard
+        no name guard (if ncpu > 0). Used by the console script "eit_fit_files".
+        Default is False (name guard enforced). Disabling the name guard runs the
+        risk of spawning infinite processes if run incorrectly. USE AT YOUR OWN
+        RISK!
+    ignore_warnings : bool, optional
+        If set to True, will silence the warning about a missing or disabled name
+        guard (we are serious at it, be careful). Default is False.
     skip_fitting : bool, optional
         If set to True, will skip the fitting altogether and just return an empty
-        EISFitResult instance. Used mainly for testing.
+        EISFitResult instance. Used mainly for testing. Default is False.
+    debug : bool, optional
+        If set to True, will print some extra information useful for debugging
+        development versions of the code. Default is False.
 
     Returns
     -------
@@ -259,9 +294,9 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None,
         errs_cube = errs.copy()
         inten_cube = inten.copy()
         metadata = {'filename_data':'unknown', 'index':{}, 'pointing':{}}
-        loc_neg = np.where(inten_cube < 0)
-        inten_cube[loc_neg] = 0
-        errs_cube[loc_neg] = 0
+        loc_bad = np.where(errs_cube <= 0)
+        inten_cube[loc_bad] = 0
+        errs_cube[loc_bad] = 0
     else:
         print('Error: missing or invalid data. Please input a filepath, EISCube,'
              +' or complete set of intensity, wavelength, and error arrays.', file=sys.stderr)
@@ -280,11 +315,17 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None,
 
     # Ensure that multiprocessing will not spawn infinite child processes
     if ncpu > 1:
-        name_guard = check_for_name_guard()
-        if name_guard == False:
+        name_guard = check_for_name_guard(debug=debug)
+        if unsafe_mp == True and name_guard == False:
+            if ignore_warnings == False:
+                print('CRITICAL WARNING: unsafe_mp == True while no name guard'
+                     +' was found in the top-level script! Be aware, parallel'
+                     +' processes may freeze or behave unexpectedly.')
+        elif name_guard == False:
             ncpu = 1
-            print('WARNING: no name guard found in the top level script!'
-                  +' Falling back to a single process for safety.')
+            if ignore_warnings == False:
+                print('WARNING: no name guard was found in the top-level script!'
+                     +' Falling back to a single process for safety.')
 
     # Check the dimensions of input data.
     # If the the arrays are not 3D, add shallow dimensions of size 1
@@ -345,6 +386,7 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None,
             for jj in range(n_steps):
                 fit_res.fit['status'][:,jj] = pool_out[jj]['status'][:,0]
                 fit_res.fit['chi2'][:,jj] = pool_out[jj]['chi2'][:,0]
+                fit_res.fit['mask'][:,jj,:] = pool_out[jj]['mask'][:,0,:]
                 fit_res.fit['wavelength'][:,jj,:] = pool_out[jj]['wavelength'][:,0,:]
                 fit_res.fit['params'][:,jj,:] = pool_out[jj]['params'][:,0,:]
                 fit_res.fit['perror'][:,jj,:] = pool_out[jj]['perror'][:,0,:]

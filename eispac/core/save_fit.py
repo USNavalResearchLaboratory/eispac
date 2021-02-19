@@ -156,10 +156,10 @@ def save_fit(fit_result, save_dir=None, verbose=False):
     # Convert the .meta['wininfo'] record array to a dict of 1D arrays
     # Note, this is needed because HDF5 does not play nice with recarrays
     if 'wininfo' in fit_result.meta.keys():
-        wi_rec = fit_result.meta['wininfo']
+        wi_rec = fit_result.meta['wininfo'].copy()
         wininfo_dict = {name:wi_rec[name] for name in wi_rec.dtype.names}
         fit_result.meta['wininfo'] = wininfo_dict
-        
+
     # Loop over each EISFitResult attribute and save the structure as found
     # TODO: consider setting dtype directly (w/ h5py special types for strings)
     real_main_comp = fit_result.fit['main_component']
@@ -174,6 +174,10 @@ def save_fit(fit_result, save_dir=None, verbose=False):
 
     # reset real main component number
     fit_result.fit['main_component'] = real_main_comp
+
+    # Ensure wininfo stays as a recarray in the current session
+    if 'wininfo' in fit_result.meta.keys():
+        fit_result.meta['wininfo'] = wi_rec
 
     # If there are multiple line_ids, make a copy of the file with a new name
     # and return a list of filepaths (consistent with old IDL workflow)

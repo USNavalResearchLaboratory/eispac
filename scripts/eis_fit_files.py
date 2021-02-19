@@ -71,7 +71,8 @@ def eis_fit_files():
         for d in range(n_files):
             print('')
             eis_cube = eispac.read_cube(data_list[d], tmplt.central_wave)
-            fit_res = eispac.fit_spectra(eis_cube, tmplt, ncpu=None)
+            fit_res = eispac.fit_spectra(eis_cube, tmplt, ncpu='max',
+                                         unsafe_mp=True, ignore_warnings=True)
 
             temp_data_path = pathlib.Path(data_list[d]).resolve()
             output_dir = temp_data_path.parent

@@ -4,7 +4,7 @@ import setuptools
 
 setuptools.setup(
     name = 'eispac',
-    version = '0.7.0',
+    version = '0.8.0',
     description = 'Python analysis tools for Hinode / EIS data',
     author = 'NRL EISPAC Development Team',
     author_email = 'N/A',

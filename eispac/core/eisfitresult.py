@@ -6,14 +6,6 @@ import numpy as np
 import eispac.core.fitting_functions as fit_fns
 from eispac.core.read_template import create_funcinfo
 
-# try:
-#     import eispac.fitting_functions as fit_fns
-#     from eispac.read_template import create_funcinfo
-# except ImportError:
-#     print('Notice: Loading local version of eispac.fitting_functions')
-#     import fitting_functions as fit_fns
-#     from read_template import create_funcinfo
-
 class EISFitResult:
     """Object containing the results from fitting one or more EIS window spectra
 
@@ -111,6 +103,8 @@ class EISFitResult:
             #     line_ids = [line_ids.decode('utf-8')] # single entry = byte array
             fit['line_ids'] = line_ids
             fit['main_component'] = template['component']
+            fit['wave_range'][0] = template['data_x'][0]
+            fit['wave_range'][1] = template['data_x'][-1]
             self.fit = fit
         else:
             # Initialize an empty EISFitResult (used by eispac.read_fit)
@@ -248,7 +242,8 @@ class EISFitResult:
 
         return param_vals, param_errs
 
-    def get_fit_profile(self, component=None, coords=None, num_wavelengths=None):
+    def get_fit_profile(self, component=None, coords=None, num_wavelengths=None,
+                        wave_range='auto', use_mask=True):
         """Calculate the fit intensity profile (total or component) at a location.
 
         Parameters
@@ -278,7 +273,31 @@ class EISFitResult:
         if (isinstance(use_coords, str)) or (isinstance(use_comp, str)):
             return None, None
 
-        # Check for valid fit results
+        # Validate wave range for interpolated results
+        # Note: a range of [0, 0] will be replaced with the obs. window range
+        if str(wave_range).lower() == 'auto':
+            use_range = self.fit['wave_range']
+        elif str(wave_range).lower() == 'none':
+            use_range = [0, 0]
+        elif len(wave_range) == 2:
+            use_range = wave_range
+        else:
+            print('Warning: incorrect number of wave_range values.'
+                 +' Returning full spectral window instead.')
+            use_range = [0, 0]
+
+        if num_wavelengths is not None and use_range[0] == 0:
+            if coords is not None:
+                # single spectrum
+                # Note: the paren are needed here to unpack use_coords
+                use_range[0] = self.fit['wavelength'][(*use_coords, 0)]
+                use_range[1] = self.fit['wavelength'][(*use_coords, -1)]
+            else:
+                # full image
+                use_range[0] = np.median(self.fit['wavelength'][:,:,0])
+                use_range[1] = np.median(self.fit['wavelength'][:,:,-1])
+
+        # Check for valid fit results?
         # if np.sum(self.fit['params'][y_pixel, x_pixel, :]) <= 0:
         #     print('No valid fit found!')
         #     return None, None
@@ -286,44 +305,55 @@ class EISFitResult:
         # Determine numbers and types of components in output profile
         full_num_comp = self.n_gauss + 1 if self.n_poly > 0 else self.n_gauss
         if use_comp is None:
-            num_use_gauss = self.n_gauss
-            num_use_poly = self.n_poly
+            num_gauss = self.n_gauss
+            num_poly = self.n_poly
         else:
             if (self.n_poly > 0) and (full_num_comp-1 in use_comp):
-                num_use_gauss = use_comp.size - 1
-                num_use_poly = self.n_poly
+                num_gauss = use_comp.size - 1
+                num_poly = self.n_poly
             else:
-                num_use_gauss = use_comp.size
-                num_use_poly = 0
+                num_gauss = use_comp.size
+                num_poly = 0
 
         # Extract the parameters for either the total or component profile
         # Note: all poly terms are considered part of a single background component
         param_vals, param_errs = self.get_params(component=use_comp, coords=use_coords)
 
+        # Create output wavelength array and then calculate the fit profile
         if coords is not None:
-            # Create output wavelength array and then calculate the fit profile
-            if num_wavelengths == None:
+            # Single spectrum
+            if num_wavelengths is None:
                 fit_wave = self.fit['wavelength'][use_coords[0], use_coords[1], :]
             else:
-                fit_wave = np.linspace(*self.fit['wavelength'][use_coords[0], use_coords[1], [0,-1]],
-                                       num_wavelengths)
-            fit_inten = self.fit_func(param_vals, fit_wave, num_use_gauss, num_use_poly)
+                fit_wave = np.linspace(use_range[0], use_range[-1], num_wavelengths)
+            fit_inten = self.fit_func(param_vals, fit_wave, num_gauss, num_poly)
         else:
-            # Create output arrays
-            if num_wavelengths == None:
+            # Full image
+            if num_wavelengths is None:
                 fit_wave = self.fit['wavelength'][:,:,:]
                 fit_inten = np.zeros((self.n_pxls, self.n_steps, self.n_wave))
             else:
-                fit_wave = np.linspace(np.median(self.fit['wavelength'][:,:,0]),
-                                       np.median(self.fit['wavelength'][:,:,1]),
-                                       num_wavelengths)
+                fit_wave = np.linspace(use_range[0], use_range[-1], num_wavelengths)
                 fit_inten = np.zeros((self.n_pxls, self.n_steps, num_wavelengths))
             # Loop over locations and calculate each fit profile
             for ii in range(self.n_pxls):
                 for jj in range(self.n_steps):
                     fit_inten[ii,jj,:] = self.fit_func(param_vals[ii,jj,:],
                                                        fit_wave[ii,jj,:],
-                                                       num_use_gauss, num_use_poly)
+                                                       num_gauss, num_poly)
+
+        # Apply data masking as needed. Remember: 0 = False = good data (unmasked)
+        if use_mask == True and num_wavelengths is None and 'mask' in self.fit.keys():
+            if coords is not None:
+                # Single spectrum
+                mask_arr = self.fit['mask'][use_coords[0], use_coords[1], :]
+                fit_wave = np.ma.array(fit_wave, mask=mask_arr)
+                fit_inten = np.ma.array(fit_inten, mask=mask_arr)
+            else:
+                # Full image
+                mask_arr = self.fit['mask'][:,:,:]
+                fit_wave = np.ma.array(fit_wave, mask=mask_arr)
+                fit_inten = np.ma.array(fit_inten, mask=mask_arr)
 
         return fit_wave, fit_inten
 
@@ -355,8 +385,10 @@ def create_fit_dict(n_pxls, n_steps, n_wave, n_gauss, n_poly):
               'main_component': 0,
               'n_gauss': n_gauss,
               'n_poly': n_poly,
+              'wave_range': np.zeros(2),
               'status': np.zeros((n_pxls, n_steps)),
               'chi2': np.zeros((n_pxls, n_steps)),
+              'mask': np.zeros((n_pxls, n_steps, n_wave), dtype='int'),
               'wavelength': np.zeros((n_pxls, n_steps, n_wave)),
               'int': np.zeros((n_pxls, n_steps, n_gauss)),
               'err_int': np.zeros((n_pxls, n_steps, n_gauss)),
