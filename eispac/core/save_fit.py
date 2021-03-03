@@ -39,6 +39,7 @@ def lineid_to_name(lineid, component=None):
         else:
             numbr -= roman[ion[i]]
     # assemble string name
+    numbr = f'{numbr:02d}'
     name = element+'_'+str(numbr)+'_'+str(wave[0])+'_'+str(wave[1])
     # if component is not None: name += '_c'+str(component)
     return name
@@ -185,7 +186,11 @@ def save_fit(fit_result, save_dir=None, verbose=False):
     if num_line_ids > 1:
         list_output = [output_filepath]
         for line_num in range(1, num_line_ids):
-            new_line_name = lineid_to_name(fit_result.fit['line_ids'][line_num])
+            line_id = fit_result.fit['line_ids'][line_num]
+            if 'NO' in line_id:
+                print(f' LINE ID = {line_id}, skipping')
+                continue
+            new_line_name = lineid_to_name(line_id)
             new_out_name = file_prefix+'.'+new_line_name+'.'+template_id+'-'+str(line_num)+'.fit.h5'
             list_output.append(output_dir.joinpath(new_out_name))
             print('              '+new_out_name) # 14 spaces to align filenames
