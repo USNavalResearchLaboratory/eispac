@@ -1,5 +1,5 @@
 
-__all__ = ['rot_xy', 'test_rot_xy']
+__all__ = ['rot_xy']
 
 import astropy.units as u
 from astropy.coordinates import SkyCoord

@@ -125,7 +125,7 @@ def read_fit(filename, verbose=False):
     fit_result.fit_func = getattr(fit_fns, fit_result.func_name)
 
     # Make sure the .fit['Line_ids'] is ALWAYS an array (for code consistency)
-    fit_result.fit['line_ids'] = np.array(fit_result.fit['line_ids'])
+    fit_result.fit['line_ids'] = np.atleast_1d(fit_result.fit['line_ids'])
 
     # Add 'wave_range' to fits saved before 2021-02-19
     if 'wave_range' not in fit_result.fit.keys():

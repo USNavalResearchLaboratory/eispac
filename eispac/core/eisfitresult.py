@@ -6,7 +6,9 @@ import numpy as np
 import eispac.core.fitting_functions as fit_fns
 from eispac.core.read_template import create_funcinfo
 from eispac.util.rot_xy import rot_xy
+from eispac.util.ccd_offset import ccd_offset
 import matplotlib.pyplot as plt
+from scipy.ndimage import shift as shift_img
 
 class EISFitResult:
     """Object containing the results from fitting one or more EIS window spectra
@@ -360,6 +362,7 @@ class EISFitResult:
         return fit_wave, fit_inten
 
     def rot_fov(self, end_time):
+        # Return pointing information for the raster rotated to the input time. 
         pointing = self.meta['pointing']
         xcen = pointing['xcen'] + pointing['offset_x']
         ycen = pointing['ycen'] + pointing['offset_y']        
@@ -369,11 +372,19 @@ class EISFitResult:
         return fov
 
     def plot_fov(self, end_time, color='red', lw=1, ls='-'):
+        # Return a patch of the raster FOV for plotting on an image.
         fov = self.rot_fov(end_time)
         x1 = fov['xcen'] - fov['fovx']/2
         y1 = fov['ycen'] - fov['fovy']/2
         rect = plt.Rectangle((x1, y1), fov['fovx'], fov['fovy'], fc='none', ec=color, lw=lw, ls=ls)
         return rect
+
+    def shift2wave(self, array, wave=195.119):
+        this_wave = self.fit['wave_range'].mean()
+        disp = np.zeros(len(array.shape))
+        disp[0] = ccd_offset(wave) - ccd_offset(this_wave)
+        array = shift_img(array, disp)
+        return array
 
 def create_fit_dict(n_pxls, n_steps, n_wave, n_gauss, n_poly):
     """Dictionary to hold the fit parameters returned by fit_spectra()
