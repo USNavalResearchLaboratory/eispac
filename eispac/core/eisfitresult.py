@@ -380,6 +380,7 @@ class EISFitResult:
         return rect
 
     def shift2wave(self, array, wave=195.119):
+        # Shift an array from this fit to the desired wavelength
         this_wave = self.fit['wave_range'].mean()
         disp = np.zeros(len(array.shape))
         disp[0] = ccd_offset(wave) - ccd_offset(this_wave)
