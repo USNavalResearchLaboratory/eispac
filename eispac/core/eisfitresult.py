@@ -5,6 +5,8 @@ from datetime import datetime
 import numpy as np
 import eispac.core.fitting_functions as fit_fns
 from eispac.core.read_template import create_funcinfo
+from eispac.util.rot_xy import rot_xy
+import matplotlib.pyplot as plt
 
 class EISFitResult:
     """Object containing the results from fitting one or more EIS window spectra
@@ -356,6 +358,22 @@ class EISFitResult:
                 fit_inten = np.ma.array(fit_inten, mask=mask_arr)
 
         return fit_wave, fit_inten
+
+    def rot_fov(self, end_time):
+        pointing = self.meta['pointing']
+        xcen = pointing['xcen'] + pointing['offset_x']
+        ycen = pointing['ycen'] + pointing['offset_y']        
+        new = rot_xy(xcen, ycen, pointing['ref_time'], end_time)
+        fov = {'ref_time': end_time, 'xcen': new.Tx.value, 'ycen': new.Ty.value,
+               'fovx': pointing['fovx'], 'fovy': pointing['fovy']}
+        return fov
+
+    def plot_fov(self, end_time, color='red', lw=1, ls='-'):
+        fov = self.rot_fov(end_time)
+        x1 = fov['xcen'] - fov['fovx']/2
+        y1 = fov['ycen'] - fov['fovy']/2
+        rect = plt.Rectangle((x1, y1), fov['fovx'], fov['fovy'], fc='none', ec=color, lw=lw, ls=ls)
+        return rect
 
 def create_fit_dict(n_pxls, n_steps, n_wave, n_gauss, n_poly):
     """Dictionary to hold the fit parameters returned by fit_spectra()
