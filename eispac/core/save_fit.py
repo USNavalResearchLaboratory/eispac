@@ -194,8 +194,8 @@ def save_fit(fit_result, save_dir=None, verbose=False):
             new_out_name = file_prefix+'.'+new_line_name+'.'+template_id+'-'+str(line_num)+'.fit.h5'
             list_output.append(output_dir.joinpath(new_out_name))
             print('              '+new_out_name) # 14 spaces to align filenames
-            shutil.copy(output_filepath, list_output[line_num])
-            with h5py.File(list_output[line_num], 'r+') as new_file:
+            shutil.copy(output_filepath, list_output[-1])
+            with h5py.File(list_output[-1], 'r+') as new_file:
                 main_comp = new_file['fit/main_component']
                 main_comp[...] = line_num
         return list_output
