@@ -64,7 +64,7 @@ def check_for_name_guard(debug=False):
     return name_guard
 
 def fit_with_mpfit(wave_cube, inten_cube, errs_cube, template, parinfo,
-                   min_points=10, chunk=1):
+                   min_points=6, chunk=1):
     """Helper function for fit_spectra(). Fits one or more intensity spectra
     using the mpfit module.
     """
@@ -172,7 +172,7 @@ def fit_with_mpfit(wave_cube, inten_cube, errs_cube, template, parinfo,
 
     return fit_dict
 
-def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=10,
+def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=6,
                 ncpu='max', unsafe_mp=False, ignore_warnings=False,
                 skip_fitting=False, debug=False):
     """Fit one or more EIS line spectra using mpfit (with multiprocessing).
@@ -200,7 +200,7 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
     min_points : int, optional
         Minimum number of good quality data points (i.e. non-zero values & errs)
         to be used in each fit. Spectra with fewer data points will be skipped.
-        Default is 10.
+        Default is 6.
     ncpu : int, optional
         Number of cpu processes to parallelize over. Must be less than or equal
         to the total number of cores the system has. If set to 'max' or None, the
