@@ -39,8 +39,11 @@ def lineid_to_name(lineid, component=None):
         else:
             numbr -= roman[ion[i]]
     # assemble string name
-    numbr = f'{numbr:02d}'
-    name = element+'_'+str(numbr)+'_'+str(wave[0])+'_'+str(wave[1])
+    numbr_s = f'{numbr:02d}'
+    wave1_s = str(wave[0])
+    wave2_s = str(wave[1])
+    if len(wave2_s) == 2: wave2_s += '0'
+    name = element+'_'+numbr_s+'_'+wave1_s+'_'+wave2_s
     # if component is not None: name += '_c'+str(component)
     return name
 

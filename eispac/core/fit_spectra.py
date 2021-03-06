@@ -395,8 +395,9 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
 
         # print status
         t2 = datetime.now() # end timer
+        print('\n')
         print(' + fit completed!')
-        print(' + fit runtime : {}'.format(t2-t1))
+        print(f' + fit runtime : {t2-t1}')
 
         # reset global counters
         cntr.value = 0
