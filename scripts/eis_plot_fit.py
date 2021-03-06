@@ -16,13 +16,13 @@ wmax = 45   # width max scaling in mA
 
 class EIS_PLOT_FIT:
 
-    def __init__(self, eis_fit_file=None):
+    def __init__(self, eis_fit_file=None, show=True):
         if eis_fit_file is not None:
             self.eis_fit_file = Path(eis_fit_file)
             self.read_fit()
             self.read_template()
-            self.read_cube()
-            self.display_fit()
+            #self.read_cube()
+            self.display_fit(show=show)
 
     def check_file(self, filename):
         if not filename.is_file():
@@ -70,7 +70,7 @@ class EIS_PLOT_FIT:
         scaled = (scaled-wmin)/(wmax-wmin)
         return scaled        
 
-    def display_fit(self):
+    def display_fit(self, show=True):
         component = self.fit.fit['main_component'] # the line of interest, could be multiple
         line_id = self.template.template['line_ids'][component] # the line id for this line
         
@@ -83,8 +83,8 @@ class EIS_PLOT_FIT:
         width, error_width = self.fit.get_params(param_name='width') # fit gaussian width
         width = width[:,:,component]
 
-        x_scale = self.cube.meta['pointing']['x_scale'] # arcsec per x steps
-        y_scale = self.cube.meta['pointing']['y_scale'] # arcsec per y, always 1!
+        x_scale = self.fit.meta['pointing']['x_scale'] # arcsec per x steps
+        y_scale = self.fit.meta['pointing']['y_scale'] # arcsec per y, always 1!
         aspect = y_scale/x_scale
 
         fig, (ax1, ax2, ax3) = plt.subplots(1,3, figsize=(10,5))
@@ -112,7 +112,7 @@ class EIS_PLOT_FIT:
         opf = self.eis_fit_file.with_suffix('.png')
         plt.savefig(opf, dpi=200)
         print(f' + saved {opf}')
-        plt.show()
+        if show: plt.show()
 
 def eis_plot_fit():
     if len(sys.argv) != 2:
@@ -120,7 +120,14 @@ def eis_plot_fit():
         print(' > eis_plot_fit data_eis/eis_20190404_131513.fe_12_195_119.2c-0.fit.h5')
         exit()
 
-    o = EIS_PLOT_FIT(sys.argv[1])
+    p = Path(sys.argv[1])
+
+    if p.is_file():
+        o = EIS_PLOT_FIT(str(p))
+        
+    if p.is_dir():
+        for f in p.glob('*.fit.h5'):
+            o = EIS_PLOT_FIT(f, show=False)
         
 if __name__ == '__main__':
     eis_plot_fit()
