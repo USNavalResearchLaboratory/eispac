@@ -142,19 +142,24 @@ def fit_with_mpfit(wave_cube, inten_cube, errs_cube, template, parinfo,
                         functkw=fa, xtol=1.0E-6, ftol=1.0E-6, gtol=1.0E-6,
                         maxiter=2000, quiet=1)
 
-            # compute line intensities and errors directly (may need to revisit)
-            fpeaks = out.params[loc_peaks]
-            fwdths = out.params[loc_wid]
-            epeaks = out.perror[loc_peaks]
-            ewdths = out.perror[loc_wid]
-            l_inten = np.sqrt(2*np.pi)*fpeaks*fwdths
-            e_inten = np.zeros(n_gauss)
-            for n in range(n_gauss):
-                if fpeaks[n] != 0 and fwdths[n] != 0:
-                    e_inten[n] = (l_inten[n]*np.sqrt((epeaks[n]/fpeaks[n])**2
-                                                    +(ewdths[n]/fwdths[n])**2))
-                else:
-                    e_inten[n] = 0.0
+            try:
+                # compute line intensities and errors directly (may need to revisit)
+                fpeaks = out.params[loc_peaks]
+                fwdths = out.params[loc_wid]
+                epeaks = out.perror[loc_peaks]
+                ewdths = out.perror[loc_wid]
+                l_inten = np.sqrt(2*np.pi)*fpeaks*fwdths
+                e_inten = np.zeros(n_gauss)
+                for n in range(n_gauss):
+                    if fpeaks[n] != 0 and fwdths[n] != 0:
+                        e_inten[n] = (l_inten[n]*np.sqrt((epeaks[n]/fpeaks[n])**2
+                                                         +(ewdths[n]/fwdths[n])**2))
+                    else:
+                        e_inten[n] = 0.0
+            except:
+                print(' ! fit went wrong ')
+                fit_dict['status'][ii,jj] = -999
+                continue
 
             # check convergence status
             if out.status > 0:
