@@ -3,12 +3,13 @@ __all__ = ['EISFitResult', 'create_fit_dict']
 import copy
 from datetime import datetime
 import numpy as np
+from scipy.ndimage import shift as shift_img
+from scipy.interpolate import interp1d
+import matplotlib.pyplot as plt
 import eispac.core.fitting_functions as fit_fns
 from eispac.core.read_template import create_funcinfo
 from eispac.util.rot_xy import rot_xy
 from eispac.util.ccd_offset import ccd_offset
-import matplotlib.pyplot as plt
-from scipy.ndimage import shift as shift_img
 
 class EISFitResult:
     """Object containing the results from fitting one or more EIS window spectra
@@ -61,7 +62,8 @@ class EISFitResult:
     """
 
     def __init__(self, wave=None, template=None, parinfo=None,
-                 func_name='multigaussian', empty=False):
+                 func_name='multigaussian',
+                 data_units='unknown', radcal='unknown', empty=False):
         self.date_fit = datetime.now().replace(microsecond=0).isoformat()
         self.meta = dict()
         self.template = copy.deepcopy(template)
@@ -77,6 +79,8 @@ class EISFitResult:
         self.func_name = func_name
         self.fit_func = None
         self.fit = None
+        self.data_units = data_units
+        self._current_radcal = radcal
 
         # Determine input data shape, create fit dictionary, and copy misc. info
         if not empty:
@@ -99,7 +103,8 @@ class EISFitResult:
             self.fit_func = getattr(fit_fns, func_name)
 
             fit = create_fit_dict(self.n_pxls, self.n_steps, self.n_wave,
-                                  self.n_gauss, self.n_poly)
+                                  self.n_gauss, self.n_poly,
+                                  data_units=self.data_units)
             line_ids = template['line_ids']
             # if isinstance(line_ids, np.ndarray):
             #     line_ids = line_ids.tolist() # multiple entries = array of strings
@@ -113,6 +118,15 @@ class EISFitResult:
         else:
             # Initialize an empty EISFitResult (used by eispac.read_fit)
             self.fit = create_fit_dict(11, 22, 33, 1, 1)
+
+    @property
+    def radcal(self):
+        return self._current_radcal
+
+    @radcal.setter
+    def radcal(self, input_array):
+        print('Error: Please use the .apply_radcal() and .remove_radcal()'
+             +' methods to modify or change the radiometric calibration.')
 
     def _validate_component_num(self, component):
         """Helper function for validating functional component number.
@@ -361,11 +375,139 @@ class EISFitResult:
 
         return fit_wave, fit_inten
 
+    def apply_radcal(self, input_radcal=None):
+        """Apply a radiometric calibration curve (user-inputted or preflight)
+
+        Parameters
+        ----------
+        input_radcal : array_like, optional
+            User-inputted radiometric calibration curve. If set to None, will
+            use the preflight radcal curve from the .meta dict. Default is None
+
+        Returns
+        -------
+        output_fit : EISFitResult class instance
+            A new EISFitResult class instance containing the calibrated params
+        """
+        if input_radcal is None:
+            # Preflight radcal from HDF5 header file
+            new_radcal = self.meta['radcal']
+            radcal_wave = self.meta['wave']
+        else:
+            # User-inputted radcal curve
+            new_radcal = np.array(input_radcal)
+            radcal_wave = self.meta['wave'] #TODO: allow user to input wavelengths
+            if len(new_radcal) != self.n_wave:
+                print('Error: input_radcal must have the same number of elements'
+                     +' as length of the wave dimension.')
+                return self
+
+        output_radcal = new_radcal
+        if self.data_units not in ['ph', 'photon']:
+            if str(self.radcal) == 'unknown':
+                print('Error: Data currently has an unknown radcal applied.'
+                     +' Unable to apply new calibration.')
+                return self
+            elif np.all(self.radcal == new_radcal):
+                print('Error: input_radcal is identical to current radcal.'
+                     +' No calculation is required.')
+                return self
+            else:
+                print('Warning: Data currently has a different radcal applied.'
+                     +' Old calibration curve will be removed.')
+                new_radcal = new_radcal/self.radcal
+
+        if str(radcal_wave) == 'unknown':
+            print('Error: unknown wavelength locations of radcal curve.'
+                 +' Unable to apply radcal curve.')
+            return self
+
+        # Make interpolated function of the radcal curve
+        interp_radcal = interp1d(radcal_wave, new_radcal, kind='linear',
+                                 fill_value='extrapolate')
+
+        # Get interpolated radcal values for the peaks and constant background term
+        loc_peaks = np.arange(self.n_gauss)*3
+        loc_cen = np.arange(self.n_gauss)*3+1
+        loc_const = self.n_gauss*3
+        peak_radcal = interp_radcal(self.fit['params'][:,:,loc_cen])
+        mean_waves = np.mean(self.fit['wavelength'], axis=2)
+        const_radcal = interp_radcal(mean_waves)
+
+        # Calculate new peak and background values
+        new_peaks = self.fit['params'][:,:,loc_peaks]*peak_radcal
+        new_const = self.fit['params'][:,:,loc_const]*const_radcal
+
+        # Create a new EISFitResult object with the correct output
+        output_res = EISFitResult(wave=self.fit['wavelength'], template=self.template,
+                                  parinfo=self.parinfo, func_name=self.func_name,
+                                  data_units='erg / (cm2 s sr)', radcal=output_radcal)
+
+        new_fit = copy.deepcopy(self.fit)
+        new_fit['param_units'] = output_res.fit['param_units']
+        new_fit['params'][:,:,loc_peaks] = new_peaks
+        new_fit['params'][:,:,loc_const] = new_const
+        output_res.fit = new_fit
+
+        return output_res
+
+    def remove_radcal(self):
+        """Remove the applied radiometric calibration and convert data to counts
+
+        Returns
+        -------
+        output_cube : EISCube class instance
+            A new EISCube class instance containing the photon count data
+        """
+        if self.data_units in ['ph', 'photon']:
+            print('Error: Data is already in units of photon counts.'
+                 +' No calculation required.')
+            return self
+        elif str(self.radcal) == 'unknown':
+            print('Error: Data currently has an unknown radcal applied.'
+                 +' Unable to remove calibration.')
+            return self
+
+        radcal_wave = self.meta['wave']
+        if str(radcal_wave) == 'unknown':
+            print('Error: unknown wavelength locations of radcal curve.'
+                 +' Unable to remove radcal curve.')
+            return self
+
+        # Make interpolated function of the radcal curve
+        interp_radcal = interp1d(radcal_wave, self.radcal, kind='linear',
+                                 fill_value='extrapolate')
+
+        # Get interpolated radcal values for the peaks and constant background term
+        loc_peaks = np.arange(self.n_gauss)*3
+        loc_cen = np.arange(self.n_gauss)*3+1
+        loc_const = self.n_gauss*3
+        peak_radcal = interp_radcal(self.fit['params'][:,:,loc_cen])
+        mean_waves = np.mean(self.fit['wavelength'], axis=2)
+        const_radcal = interp_radcal(mean_waves)
+
+        # Calculate new peak and background values
+        new_peaks = self.fit['params'][:,:,loc_peaks]/peak_radcal
+        new_const = self.fit['params'][:,:,loc_const]/const_radcal
+
+        # Create a new EISFitResult object with the correct output
+        output_res = EISFitResult(wave=self.fit['wavelength'], template=self.template,
+                                  parinfo=self.parinfo, func_name=self.func_name,
+                                  data_units='photon', radcal=None)
+
+        new_fit = copy.deepcopy(self.fit)
+        new_fit['param_units'] = output_res.fit['param_units']
+        new_fit['params'][:,:,loc_peaks] = new_peaks
+        new_fit['params'][:,:,loc_const] = new_const
+        output_res.fit = new_fit
+
+        return output_res
+
     def rot_fov(self, end_time):
-        # Return pointing information for the raster rotated to the input time. 
+        # Return pointing information for the raster rotated to the input time.
         pointing = self.meta['pointing']
         xcen = pointing['xcen'] + pointing['offset_x']
-        ycen = pointing['ycen'] + pointing['offset_y']        
+        ycen = pointing['ycen'] + pointing['offset_y']
         new = rot_xy(xcen, ycen, pointing['ref_time'], end_time)
         fov = {'ref_time': end_time, 'xcen': new.Tx.value, 'ycen': new.Ty.value,
                'fovx': pointing['fovx'], 'fovy': pointing['fovy']}
@@ -387,7 +529,7 @@ class EISFitResult:
         array = shift_img(array, disp)
         return array
 
-def create_fit_dict(n_pxls, n_steps, n_wave, n_gauss, n_poly):
+def create_fit_dict(n_pxls, n_steps, n_wave, n_gauss, n_poly, data_units='unknown'):
     """Dictionary to hold the fit parameters returned by fit_spectra()
 
     Parameters
@@ -433,7 +575,8 @@ def create_fit_dict(n_pxls, n_steps, n_wave, n_gauss, n_poly):
               'params': np.zeros((n_pxls, n_steps, n_param)),
               'perror': np.zeros((n_pxls, n_steps, n_param)),
               'component': np.zeros(n_param, dtype='int'),
-              'param_names': np.zeros(n_param, dtype='<U32')}
+              'param_names': np.zeros(n_param, dtype='<U32'),
+              'param_units': np.zeros(n_param, dtype='<U32')}
 
     # Create string labels for each component parameter
     # TODO: standardize name system to better match Astropy.modeling
@@ -442,8 +585,11 @@ def create_fit_dict(n_pxls, n_steps, n_wave, n_gauss, n_poly):
         if s == n_gauss and n_poly > 0:
             output['component'][3*n_gauss:] = s
             output['param_names'][3*n_gauss:] = ['c0', 'c1', 'c2', 'c3', 'c4'][0:n_poly]
+            poly_AA = ['', ' /Angstrom ', ' /Angstrom^2', ' /Angstrom^3', ' /Angstrom^4']
+            output['param_units'][3*n_gauss:] = [apu+data_units for apu in poly_AA][0:n_poly]
         else:
             output['component'][3*s:3*s+3] = s
             output['param_names'][3*s:3*s+3] = ['peak', 'centroid', 'width']
+            output['param_units'][3*s:3*s+3] = [data_units, 'Angstrom', 'Angstrom']
 
     return output

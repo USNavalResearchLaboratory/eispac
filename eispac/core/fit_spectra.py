@@ -64,7 +64,7 @@ def check_for_name_guard(debug=False):
     return name_guard
 
 def fit_with_mpfit(wave_cube, inten_cube, errs_cube, template, parinfo,
-                   min_points=7, chunk=1):
+                   min_points=7,  chunk=1, data_units='unknown'):
     """Helper function for fit_spectra(). Fits one or more intensity spectra
     using the mpfit module.
     """
@@ -90,7 +90,8 @@ def fit_with_mpfit(wave_cube, inten_cube, errs_cube, template, parinfo,
     oldguess = template['fit']
 
     # Create fit dictionary, mask array, and parameter indices
-    fit_dict = create_fit_dict(n_pxls, n_steps, n_wave, n_gauss, n_poly)
+    fit_dict = create_fit_dict(n_pxls, n_steps, n_wave, n_gauss, n_poly,
+                               data_units=data_units)
     fit_dict['line_ids'] = line_ids
     fit_dict['wave_range'][0] = min_wave
     fit_dict['wave_range'][1] = max_wave
@@ -98,7 +99,7 @@ def fit_with_mpfit(wave_cube, inten_cube, errs_cube, template, parinfo,
     loc_peaks = np.arange(n_gauss)*3
     loc_cen = np.arange(n_gauss)*3+1
     loc_wid = np.arange(n_gauss)*3+2
-    loc_backs = n_gauss*3
+    loc_backs = np.arange(n_poly)+n_gauss*3
 
     # loop over pixel positions and slit steps in the entire raster
     for ii in range(n_pxls):
@@ -142,8 +143,9 @@ def fit_with_mpfit(wave_cube, inten_cube, errs_cube, template, parinfo,
                         functkw=fa, xtol=1.0E-6, ftol=1.0E-6, gtol=1.0E-6,
                         maxiter=2000, quiet=1)
 
-            try:
-                # compute line intensities and errors directly (may need to revisit)
+            # check convergence status for a valid result
+            if out.status > 0:
+                # compute line inten and errors directly (may need to revisit)
                 fpeaks = out.params[loc_peaks]
                 fwdths = out.params[loc_wid]
                 epeaks = out.perror[loc_peaks]
@@ -156,13 +158,7 @@ def fit_with_mpfit(wave_cube, inten_cube, errs_cube, template, parinfo,
                                                          +(ewdths[n]/fwdths[n])**2))
                     else:
                         e_inten[n] = 0.0
-            except:
-                print(' ! fit went wrong ')
-                fit_dict['status'][ii,jj] = -999
-                continue
 
-            # check convergence status
-            if out.status > 0:
                 # assemble fit structure
                 fit_dict['status'][ii,jj] = out.status
                 fit_dict['chi2'][ii,jj] = out.fnorm/out.dof
@@ -205,7 +201,7 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
     min_points : int, optional
         Minimum number of good quality data points (i.e. non-zero values & errs)
         to be used in each fit. Spectra with fewer data points will be skipped.
-        Default is 6.
+        Must be a number >= the total number of fit parameters. Default is 7.
     ncpu : int, optional
         Number of cpu processes to parallelize over. Must be less than or equal
         to the total number of cores the system has. If set to 'max' or None, the
@@ -276,6 +272,8 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
         errs_cube = eis_cube.uncertainty.array.copy()
         inten_cube = eis_cube.data.copy()
         metadata = eis_cube.meta
+        data_units = eis_cube.unit.to_string()
+        data_radcal = copy.deepcopy(eis_cube.radcal)
         loc_masked = np.where(eis_cube.mask == True)
         inten_cube[loc_masked] = 0
         errs_cube[loc_masked] = 0
@@ -285,6 +283,8 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
         errs_cube = inten.uncertainty.array.copy()
         inten_cube = inten.data.copy()
         metadata = inten.meta
+        data_units = inten.unit.to_string()
+        data_radcal = copy.deepcopy(inten.radcal)
         loc_masked = np.where(inten.mask == True)
         inten_cube[loc_masked] = 0
         errs_cube[loc_masked] = 0
@@ -298,7 +298,10 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
         wave_cube = wave.copy()
         errs_cube = errs.copy()
         inten_cube = inten.copy()
-        metadata = {'filename_data':'unknown', 'index':{}, 'pointing':{}}
+        metadata = {'filename_data':'unknown', 'index':{}, 'pointing':{},
+                    'radcal':'unknown', 'wave':'unknown'}
+        data_units = 'unknown'
+        data_radcal = 'unknown'
         loc_bad = np.where(errs_cube <= 0)
         inten_cube[loc_bad] = 0
         errs_cube[loc_bad] = 0
@@ -332,6 +335,13 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
                 print('WARNING: no name guard was found in the top-level script!'
                      +' Falling back to a single process for safety.')
 
+    # Check value of min_points
+    n_params = len(parinfo_copy)
+    if min_points is None or min_points < n_params:
+        print('WARNING: min_points must be >= total number of fit parameters.'
+             +' min_points has been set to '+str(n_params))
+        min_points = n_params
+
     # Check the dimensions of input data.
     # If the the arrays are not 3D, add shallow dimensions of size 1
     num_dims = inten_cube.ndim
@@ -356,7 +366,9 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
         errs_cube = errs_cube
 
     # Initalize output object which will contain the fit results
-    fit_res = EISFitResult(wave_cube, template_copy, parinfo_copy, func_name='multigaussian')
+    fit_res = EISFitResult(wave_cube, template_copy, parinfo_copy,
+                           func_name='multigaussian', data_units=data_units,
+                           radcal=data_radcal)
     fit_res.meta = metadata
     fit_res.meta['filename_template'] = tmplt_filename
     fit_res.fit_module = 'mpfit'
@@ -371,7 +383,8 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
         if ncpu == 1:
             print(' + running mpfit in a single process')
             fit_dict = fit_with_mpfit(wave_cube, inten_cube, errs_cube,
-                                      template_copy, parinfo_copy, min_points)
+                                      template_copy, parinfo_copy, min_points,
+                                      data_units=data_units)
             fit_res.fit = fit_dict
         else:
             if ncpu > n_steps:
@@ -383,7 +396,8 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
 
             # Split out the data for each single slit and run the pool
             args = [(wave_cube[:,jj:jj+1,:], inten_cube[:,jj:jj+1,:], errs_cube[:,jj:jj+1,:],
-                     template_copy, parinfo_copy, min_points, jj+1) for jj in range(n_steps)]
+                     template_copy, parinfo_copy, min_points, jj+1, data_units)
+                     for jj in range(n_steps)]
             pool_out = pool.starmap(fit_with_mpfit, args)
             pool.close()
 

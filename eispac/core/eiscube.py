@@ -10,11 +10,13 @@ class EISCube(NDCube):
     # NOTE: this is based on the example given at
     # https://docs.astropy.org/en/stable/nddata/subclassing.html#slicing-an-additional-property
     def __init__(self, *args, **kwargs):
-        # Remove wavelength attribute, if given, and pass it to the setter.
+        # Extract extra attributes, if given, and initialize them correctly.
         input_wave = kwargs.pop('wavelength') if 'wavelength' in kwargs else None
         if input_wave is None:
             input_wave = np.zeros_like(args[0], dtype=float)
         self.wavelength = input_wave
+        input_radcal = kwargs.pop('radcal') if 'radcal' in kwargs else 'unknown'
+        self._current_radcal = input_radcal
         super().__init__(*args, **kwargs)
 
     @property
@@ -22,43 +24,81 @@ class EISCube(NDCube):
         return self._wavelength
 
     @wavelength.setter
-    def wavelength(self, value):
-        self._wavelength = value
+    def wavelength(self, input_array):
+        self._wavelength = input_array
+
+    @property
+    def radcal(self):
+        return self._current_radcal
+
+    @radcal.setter
+    def radcal(self, input_array):
+        print('Error: Please use the .apply_radcal() and .remove_radcal()'
+             +' methods to modify or change the radiometric calibration.')
 
     def _slice(self, item):
         # slice all normal attributes
         kwargs = super()._slice(item)
         # The arguments for creating a new instance are saved in kwargs. So we
-        # need to add another keyword "wavelength" and add the sliced wavelengths
+        # need to add additional keywords with our sliced, extra properties
         kwargs['wavelength'] = self.wavelength[item]
+        kwargs['radcal'] = self.radcal
         return kwargs # these must be returned
 
-    def apply_radcal(self):
-        """Apply the pre-flight radiometric calibration curve
+    def apply_radcal(self, input_radcal=None):
+        """Apply a radiometric calibration curve (user-inputted or preflight)
+
+        Parameters
+        ----------
+        input_radcal : array_like, optional
+            User-inputted radiometric calibration curve. If set to None, will
+            use the preflight radcal curve from the .meta dict. Default is None
 
         Returns
         -------
         output_cube : EISCube class instance
             A new EISCube class instance containing the calibrated data
         """
-        if self.unit != u.photon:
-            print('Error: radcal has already been applied. No calcuation needed.')
-            return self
+        if input_radcal is None:
+            # Preflight radcal from HDF5 header file
+            new_radcal = self.meta['radcal']
+        else:
+            # User-inputted radcal curve
+            new_radcal = np.array(input_radcal)
+            if len(new_radcal) != self.data.shape[-1]:
+                print('Error: input_radcal must have the same number of elements'
+                     +' as the last dimension in the data array.')
+                return self
 
-        new_data = self.data.copy()*self.meta['radcal']
-        new_errs = self.uncertainty.array.copy()*self.meta['radcal']
+        output_radcal = new_radcal
+        if self.unit != u.photon:
+            if str(self.radcal) == 'unknown':
+                print('Error: Data currently has an unknown radcal applied.'
+                     +' Unable to apply new calibration.')
+                return self
+            elif np.all(self.radcal == new_radcal):
+                print('Error: input_radcal is identical to current radcal.'
+                     +' No calculation is required.')
+                return self
+            else:
+                print('Warning: Data currently has a different radcal applied.'
+                     +' Old calibration curve will be removed.')
+                new_radcal = new_radcal/self.radcal
+
+        new_data = self.data.copy()*new_radcal
+        new_errs = self.uncertainty.array.copy()*new_radcal
         new_meta = self.meta.copy()
         new_meta['notes'].append('Applied radcal to convert photon counts to intensity')
         wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
 
-        output_cube = EISCube(new_data, wcs=self.wcs, wavelength=self.wavelength,
-                              uncertainty=new_errs, mask=self.mask,
+        output_cube = EISCube(new_data, wcs=self.wcs, uncertainty=new_errs,
+                              wavelength=self.wavelength, radcal=output_radcal,
                               meta=new_meta, unit='erg / (cm2 s sr)',
-                              missing_axes=wcs_mask)
+                              mask=self.mask, missing_axes=wcs_mask)
         return output_cube
 
     def remove_radcal(self):
-        """Remove the pre-flight radiometric calibration and convert data to counts
+        """Remove the applied radiometric calibration and convert data to counts
 
         Returns
         -------
@@ -66,19 +106,24 @@ class EISCube(NDCube):
             A new EISCube class instance containing the photon count data
         """
         if self.unit == u.photon:
-            print('Error: data is already in units of photon counts. No calcuation needed.')
+            print('Error: Data is already in units of photon counts.'
+                 +' No calculation required.')
+            return self
+        elif str(self.radcal) == 'unknown':
+            print('Error: Data currently has an unknown radcal applied.'
+                 +' Unable to remove calibration.')
             return self
 
-        new_data = self.data.copy()/self.meta['radcal']
-        new_errs = self.uncertainty.array.copy()/self.meta['radcal']
+        new_data = self.data.copy()/self.radcal
+        new_errs = self.uncertainty.array.copy()/self.radcal
         new_meta = self.meta.copy()
         new_meta['notes'].append('Removed radcal to convert intensity to photon counts')
         wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
 
-        output_cube = EISCube(new_data, wcs=self.wcs, wavelength=self.wavelength,
-                              uncertainty=new_errs, mask=self.mask,
+        output_cube = EISCube(new_data, wcs=self.wcs, uncertainty=new_errs,
+                              wavelength=self.wavelength, radcal=None,
                               meta=new_meta, unit='photon',
-                              missing_axes=wcs_mask)
+                              mask=self.mask, missing_axes=wcs_mask)
         return output_cube
 
     def sum_spectra(self):
@@ -92,7 +137,7 @@ class EISCube(NDCube):
         sum_data = np.sum(self.data, axis=2)
         new_wcs = self.wcs.dropaxis(0)
         new_meta = self.meta.copy()
-        new_meta['notes'].append('Summed over the wavelength axis')
+        new_meta['notes'].append('Summed over the wavelength axis.')
         return NDCube(sum_data, new_wcs, meta=new_meta)
 
     def smooth_cube(self, width=3, **kwargs):
@@ -152,7 +197,7 @@ class EISCube(NDCube):
                         # Note: y & x scales are in units of [arcsec]/[pixel]
                         ax_scale = self.meta['pointing'][coord_ax[w]+'_scale']
                     except KeyError:
-                        print('ERROR: missing '+coord_ax[w]+'-axis scale.')
+                        print('Error: missing '+coord_ax[w]+'-axis scale.')
                         return None
                     angular_wid_str = str(wid_list[w])
                     wid_list[w] = wid_list[w].to('arcsec').value / ax_scale
@@ -179,13 +224,14 @@ class EISCube(NDCube):
         sm_data_mask = np.logical_or(np.isnan(sm_data), sm_data < 0)
 
         # Pack everything up in a new EISCube
+        old_radcal = self.radcal
         new_meta = self.meta.copy()
         new_meta['notes'].append('Smoothed using pixel widths of '+str(wid_list))
         wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
 
-        output_cube = EISCube(sm_data, wcs=self.wcs, wavelength=self.wavelength,
-                              uncertainty=sm_errs, mask=sm_data_mask,
+        output_cube = EISCube(sm_data, wcs=self.wcs, uncertainty=sm_errs,
+                              wavelength=self.wavelength, radcal=old_radcal,
                               meta=new_meta, unit=self.unit,
-                              missing_axes=wcs_mask)
+                              mask=sm_data_mask, missing_axes=wcs_mask)
 
         return output_cube

@@ -11,7 +11,7 @@ from eispac.core.eiscube import EISCube
 from eispac.core.read_wininfo import read_wininfo
 from eispac.instr.calc_read_noise import calc_read_noise
 
-def read_cube(filename=None, window=0, apply_radcal=True,
+def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
               abs_errs=True, count_offset=None, debug=False):
     """Load a single window of EIS data from an HDF5 file into an EISCube object
 
@@ -27,6 +27,8 @@ def read_cube(filename=None, window=0, apply_radcal=True,
         found in the HDF5 header file and set units to erg/(cm^2 s sr). If set
         to False, will simply return the data in units of photon counts. Default
         is True.
+    radcal : array_like, optional
+        User-inputted radiometric calibration curve to be applied to the data.
     abs_errs : bool, optional
         If set to True, will calulate errors based on the absolute value of the
         counts. This allows for reasonable errors to be estimated for valid
@@ -214,6 +216,25 @@ def read_cube(filename=None, window=0, apply_radcal=True,
         print('DEBUG MODE ON: returning dictionary with raw counts and metadata')
         return {'data':lv_1_counts, 'data_units':lv_1_count_units, 'meta':meta}
 
+    # Check for user-inputted radcal curve
+    if apply_radcal or radcal is not None:
+        apply_radcal = True
+        if radcal is not None:
+            # Confirm dimensions are compatiable
+            radcal_array = np.array(radcal)
+            num_wave = len(meta['wave'])
+            if len(radcal_array) != num_wave:
+                print(f'Error: Input radcal array has the incorrect number of'
+                     +f' elements. For the selected window, please input an'
+                     +f' array with {num_wave} elements.',
+                     file=sys.stderr)
+                return None
+        else:
+            # Just use the pre-flight radcal curve
+            radcal_array = meta['radcal']
+    else:
+        radcal_array = None
+
     ############################################################################
     ### Apply pointing corrections and create output EISCube
     ############################################################################
@@ -312,17 +333,17 @@ def read_cube(filename=None, window=0, apply_radcal=True,
 
         lv_1_count_errs[data_mask] = -100 # EIS missing data err value (in IDL)
         if apply_radcal:
-            cube_data = lv_1_counts*meta['radcal']
-            cube_errs = lv_1_count_errs*meta['radcal']
+            cube_data = lv_1_counts*radcal_array
+            cube_errs = lv_1_count_errs*radcal_array
             data_units = 'erg / (cm2 s sr)'
         else:
             cube_data = lv_1_counts
             cube_errs = lv_1_count_errs
             data_units = 'photon'
 
-        output_cube = EISCube(cube_data, clean_wcs, wavelength=corrected_wave,
-                              uncertainty=cube_errs, mask=data_mask,
-                              meta=meta, unit=data_units)
+        output_cube = EISCube(cube_data, wcs=clean_wcs, uncertainty=cube_errs,
+                              wavelength=corrected_wave, radcal=radcal_array,
+                              meta=meta, unit=data_units, mask=data_mask)
     except:
         print('Error: Failed to initialize WCS or EISCube instance due to bad'
              +' header data. Please report this issue to the eispac development'
