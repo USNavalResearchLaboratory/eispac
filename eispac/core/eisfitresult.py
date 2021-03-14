@@ -448,6 +448,7 @@ class EISFitResult:
         new_fit['params'][:,:,loc_peaks] = new_peaks
         new_fit['params'][:,:,loc_const] = new_const
         output_res.fit = new_fit
+        output_res.meta = self.meta
 
         return output_res
 
@@ -500,6 +501,7 @@ class EISFitResult:
         new_fit['params'][:,:,loc_peaks] = new_peaks
         new_fit['params'][:,:,loc_const] = new_const
         output_res.fit = new_fit
+        output_res.meta = self.meta
 
         return output_res
 
