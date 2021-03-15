@@ -1,5 +1,5 @@
 # EISPAC - EIS Python Analysis Code
-_version 0.7_
+_version 0.9.1_
 
 This software provides a set of tools for analyzing Hinode / EIS data within a
 python environment. The general approach is as follows:
