@@ -106,7 +106,6 @@ class Top(QWidget):
         # self.listTemplates.setFixedSize(400, nrows)
         self.listTemplates.resize(self.leftNX, nrows)
 
-
     def setup_file_label(self):
         if self.eis.filename_head is not None:
             f = os.path.basename(self.eis.filename_head)

@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import eispac.core.fitting_functions as fit_fns
 from eispac.core.read_template import create_funcinfo
 from eispac.util.rot_xy import rot_xy
-from eispac.util.ccd_offset import ccd_offset
+from eispac.instr.ccd_offset import ccd_offset
 
 class EISFitResult:
     """Object containing the results from fitting one or more EIS window spectra
@@ -522,6 +522,12 @@ class EISFitResult:
         y1 = fov['ycen'] - fov['fovy']/2
         rect = plt.Rectangle((x1, y1), fov['fovx'], fov['fovy'], fc='none', ec=color, lw=lw, ls=ls)
         return rect
+
+    def get_aspect_ratio(self):
+        x_scale = self.meta['pointing']['x_scale'] # arcsec per x steps
+        y_scale = self.meta['pointing']['y_scale'] # arcsec per y, always 1!
+        aspect = y_scale/x_scale
+        return aspect
 
     def shift2wave(self, array, wave=195.119):
         # Shift an array from this fit to the desired wavelength

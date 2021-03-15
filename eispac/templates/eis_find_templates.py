@@ -82,7 +82,6 @@ class eis_find_templates:
             with h5py.File(tf, 'r') as f:
                 wmin = f['/template/wmin'][0]
                 wmax = f['/template/wmax'][0]
-
                 match, = np.where((wmin >= self.wininfo.wvl_min) & (wmax <= self.wininfo.wvl_max))
                 if len(match) > 0:
                     for m in match:
