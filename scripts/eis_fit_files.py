@@ -1,4 +1,4 @@
-#!/home/hpw/projects/eispac/software/local-anaconda3/bin/python
+#!/usr/bin/env python
 __all__ = ['eis_fit_files']
 
 import os

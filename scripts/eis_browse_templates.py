@@ -1,4 +1,4 @@
-#!/Users/hpw/Desktop/projects/eispac/software/local-anaconda3/bin/python
+#!/usr/bin/env python
 __all__ = ['eis_browse_templates']
 
 import sys
