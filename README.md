@@ -32,7 +32,7 @@ for future improvements, please email the development team
 ```
 	> python -m pip install .
 ```
-    To upgrade: 
+	To upgrade: 
 ```
 	> python -m pip install --upgrade .
 ```
