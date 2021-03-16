@@ -25,16 +25,16 @@ for future improvements, please email the development team
 
 1.  Clone "eispac" to convenient location on your computer (it does not matter where).
 ```   
-   > git clone https://github.com/USNavalResearchLaboratory/eispac.git
+> git clone https://github.com/USNavalResearchLaboratory/eispac.git
 ```   
 2.  Open a terminal and navigate to the directory
 3.  To install:
 ```
-	> python -m pip install .
+> python -m pip install .
 ```
 4.  To upgrade: 
 ```
-	> python -m pip install --upgrade .
+> python -m pip install --upgrade .
 ```
 
 The package should then be installed to the correct location for your current Python
