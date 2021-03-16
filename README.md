@@ -23,16 +23,16 @@ for future improvements, please email the development team
 
 ### Installing using pip
 
-1. Clone "eispac" to convenient location on your computer (it does not matter where).
+1.  Clone "eispac" to convenient location on your computer (it does not matter where).
 ```   
    > git clone https://github.com/USNavalResearchLaboratory/eispac.git
 ```   
-2. Open a terminal and navigate to the directory
-3. To install:
+2.  Open a terminal and navigate to the directory
+3.  To install:
 ```
 	> python -m pip install .
 ```
-> To upgrade: 
+    To upgrade: 
 ```
 	> python -m pip install --upgrade .
 ```
