@@ -1,13 +1,14 @@
 # EISPAC - EIS Python Analysis Code
-_version 0.9.1_
 
-This software provides a set of tools for analyzing Hinode / EIS data within a
+This software provides a set of tools for analyzing Hinode/EIS data within a
 python environment. The general approach is as follows:
+
 1. Sets of level 1 HDF5 files are processed from the latest EIS level 0 fits files
    and made available online by the NRL EIS team at <https://eis.nrl.navy.mil/>.
    The HDF5 files come in pairs of "data" and "header" files which contain corrected
    count rates, the calibration curve needed to convert counts into intensity,
    and all of the associated metadata and pointing information.
+   
 2. This package provides python classes and functions that can read these hdf5
    files, perform all of the necessary calibration and pointing adjustments, and
    create user-friendly python objects that can be manipulated as needed. Also
@@ -15,26 +16,32 @@ python environment. The general approach is as follows:
    template files and underlying methodology that is used in the IDL SolarSoft
    environment.
 
-Please note that this package is under active development. Some of the functionality
-and organization of the code is subject to change, including the name of the package
-itself. If you have any questions or suggestions for future improvements, please email
-the development team
+Please note that this package is under active development. If you have any questions or suggestions
+for future improvements, please email the development team
 
 ## Installation and Requirements
-Before using the code, you will need to install from source using PIP (conda install
-script will be added in a future update)
 
 ### Installing using pip
-1. Unzip and copy the "eispac_develop" folder to convenient location on your
-   computer (it does not matter where).
-2. Open a terminal and navigate to the folder
-3. To install: `python -m pip install .` To upgrade: `python -m pip install --upgrade .`
+
+1. Clone "eispac" to convenient location on your computer (it does not matter where).
+```   
+   > git clone https://github.com/USNavalResearchLaboratory/eispac.git
+```   
+2. Open a terminal and navigate to the directory
+3. To install:
+```
+	> python -m pip install .
+```
+> To upgrade: 
+```
+	> python -m pip install --upgrade .
+```
 
 The package should then be installed to the correct location for your current Python
-environment. You can now import the package using `import eispac`. Since the package
-is not publically available or registered on PyPi,org, the only way to "update" the
-package is by repeating the process above (you do not need to uninstall the old 
-version first, pip will automatically take care of that).
+environment. You can now import the package using `import eispac`. Since the package is not
+publically available or registered on PyPi,org, the only way to "update" the package is by
+repeating the process above (you do not need to uninstall the old version first, pip will
+automatically take care of that). A conda install script will be added in a future update
 
 ### Required Packages
 pip should automatically install the package dependencies. If it does not, here is
@@ -51,6 +58,17 @@ the dependencies manually first, before installing eispac using pip.
 * ndcube >= 1.2.1
 * wget
 * cURL
+
+### Getting Started
+
+* `QUICK_GUIDE-cli.md`: A very brief description of some command line tools for downloading and
+  fitting the data
+  
+* `QUICK_GUIDE.md`: A very brief description of the EISPAC objects.
+
+* `users_guide/EISPAC_Users_Guide.pdf`: A more detailed guide to the software.
+
+* `notebooks`: Tutorials using Juypter notebooks.
 
 ## Code Organization
 

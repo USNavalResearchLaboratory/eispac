@@ -1,5 +1,4 @@
 # A Quick and Dirty Guide to the Updated eispac Software
-_version 0.7_
 
 Once installed, the package can be imporated as you would expect using
 `import eispac`

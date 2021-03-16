@@ -1,5 +1,4 @@
-# A Quick and Dirty Guide to the Updated eispac Software Command Line Interface
-_version 0.7_
+# A Quick Guide to the EISPAC Software Command Line Interface
 
 These are helper routines to get you started quickly.
 
