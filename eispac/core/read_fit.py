@@ -117,6 +117,8 @@ def read_fit(filename, verbose=False):
     # Loop over each EISFitResult attribute and load data structure from the file
     print('Reading fit result from ', str(filename))
     with h5py.File(filename, 'r') as fit_file:
+        top_key_list = list(fit_file.keys())
+        fit_key_list = list(fit_file['fit'].keys())
         for attr_name in fit_file.keys():
             attr_val = walk_and_load(fit_file, attr_name, verbose=verbose)
             setattr(fit_result, attr_name, attr_val)
@@ -127,8 +129,15 @@ def read_fit(filename, verbose=False):
     # Make sure the .fit['Line_ids'] is ALWAYS an array (for code consistency)
     fit_result.fit['line_ids'] = np.atleast_1d(fit_result.fit['line_ids'])
 
+    # If version number is missing, try to guess it
+    if 'eispac_version' not in top_key_list:
+        if 'data_units' in top_key_list:
+            fit_result.eispac_version = '0.9.1'
+        else:
+            fit_result.eispac_version = '0.8.0'
+
     # Add 'wave_range' to fits saved before 2021-02-19
-    if 'wave_range' not in fit_result.fit.keys():
+    if 'wave_range' not in fit_key_list:
         fit_result.fit['wave_range'] = np.zeros(2)
         fit_result.fit['wave_range'][0] = fit_result.template['data_x'][0]
         fit_result.fit['wave_range'][1] = fit_result.template['data_x'][-1]

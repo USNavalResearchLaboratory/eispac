@@ -6,6 +6,7 @@ import numpy as np
 from scipy.ndimage import shift as shift_img
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
+from eispac import __version__ as eispac_version
 import eispac.core.fitting_functions as fit_fns
 from eispac.core.read_template import create_funcinfo
 from eispac.util.rot_xy import rot_xy
@@ -65,6 +66,7 @@ class EISFitResult:
                  func_name='multigaussian',
                  data_units='unknown', radcal='unknown', empty=False):
         self.date_fit = datetime.now().replace(microsecond=0).isoformat()
+        self.eispac_version = eispac_version
         self.meta = dict()
         self.template = copy.deepcopy(template)
         self.parinfo = copy.deepcopy(parinfo)
@@ -315,11 +317,6 @@ class EISFitResult:
                 use_range[0] = np.median(self.fit['wavelength'][:,:,0])
                 use_range[1] = np.median(self.fit['wavelength'][:,:,-1])
 
-        # Check for valid fit results?
-        # if np.sum(self.fit['params'][y_pixel, x_pixel, :]) <= 0:
-        #     print('No valid fit found!')
-        #     return None, None
-
         # Determine numbers and types of components in output profile
         full_num_comp = self.n_gauss + 1 if self.n_poly > 0 else self.n_gauss
         if use_comp is None:
@@ -344,7 +341,10 @@ class EISFitResult:
                 fit_wave = self.fit['wavelength'][use_coords[0], use_coords[1], :]
             else:
                 fit_wave = np.linspace(use_range[0], use_range[-1], num_wavelengths)
-            fit_inten = self.fit_func(param_vals, fit_wave, num_gauss, num_poly)
+            if self.fit['status'][use_coords[0], use_coords[1]] > 0:
+                fit_inten = self.fit_func(param_vals, fit_wave, num_gauss, num_poly)
+            else:
+                fit_inten = np.zeros_like(fit_wave)
         else:
             # Full image
             if num_wavelengths is None:
@@ -356,9 +356,10 @@ class EISFitResult:
             # Loop over locations and calculate each fit profile
             for ii in range(self.n_pxls):
                 for jj in range(self.n_steps):
-                    fit_inten[ii,jj,:] = self.fit_func(param_vals[ii,jj,:],
-                                                       fit_wave[ii,jj,:],
-                                                       num_gauss, num_poly)
+                    if self.fit['status'][ii, jj] > 0:
+                        fit_inten[ii,jj,:] = self.fit_func(param_vals[ii,jj,:],
+                                                           fit_wave[ii,jj,:],
+                                                           num_gauss, num_poly)
 
         # Apply data masking as needed. Remember: 0 = False = good data (unmasked)
         if use_mask == True and num_wavelengths is None and 'mask' in self.fit.keys():
@@ -601,3 +602,4 @@ def create_fit_dict(n_pxls, n_steps, n_wave, n_gauss, n_poly, data_units='unknow
             output['param_units'][3*s:3*s+3] = [data_units, 'Angstrom', 'Angstrom']
 
     return output
+
