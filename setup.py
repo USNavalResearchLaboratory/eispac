@@ -1,10 +1,21 @@
-""" Development version of the EIS Python Analysis Code """
+""" Public version of the EIS Python Analysis Code """
 
+import os
 import setuptools
+
+def get_version(rel_path):
+    here = os.path.abspath(os.path.dirname(__file__))
+    with open(os.path.join(here, rel_path)) as fp:
+        for line in fp.read().splitlines():
+            if line.startswith('__version__'):
+                # __version__ = "0.9.1"
+                delim = '"' if '"' in line else "'"
+                return line.split(delim)[1]
+    raise RuntimeError("Unable to find version string.")
 
 setuptools.setup(
     name = 'eispac',
-    version = '0.9.1',
+    version = get_version("eispac/__init__.py"),
     description = 'Python analysis tools for Hinode / EIS data',
     author = 'NRL EISPAC Development Team',
     author_email = 'N/A',
