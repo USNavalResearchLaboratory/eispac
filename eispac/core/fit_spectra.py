@@ -377,7 +377,7 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
     if skip_fitting != True:
         t1 = datetime.now() # start a simple timer
         nexp.value = n_steps
-        print(f' + computing fits for {n_steps:d} exposures')
+        print(f' + computing fits for {n_steps:d} exposures, each with {n_pxls:d} spectra')
 
         # Run fitting in either a single process (default) or using multiprocessing
         if ncpu == 1:
@@ -414,9 +414,19 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
 
         # print status
         t2 = datetime.now() # end timer
+        num_fit = len(np.where(fit_res.fit['status'] > -0)[0])
+        num_too_few = len(np.where((fit_res.fit['status'] == -2) |
+                                   (fit_res.fit['status'] == -1))[0])
+        num_bad_params = len(np.where((fit_res.fit['status'] == -3) |
+                                      (fit_res.fit['status'] == 0))[0])
         print('\n')
-        print(' + fit completed!')
-        print(f' + fit runtime : {t2-t1}')
+        print('Finished computing fits!')
+        print(f'   runtime : {t2-t1}')
+        print(f'   {num_fit} spectra fit without issues')
+        print(f'   {num_too_few} spectra have < {min_points} good data points')
+        print(f'   {num_bad_params} spectra have bad or invalid parameters')
+
+
 
         # reset global counters
         cntr.value = 0
