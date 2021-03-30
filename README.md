@@ -8,7 +8,7 @@ python environment. The general approach is as follows:
    The HDF5 files come in pairs of "data" and "header" files which contain corrected
    count rates, the calibration curve needed to convert counts into intensity,
    and all of the associated metadata and pointing information.
-   
+
 2. This package provides python classes and functions that can read these hdf5
    files, perform all of the necessary calibration and pointing adjustments, and
    create user-friendly python objects that can be manipulated as needed. Also
@@ -23,16 +23,16 @@ for future improvements, please email the development team
 
 ### Installing using pip
 
-1.  Clone "eispac" to convenient location on your computer (it does not matter where).
-```   
+1.  Download or clone "eispac" to a convenient location on your computer (it does not matter where).
+```
 	> git clone https://github.com/USNavalResearchLaboratory/eispac.git
-```   
+```
 2.  Open a terminal and navigate to the directory
 3.  To install:
 ```
 	> python -m pip install .
 ```
-4.  To upgrade: 
+4.  To upgrade:
 ```
 	> python -m pip install --upgrade .
 ```
@@ -45,8 +45,8 @@ automatically take care of that). A conda install script will be added in a futu
 
 ### Required Packages
 pip should automatically install the package dependencies. If it does not, here is
-a list of the required packages (older package versions might still work). Note: if 
-you are using conda to manage your Python packages, you may wish to install or update 
+a list of the required packages (older package versions might still work). Note: if
+you are using conda to manage your Python packages, you may wish to install or update
 the dependencies manually first, before installing eispac using pip.
 * python >= 3.7
 * numpy >= 1.18.1
@@ -63,7 +63,7 @@ the dependencies manually first, before installing eispac using pip.
 
 * `QUICK_GUIDE-cli.md`: A very brief description of some command line tools for downloading and
   fitting the data
-  
+
 * `QUICK_GUIDE.md`: A very brief description of the EISPAC objects.
 
 * `users_guide/EISPAC_Users_Guide.pdf`: A more detailed guide to the software.
@@ -89,19 +89,21 @@ There are currently three core directories:
 2. **scripts**: GUI and command line tools
 
 2. **users_guide**: PDF with instructions and examples for how to use the code. Also
-   included the LaTeX source code.
+   includes the LaTeX source code.
 
 The `QUICK_GUIDE.md` text document also give a very brief overview of some key functions.
-It should also be noted that `mpfit.py` was written by Mark Rivers and Sergey Kopsov and 
-is direct Python port of the `mpfit.pro` IDL procedure written by Craig Markwardt. As such, 
-much of the documentation online for the IDL version of the code is still applicable to the 
+It should also be noted that `mpfit.py` was written by Mark Rivers and Sergey Kopsov and
+is direct Python port of the `mpfit.pro` IDL procedure written by Craig Markwardt. As such,
+much of the documentation online for the IDL version of the code is still applicable to the
 Python version (please see the Python doc for more information).
 
 ## TODO list
-Here, in no particular order, is a list of some things that still need work.
-* Expand documentation
-* Add more unit and integration tests
+Here, in no particular order, is a list of some things that may be added in future releases.
+* Expanded documentation
+* More unit and integration tests
+* More detailed logging (with option to send all log information to a file)
+* Scripts for quickly viewing data and spectra fits
+* Scripts and routines for creating new fit templates
 * Consider adding a subclass of `NDCubeSequence` which can hold multiple spectral windows
 * Consider storing the output fit parameters in another `NDCube`
-  (might be one too many subclasses to maintain)
 * Restructure project to use the Sunpy affiliated package template?
