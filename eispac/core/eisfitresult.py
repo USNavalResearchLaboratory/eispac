@@ -525,10 +525,8 @@ class EISFitResult:
         return rect
 
     def get_aspect_ratio(self):
-        x_scale = self.meta['pointing']['x_scale'] # arcsec per x steps
-        y_scale = self.meta['pointing']['y_scale'] # arcsec per y, always 1!
-        aspect = y_scale/x_scale
-        return aspect
+        # Aspect_ratio is given as y_scale/x_scale (NB: y_scale is 1 arcsec)
+        return self.meta['aspect_ratio']
 
     def shift2wave(self, array, wave=195.119):
         # Shift an array from this fit to the desired wavelength
@@ -602,4 +600,3 @@ def create_fit_dict(n_pxls, n_steps, n_wave, n_gauss, n_poly, data_units='unknow
             output['param_units'][3*s:3*s+3] = [data_units, 'Angstrom', 'Angstrom']
 
     return output
-
