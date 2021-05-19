@@ -1,6 +1,7 @@
 __all__ = ['EISCube']
 
 import sys
+import copy
 import numpy as np
 import astropy.units as u
 from astropy.convolution import convolve, CustomKernel
@@ -87,7 +88,7 @@ class EISCube(NDCube):
 
         new_data = self.data.copy()*new_radcal
         new_errs = self.uncertainty.array.copy()*new_radcal
-        new_meta = self.meta.copy()
+        new_meta = copy.deepcopy(self.meta)
         new_meta['notes'].append('Applied radcal to convert photon counts to intensity')
         wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
 
@@ -116,7 +117,7 @@ class EISCube(NDCube):
 
         new_data = self.data.copy()/self.radcal
         new_errs = self.uncertainty.array.copy()/self.radcal
-        new_meta = self.meta.copy()
+        new_meta = copy.deepcopy(self.meta)
         new_meta['notes'].append('Removed radcal to convert intensity to photon counts')
         wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
 
@@ -126,18 +127,115 @@ class EISCube(NDCube):
                               mask=self.mask, missing_axes=wcs_mask)
         return output_cube
 
-    def sum_spectra(self):
+    def sum_spectra(self, wave_range=None, units=u.Angstrom):
         """Sum the data along the spectral axis.
+
+        Parameters
+        ----------
+        wave_range : list of ints, floats, or Quantity instances
+            Wavelength range to sum over. Values can be input as either
+            [min, max] or [center, half width]. Units can be specified using
+            either Astropy units instances or by inputting a pair of ints or
+            floats and then also using the "units" keyword. If wave_range is set
+            to None, then entire spectra will be summed over. Default is None.
+        units : str or Quantity instance
+            Units to be used for the wavelength range if wave_range is given a
+            list of ints or floats. Will be ignored if either wave_range is None
+            or is given a list with Astropy units. Default is 'Angstrom'.
 
         Returns
         -------
         output_cube : NDCube class instance
             A new NDCube class instance containing the summed data
         """
-        sum_data = np.sum(self.data, axis=2)
+        if wave_range is None:
+            # Sum over entire wavelength axis and return an NDCube
+            sum_data = np.sum(self.data, axis=2)
+            new_wcs = self.wcs.dropaxis(0)
+            new_meta = copy.deepcopy(self.meta)
+            new_meta['notes'].append('Summed over entire wavelength axis.')
+            return NDCube(sum_data, new_wcs, meta=new_meta)
+
+        # Validate input wavelength range
+        if isinstance(wave_range, (list, tuple)):
+            use_range = [0, 0]
+            range_units = ['unknown', 'unknown']
+            print('Summing EISCube spectra over a select wavelength range.')
+            if len(wave_range) != 2:
+                print('Error: invalid number of wave_range values. Please input'
+                     +' a list or tuple with exactly two elements.',
+                     file=sys.stderr)
+                return None
+        else:
+            print('Error: invalid wave_range type. Please input either None or'
+                 +' a list (or tuple) with two elements.', file=sys.stderr)
+            return None
+
+        for w in range(2):
+            if isinstance(wave_range[w], u.Quantity):
+                # Parse an astropy.units.Quantity and convert as needed
+                # Note: this will overwrite any inputs to the "units" kwarg
+                if wave_range[w].unit == u.pix:
+                    use_range[w] = wave_range[w].value
+                    range_units[w] = u.pix
+                elif wave_range[w].unit.physical_type == 'length':
+                    use_range[w] = wave_range[w].to('Angstrom').value
+                    range_units[w] = u.Angstrom
+                else:
+                    print('Error: invalid wavelength unit. Please input a pixel'
+                    +' or length unit.', file=sys.stderr)
+                    return None
+            else:
+                # Assume default or user inputted units (still convert if needed)
+                input_units = u.Unit(units)
+                if input_units == u.pix:
+                    use_range[w] = float(wave_range[w])
+                    range_units[w] = u.pix
+                elif input_units.physical_type == 'length':
+                    u_scale = input_units.to('Angstrom')
+                    use_range[w] = float(wave_range[w])*u_scale
+                    range_units[w] = u.Angstrom
+                else:
+                    print('Error: invalid wavelength unit. Please input a pixel'
+                         +' or length unit.', file=sys.stderr)
+                    return None
+
+        # Check for consistent units
+        if range_units[0] != range_units[1]:
+            print('Error: mismatched units. Please input the same units for'
+                 +' both wave_range elements or use the "units" keyword',
+                 file=sys.stderr)
+            return None
+
+        # If given values of [center, half width], compute the actual range
+        if use_range[1] < use_range[0]:
+            temp_center = use_range[0]
+            temp_half_wid = use_range[1]
+            use_range[0] = temp_center - temp_half_wid
+            use_range[1] = temp_center + temp_half_wid
+
+        # Get indices to be summed over
+        w_indices = [0, -1]
+        if range_units[0] == u.pix:
+            # Round pixels values to nearest whole indice
+            w_indices[w] = int(round(use_range[w]))
+        elif range_units[0] == u.Angstrom:
+            # Find the closest pixel location on the average wavelength axis
+            try:
+                # Note: the corrected wavelength has units of [Angstrom]
+                w_coords = np.mean(self.wavelength, axis=(0,1))
+            except KeyError:
+                print('Error: missing or invalid corrected wavelength array.')
+                return None
+            for w in range(2):
+                abs_w_diff = np.abs(w_coords - use_range[w])
+                w_indices[w] = np.argmin(abs_w_diff)
+
+        sum_data = np.sum(self.data[:,:,w_indices[0]:w_indices[1]+1], axis=2)
         new_wcs = self.wcs.dropaxis(0)
-        new_meta = self.meta.copy()
-        new_meta['notes'].append('Summed over the wavelength axis.')
+        new_meta = copy.deepcopy(self.meta)
+        new_meta['notes'].append('Summed wavelength axis over the range of '
+                                +str(use_range)+' '+str(range_units[0]))
         return NDCube(sum_data, new_wcs, meta=new_meta)
 
     def smooth_cube(self, width=3, **kwargs):
@@ -225,7 +323,7 @@ class EISCube(NDCube):
 
         # Pack everything up in a new EISCube
         old_radcal = self.radcal
-        new_meta = self.meta.copy()
+        new_meta = copy.deepcopy(self.meta)
         new_meta['notes'].append('Smoothed using pixel widths of '+str(wid_list))
         wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
 
