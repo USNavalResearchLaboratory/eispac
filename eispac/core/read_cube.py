@@ -95,6 +95,7 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
     # Read in min and max wavelength for each window in the file
     #   so we can search for the requested window
     wininfo = read_wininfo(head_filepath)
+    num_win = wininfo.size
     # with h5py.File(head_filepath, 'r') as f_head:
     #     num_win = f_head['/wininfo/nwin'][0]
     #     dt = np.dtype([('iwin', 'i4'), ('line_id', 'U64'),
