@@ -5,3 +5,4 @@ include QUICK_GUIDE.md
 recursive-include convert *
 include eispac/templates/eis_template_dir/*.h5
 include eispac/templates/eis_template_dir/*.jpg
+include eispac/data/test/*.h5

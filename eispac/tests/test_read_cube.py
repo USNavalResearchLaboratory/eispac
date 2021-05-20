@@ -1,8 +1,10 @@
 import pytest
 import eispac
 
-test_head_filepath = '../data/test/test_dataset_eis_20190404_131513.head.h5'
-test_data_filepath = '../data/test/test_dataset_eis_20190404_131513.data.h5'
+# test_data_filepath = '../data/test/eis_20210306_064444.data.h5'
+# test_head_filepath = '../data/test/eis_20210306_064444.head.h5'
+test_data_filepath = eispac.data.test_data
+test_head_filepath = eispac.data.test_head
 
 def test_invalid_filepath_type():
     eis_cube = eispac.read_cube(42)
@@ -17,7 +19,7 @@ def test_invalid_window():
     assert eis_cube is None
 
 def test_read_cube_data_str_filepath():
-    eis_cube = eispac.read_cube(test_data_filepath, 195.119)
+    eis_cube = eispac.read_cube(test_data_filepath, 192.394)
     assert isinstance(eis_cube, eispac.EISCube)
 
 def test_read_cube_head_str_filepath():
@@ -32,6 +34,6 @@ def test_read_fit_pathlib_filepath():
 
 def test_total_intensity():
     from ndcube import NDCube
-    eis_cube = eispac.read_cube(test_data_filepath, 195.119)
+    eis_cube = eispac.read_cube(test_data_filepath, 192.394)
     sum_inten = eis_cube.sum_spectra()
     assert isinstance(sum_inten, NDCube)

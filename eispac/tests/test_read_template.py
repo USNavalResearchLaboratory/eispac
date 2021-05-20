@@ -1,7 +1,8 @@
 import pytest
 import eispac
 
-test_tmplt_filepath = '../templates/eis_template_dir/fe_12_195_119.2c.template.h5'
+# test_tmplt_filepath = '../templates/eis_template_dir/fe_12_192_394.1c.template.h5'
+test_tmplt_filepath = eispac.templates.template_dir+'/fe_12_192_394.1c.template.h5'
 
 def test_invalid_filepath_type():
     tmplt = eispac.read_template(42)
@@ -28,4 +29,4 @@ def test_print_parinfo():
 
 def test_create_funcinfo():
     tmplt = eispac.read_template(test_tmplt_filepath)
-    assert len(tmplt.funcinfo) == 3
+    assert len(tmplt.funcinfo) == 2
