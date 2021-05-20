@@ -1,8 +1,10 @@
 import pytest
 import eispac
 
-test_data_filepath = '../data/test/test_dataset_eis_20190404_131513.data.h5'
-test_fit_filepath = '../data/test/eis_20190404_131513_fe_12_195_119_c0.fit.h5'
+# test_data_filepath = '../data/test/eis_20210306_064444.data.h5'
+# test_fit_filepath = '../data/test/eis_20210306_064444.fe_12_192_394.1c-0.fit.h5'
+test_data_filepath = eispac.data.test_data
+test_fit_filepath = eispac.data.test_fit
 empty_fit = eispac.EISFitResult(empty=True)
 empty_fit.meta['filename_head'] = test_data_filepath
 

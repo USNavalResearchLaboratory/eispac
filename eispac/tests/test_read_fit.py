@@ -1,7 +1,8 @@
 import pytest
 import eispac
 
-test_fit_filepath = '../data/test/eis_20190404_131513_fe_12_195_119_c0.fit.h5'
+# test_fit_filepath = '../data/test/eis_20210306_064444.fe_12_192_394.1c-0.fit.h5'
+test_fit_filepath = eispac.data.test_fit
 
 def test_invalid_filepath_type():
     fit_res = eispac.read_fit(42)

@@ -1,8 +1,10 @@
 import pytest
 import eispac
 
-test_data_filepath = '../data/test/test_dataset_eis_20190404_131513.data.h5'
-test_tmplt_filepath = '../templates/eis_template_dir/fe_12_195_119.2c.template.h5'
+# test_data_filepath = '../data/test/eis_20210306_064444.data.h5'
+# test_tmplt_filepath = '../templates/eis_template_dir/fe_12_192_394.1c.template.h5'
+test_data_filepath = eispac.data.test_data
+test_tmplt_filepath = eispac.templates.template_dir+'/fe_12_192_394.1c.template.h5'
 
 def test_empty():
     fit_res = eispac.EISFitResult(empty=True)
@@ -10,7 +12,7 @@ def test_empty():
 
 def test_EISFitResult():
     tmplt = eispac.read_template(test_tmplt_filepath)
-    eis_cube = eispac.read_cube(test_data_filepath, 195.119)
+    eis_cube = eispac.read_cube(test_data_filepath, 192.394)
     wave_cube = eis_cube.wavelength
     fit_res = eispac.EISFitResult(wave_cube, tmplt.template, tmplt.parinfo,
                                   func_name='multigaussian')
