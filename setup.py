@@ -13,14 +13,20 @@ def get_version(rel_path):
                 return line.split(delim)[1]
     raise RuntimeError("Unable to find version string.")
 
+# setup_dir = os.path.abspath(os.path.dirname(__file__))
+# with open(os.path.join(setup_dir, 'README.md', encoding='utf-8')) as f:
+#     readme_text = f.read()
+
 setuptools.setup(
     name = 'eispac',
     version = get_version("eispac/__init__.py"),
     description = 'Python analysis tools for Hinode / EIS data',
+    # long_description = readme_text,
+    # long_description_content_type = 'text/markdown',
     author = 'NRL EISPAC Development Team',
     author_email = 'N/A',
     license = 'MIT',
-    url = "https://github.com/hpwarren/pyEIS-test",
+    url = "https://github.com/USNavalResearchLaboratory/eispac",
     project_urls = {
         "Data": "https://eis.nrl.navy.mil/"},
     packages = setuptools.find_packages(),
@@ -40,13 +46,13 @@ setuptools.setup(
     keywords = 'solar, sun, physics, spectroscopy, Hinode, EIS',
     python_requires = '>=3.7',
     install_requires = [
-        "numpy",
-        "scipy",
-        "matplotlib",
-        "h5py",
-        "astropy",
-        "sunpy",
-        "ndcube",
+        "numpy>=1.18",
+        "scipy>=1.4",
+        "matplotlib>=3.1",
+        "h5py>=2.9",
+        "astropy>=3.1",
+        "sunpy>=1.1.1",
+        "ndcube>=1.2",
         "wget"],
     include_package_data = True
     )

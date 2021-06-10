@@ -6,7 +6,7 @@ import eispac
 test_data_filepath = eispac.data.test_data
 test_fit_filepath = eispac.data.test_fit
 empty_fit = eispac.EISFitResult(empty=True)
-empty_fit.meta['filename_head'] = test_data_filepath
+empty_fit.meta['filename_head'] = eispac.data.test_head
 
 def test_invalid_save_dir():
     saved_files = eispac.save_fit('no result')

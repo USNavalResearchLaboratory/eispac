@@ -1,0 +1,54 @@
+{% set data = load_setup_py_data() %}
+
+package:
+  name: eispac
+  version: {{ data.get('version') }}
+
+source:
+  path: ..
+
+build:
+  number: 0
+  script:  python -m pip install .
+  entry_points:
+    - eis_browse_templates = scripts.eis_browse_templates:eis_browse_templates
+    - eis_catalog = scripts.eis_catalog:eis_catalog
+    - eis_download_files = scripts.eis_download_files:eis_download_files
+    - eis_fit_files = scripts.eis_fit_files:eis_fit_files
+    - eis_plot_fit = scripts.eis_plot_fit:eis_plot_fit
+
+requirements:
+  build:
+    - python >=3.7
+    - setuptools
+
+  run:
+    - python >=3.7
+    - numpy >=1.18
+    - scipy >=1.4
+    - matplotlib >=3.1
+    - h5py >=2.9
+    - astropy >=3.1
+    - sunpy >=1.1.1
+    - ndcube >=1.2
+
+  run_constrained:
+    - pyqt
+
+test:
+  imports:
+    - eispac
+
+  requires:
+    - pytest >=4.6.3
+
+about:
+  home: {{ data.get('url') }}
+  license: MIT License
+  license_file: LICENSE.txt
+  license_family: MIT
+
+  summary: {{ data.get('description') }}
+  description: {{ data.get('description') }}
+  doc_url: {{ data.get('url') }}
+  dev_url: {{ data.get('url') }}
