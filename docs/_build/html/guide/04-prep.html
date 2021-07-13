@@ -1,0 +1,247 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Level-1 HDF5 File Details &#8212; eispac 2021 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="Downloading and Reading the Data" href="02-read.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="level-1-hdf5-file-details">
+<span id="sec-prep"></span><h1>Level-1 HDF5 File Details<a class="headerlink" href="#level-1-hdf5-file-details" title="Permalink to this headline">¶</a></h1>
+<p>This chapter describes in more detail how the EIS level-1 HDF5 files
+were processed and saved. These HDF5 files can be downloaded from
+<a class="reference external" href="https://eis.nrl.navy.mil/">https://eis.nrl.navy.mil/</a> or by using the search &amp; download
+functionality of EISPAC (see the section on <a class="reference internal" href="02-read.html#sec-download"><span class="std std-ref">Downloading and Reading the Data</span></a>).</p>
+<div class="section" id="prepping-the-data-in-idl">
+<h2>Prepping the data in IDL<a class="headerlink" href="#prepping-the-data-in-idl" title="Permalink to this headline">¶</a></h2>
+<p>The level-0 fits files were prepped using the IDL routine <code class="docutils literal notranslate"><span class="pre">eis_prep</span></code>
+available via SolarSoft <a class="footnote-reference brackets" href="#id2" id="id1">1</a> with the following options:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">default</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">save</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">quiet</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">retain</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">photons</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">refill</span> <span class="o">=</span> <span class="mi">0</span>
+</pre></div>
+</div>
+<p>There are 400,000+ EIS level-0 files at present, but on a multi-core
+machine using the IDL bridge all of the files can be prepped in under 24
+hours. We have prepped all of the available EIS files and saved them to
+standard fits files in the usual way. Some important points:</p>
+<ul class="simple">
+<li><p><em>units</em> - As mentioned previously, the units for the output in these level-1
+files is “photon events” or “counts.” This means that the statistical
+uncertainty can usually be estimated as <span class="math notranslate nohighlight">\(\sqrt{N}\)</span>. When EISPAC
+loads the HDF5 files, it also calculates an estimate for the read
+noise contribution. It should be noted, however, that the read noise
+becomes significant only at very low flux levels (1–2 counts).</p></li>
+<li><p><em>retain</em> - Note that the retain keyword preserves negative values. One of
+the jobs of <code class="docutils literal notranslate"><span class="pre">eis_prep</span></code> is to remove the pedestal from the CCD readout
+and any time-dependent dark current. Since the spectral windows are
+generally narrow, the estimate of the background can be too high and
+the subtracted intensities of the continuum can be negative. This
+will be dealt with during the fitting.</p></li>
+<li><p><em>refill</em> - The warm pixel problem complicates the fitting of EIS line
+profiles. As discussed in the EIS software note #13 (found in SSW or on the
+eiswiki), interpolating the values of missing pixels appears to best
+reproduce the original data. This option is left off during
+<code class="docutils literal notranslate"><span class="pre">eis_prep</span></code> so that the level-1 fits file preserves the information
+on the missing pixels. As discussed below, the interpolation (via the
+refill option) is done during the read and this data is ultimately
+written to the HDF5 file. A mask indicating which pixels have been
+interpolated will be added to the HDF5 files in a future revision.</p></li>
+</ul>
+<p>Here is an IDL code snippet related to reading the data by looping over
+the spectral windows.</p>
+<div class="highlight-idl notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> iwin<span class="o">=</span><span class="mi">0</span>, nwin<span class="o">-</span><span class="mi">1</span> <span class="k">do</span> <span class="k">begin</span>
+  d <span class="o">=</span> eis_getwindata(eis_level1_filename, iwin, <span class="o">/</span>refill, <span class="o">/</span>quiet)
+  eis_level1_data[iwin] <span class="o">=</span> <span class="nb">ptr_new</span>(d)
+<span class="k">endfor</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="writing-the-hdf5-files">
+<h2>Writing the HDF5 files<a class="headerlink" href="#writing-the-hdf5-files" title="Permalink to this headline">¶</a></h2>
+<p>Each processed level-1 fits file was bundled up with the associated
+calibration and metadata and saved as a pair of two HDF5 files:</p>
+<ul class="simple">
+<li><p><strong>eis_YYYYMMDD_HHMMSS.data.h5</strong> - Contains only the corrected photon counts
+within each spectral window. This is, by far, the larger of the two HDF5
+files. However, they should not need to be updated or downloaded very often.</p></li>
+<li><p><strong>eis_YYYYMMDD_HHMMSS.head.h5</strong> - Contains the original fit file index,
+calibration curves for each spectral window (used to convert counts into
+intensity values), and the corrected pointing information.</p></li>
+</ul>
+<p>Users will rarely, if ever, need to access the information inside the
+HDF5 files directly. EISPAC contains all of the functions needed to read
+the data and apply the calibration and pointing corrections.
+Nevertheless, the contents and data structure of the HDF5 files are
+summarized below.</p>
+<div class="section" id="data-h5">
+<h3>.data.h5<a class="headerlink" href="#data-h5" title="Permalink to this headline">¶</a></h3>
+<ul>
+<li><p><strong>level1</strong> (group)</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><strong>intensity_units</strong> (dataset) - String with the level1 data units.
+This will usually be “counts”</p></li>
+<li><p><strong>win##</strong> (dataset) - array of floating point values with the photon
+counts in a given spectral window (e.g. <code class="docutils literal notranslate"><span class="pre">win00,</span> <span class="pre">win01,</span> <span class="pre">...</span> <span class="pre">win24</span></code>).
+Note well, each set of EIS observations may have a different
+number of spectral windows, up to a maximum of 24 windows. Window
+numbers are numbered sequentially from 00; a given wavelength
+range may be assigned a different window number in each EIS study.</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</div>
+<div class="section" id="head-h5">
+<h3>.head.h5<a class="headerlink" href="#head-h5" title="Permalink to this headline">¶</a></h3>
+<ul class="simple">
+<li><p><em>Details to be added soon</em></p></li>
+</ul>
+<p>Additionally, the contents of the HDF5 files can be displayed using
+<code class="docutils literal notranslate"><span class="pre">h5dump</span></code> command line tool, which is provided along with the Anaconda
+Python distribution platform or can be installed on its own. Example
+usage,</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">h5dump</span> <span class="o">-</span><span class="n">n</span> <span class="n">eis_20190404_131513</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">h5</span>
+<span class="n">FILE_CONTENTS</span> <span class="p">{</span>
+<span class="n">group</span>      <span class="o">/</span>
+<span class="n">group</span>      <span class="o">/</span><span class="n">level1</span>
+<span class="n">dataset</span>    <span class="o">/</span><span class="n">level1</span><span class="o">/</span><span class="n">intensity_units</span>
+<span class="n">dataset</span>    <span class="o">/</span><span class="n">level1</span><span class="o">/</span><span class="n">win00</span>
+<span class="n">dataset</span>    <span class="o">/</span><span class="n">level1</span><span class="o">/</span><span class="n">win01</span>
+<span class="n">dataset</span>    <span class="o">/</span><span class="n">level1</span><span class="o">/</span><span class="n">win02</span>
+<span class="n">dataset</span>    <span class="o">/</span><span class="n">level1</span><span class="o">/</span><span class="n">win03</span>
+<span class="n">dataset</span>    <span class="o">/</span><span class="n">level1</span><span class="o">/</span><span class="n">win04</span>
+<span class="n">dataset</span>    <span class="o">/</span><span class="n">level1</span><span class="o">/</span><span class="n">win05</span>
+<span class="o">.</span> <span class="o">.</span> <span class="o">.</span>
+</pre></div>
+</div>
+<p>The actual data associated with each variable can be printed out using
+the <code class="docutils literal notranslate"><span class="pre">-d</span></code> option. For example,</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">h5dump</span> <span class="o">-</span><span class="n">d</span> <span class="n">exposure_times</span><span class="o">/</span><span class="n">duration</span> <span class="n">eis_20190404_131513</span><span class="o">.</span><span class="n">head</span><span class="o">.</span><span class="n">h5</span>
+<span class="n">HDF5</span> <span class="s2">&quot;eis_20190404_131513.head.h5&quot;</span> <span class="p">{</span>
+<span class="n">DATASET</span> <span class="s2">&quot;exposure_times/duration&quot;</span> <span class="p">{</span>
+   <span class="n">DATATYPE</span>  <span class="n">H5T_IEEE_F32LE</span>
+   <span class="n">DATASPACE</span>  <span class="n">SIMPLE</span> <span class="p">{</span> <span class="p">(</span> <span class="mi">87</span> <span class="p">)</span> <span class="o">/</span> <span class="p">(</span> <span class="mi">87</span> <span class="p">)</span> <span class="p">}</span>
+   <span class="n">DATA</span> <span class="p">{</span>
+   <span class="p">(</span><span class="mi">0</span><span class="p">):</span> <span class="mf">40.0005</span><span class="p">,</span> <span class="mf">40.0002</span><span class="p">,</span> <span class="mf">40.0004</span><span class="p">,</span> <span class="mf">40.0004</span><span class="p">,</span> <span class="mf">39.9994</span><span class="p">,</span> <span class="mf">40.0002</span><span class="p">,</span> <span class="mf">39.9995</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span>
+   <span class="p">(</span><span class="mi">8</span><span class="p">):</span> <span class="mf">40.0007</span><span class="p">,</span> <span class="mf">39.9999</span><span class="p">,</span> <span class="mf">40.0005</span><span class="p">,</span> <span class="mf">40.0004</span><span class="p">,</span> <span class="mf">39.9997</span><span class="p">,</span> <span class="mf">40.0002</span><span class="p">,</span> <span class="mf">39.9994</span><span class="p">,</span>
+   <span class="o">.</span> <span class="o">.</span> <span class="o">.</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p class="rubric">Citations</p>
+<dl class="footnote brackets">
+<dt class="label" id="id2"><span class="brackets"><a class="fn-backref" href="#id1">1</a></span></dt>
+<dd><p>Freeland, S. L., &amp; Handy, B. N. 1998, <em>Sol.</em> <em>Phys.</em>, <strong>182</strong>, 497</p>
+</dd>
+</dl>
+</div>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">eispac</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">User’s Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="01-intro.html">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="02-read.html">Downloading and Reading the Data</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Level-1 HDF5 File Details</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">User’s Guide</a><ul>
+      <li>Previous: <a href="02-read.html" title="previous chapter">Downloading and Reading the Data</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, NRL EIS Team.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 4.0.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="../_sources/guide/04-prep.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

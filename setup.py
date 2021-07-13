@@ -53,6 +53,7 @@ setuptools.setup(
         "astropy>=3.1",
         "sunpy>=1.1.1",
         "ndcube>=1.2",
+        "pyqt5",
         "wget"],
     include_package_data = True
     )
