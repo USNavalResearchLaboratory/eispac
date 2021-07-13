@@ -1,0 +1,360 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Downloading and Reading the Data &#8212; eispac 2021 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Level-1 HDF5 File Details" href="04-prep.html" />
+    <link rel="prev" title="Introduction" href="01-intro.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="downloading-and-reading-the-data">
+<span id="sec-download"></span><h1>Downloading and Reading the Data<a class="headerlink" href="#downloading-and-reading-the-data" title="Permalink to this headline">¶</a></h1>
+<p>There are two main components to the EISPAC software: (1) a set of
+command line scripts and (2) the Python package itself. In this chapter
+we will give a very brief overview of how to read and explore the EIS
+data contained in the level-1 HDF5 files. The next chapter covers how to
+fit the data with Gaussian functions.</p>
+<div class="section" id="using-the-command-line-scripts">
+<h2>Using the command line scripts<a class="headerlink" href="#using-the-command-line-scripts" title="Permalink to this headline">¶</a></h2>
+<p>The command line scripts should be automatically installed and
+registered with the OS as part of installing EISPAC. These scripts are
+designed to help users quickly browse, download, and fit Gaussian
+functions to the data. To use a script, simply enter its name in the
+command line from any directory in which you have read and write
+privileges.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Some scripts will default to saving files to your current working
+directory, therefore we recommend running the scripts from the directory
+in which you intend to do most of your analysis.</p>
+</div>
+<p>There are currently four command line scripts available,</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">eis_catalog</span></code> - GUI tool from searching the as-run EIS data catalog and
+downloading the HDF5 files your computer. Can also generate a text list of
+files to download.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">eis_browse_templates</span></code> - GUI tool for browsing the fit templates
+corresponding to each spectral window in a given observation set and
+copying the template files from EISPAC to your current working directory
+(fit templates are explained more in the next chapter)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">eis_download_files</span></code> - Command line tool for downloading a the level-1
+HDF5 files associated with one or more level-0 EIS fits files. Can also
+download an entire list of files using the text output of <code class="docutils literal notranslate"><span class="pre">eis_catalog</span></code>.
+Example usage,</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">eis_downdload_files</span> <span class="n">eis_l0_20190404_131513</span><span class="o">.</span><span class="n">fits</span>
+</pre></div>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">eis_fit_files</span></code> - Command line tool for fitting all of the HDF5 files
+in a given directory with each fit template found in another directory.
+Example usage,</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">eis_fit_files</span> <span class="o">./</span><span class="n">eis_study</span><span class="o">/</span> <span class="o">./</span><span class="n">eis_study</span><span class="o">/</span><span class="n">templates</span><span class="o">/</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+<div class="section" id="reading-and-exploring-data-with-eispac">
+<h2>Reading and Exploring data with EISPAC<a class="headerlink" href="#reading-and-exploring-data-with-eispac" title="Permalink to this headline">¶</a></h2>
+<p>Once installed, EISPAC can be imported into any Python script or
+interactive session with a simple <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">eispac</span></code> statement. Assuming
+you have already downloaded some data, the following code snippet below
+illustrates how to how to read the level-1 data from the spectral window
+containing the 195.12 Å line (window 7, in our example file). At the end
+of the chapter we will show how to examine a data header file to
+determine what wavelengths are available in a given observation.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">eispac</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">data_filename</span> <span class="o">=</span> <span class="s1">&#39;eis_20190404_131513.data.h5&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">data_cube</span> <span class="o">=</span> <span class="n">eispac</span><span class="o">.</span><span class="n">read_cube</span><span class="p">(</span><span class="n">data_filename</span><span class="p">,</span> <span class="mf">195.12</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">read_cube()</span></code> function will read and apply all of the calibration
+and pointing corrections necessary for scientific analysis. The
+function has three key arguments (see the full documentation for additional
+keywords for specifying your own calibration curve or a count offset):</p>
+<ul class="simple">
+<li><p><strong>filename</strong> (str or pathlib path) - Name or path of either the data or
+head HDF5 file for a single EIS observation</p></li>
+<li><p><strong>window</strong> (int or float, optional) - Requested spectral window number
+(if &lt;= 24) or the value of any wavelength within the requested window
+(in units of [Angstrom]). Default is “0”</p></li>
+<li><p><strong>apply_radcal</strong> (bool, optional) - If set to True, will apply the
+pre-flight radiometric calibration curve found in the HDF5 header file
+and set units to <span class="math notranslate nohighlight">\(erg/(cm^2 s sr)\)</span>. If set to False, will simply
+return the data in units of photon counts. Default is True.</p></li>
+</ul>
+<p>The return value is an <code class="docutils literal notranslate"><span class="pre">EISCube</span></code> class instance which contains
+calibrated intensities (or photon counts), corrected wavelengths, and
+all of the associated metadata. <code class="docutils literal notranslate"><span class="pre">EISCube</span></code> objects are a subclass of
+<code class="docutils literal notranslate"><span class="pre">NDCube</span></code> (from the Sunpy-affiliated package of the same name) and, as
+such, have built-in slicing and coordinate conversion capabilities due
+to an accompanying World Coordinate System (WCS) object. For example,
+you can slice an <code class="docutils literal notranslate"><span class="pre">NDCube</span></code> object using either array indices or by
+inputting physical coordinates to the <code class="docutils literal notranslate"><span class="pre">.crop_by_coords()</span></code> method <a class="footnote-reference brackets" href="#id2" id="id1">1</a>.
+Please see the <a class="reference external" href="https://docs.sunpy.org/projects/ndcube/en/stable/index.html">ndcube documentation</a>
+for more information about slicing and manipulating <code class="docutils literal notranslate"><span class="pre">NDCube</span></code> objects.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">EISCube</span></code> subclass extends <code class="docutils literal notranslate"><span class="pre">ndcube</span></code> by including a few
+additional features. First, an extra <code class="docutils literal notranslate"><span class="pre">.wavelength</span></code> attribute has been
+added which contains a 3D array with the corrected wavelength values at
+all locations within the cube. This correction accounts for a systematic
+spectral shift caused by a tilt in orientation of the in the EIS slit
+relative to the CCD. Slicing an <code class="docutils literal notranslate"><span class="pre">EISCube</span></code> will also appropriately
+slice the wavelength array. Secondly, four methods are included to
+quickly perform common EIS image processing,</p>
+<ul class="simple">
+<li><p>The <code class="docutils literal notranslate"><span class="pre">.apply_radcal()</span></code> and <code class="docutils literal notranslate"><span class="pre">.remove_radcal()</span></code> methods can be used
+to convert the data and uncertainty values to and from intensity and
+photon count units using the pre-flight radiometric calibration curve
+provided in the HDF5 header file. Currently, neither method takes any
+arguments. Future versions of EISPAC will allow users to specific
+their own calibration curves.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">.sum_spectra()</span></code> method sums the data along the wavelength axis
+and returns a new, 2D <code class="docutils literal notranslate"><span class="pre">NDCube</span></code> with just the data (no uncertainty
+or wavelength information). It requires no arguments.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">.smooth_cube()</span></code> method applies a boxcar moving average to the
+data along one or more spatial axes. It requires a single argument,
+“width”, that must be either a singular value or list of ints,
+floats, or astropy.units.Quantity instances specifying the number of
+pixels or angular distance to smooth over. If given a single value,
+only the y-axis will be smoothed. Floats and angular distances will
+be converted to the nearest whole pixel value. If a width value is
+even, width + 1 will be used instead. <code class="docutils literal notranslate"><span class="pre">.smooth_cube()</span></code> also accepts
+any number of optional keyword arguments that will be passed to the
+astropy.convolution.convolve() function, which does the actual
+smoothing operation.</p></li>
+</ul>
+<p>The calibrated intensity and uncertainty values are stored in numpy
+arrays in the <code class="docutils literal notranslate"><span class="pre">.data</span></code> and <code class="docutils literal notranslate"><span class="pre">.uncertainty</span></code> attributes. The order of
+the axes are (slit position, raster step, wavelength) which correspond
+to the physical axes of (Solar-Y, Solar-X, Wavelength). You can inspect
+the dimensions of an <code class="docutils literal notranslate"><span class="pre">NDCube</span></code> object like so,</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">data_cube</span><span class="o">.</span><span class="n">dimensions</span>
+<span class="go">[512, 87, 24] pix</span>
+</pre></div>
+</div>
+<p>As you can see, our example data has dimensions of <code class="docutils literal notranslate"><span class="pre">(512,</span> <span class="pre">87,</span> <span class="pre">24)</span></code>.
+That is, 512 pixels along the slit (in the Solar-Y direction), 87 raster
+steps in the X direction, and 24 pixels in the dispersion direction.</p>
+<p>All metadata and information from the HDF5 header file are packed into a
+single dictionary stored in the <code class="docutils literal notranslate"><span class="pre">.meta</span></code> attribute of the <code class="docutils literal notranslate"><span class="pre">EISCube</span></code>.
+The structure of the <code class="docutils literal notranslate"><span class="pre">.meta</span></code> dictionary mirrors the internal structure
+of the HDF5 file, with a few extra keys added for convenience. You can
+explore the contents with the usual Python commands,</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">data_cube</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+<span class="go">dict_keys([&#39;filename_data&#39;, &#39;filename_head&#39;, &#39;wininfo&#39;, &#39;iwin&#39;, &#39;iwin_str&#39;, &#39;index&#39;, &#39;pointing&#39;, &#39;wave&#39;, &#39;radcal&#39;, &#39;slit_width&#39;, &#39;slit_width_units&#39;, &#39;ccd_offset&#39;, &#39;wave_corr&#39;, &#39;wave_corr_t&#39;, &#39;wave_corr_tilt&#39;, &#39;date_obs&#39;, &#39;date_obs_format&#39;, &#39;duration&#39;, &#39;duration_units&#39;, &#39;aspect_ratio&#39;, &#39;notes&#39;])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">data_cube</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;pointing&#39;</span><span class="p">][</span><span class="s1">&#39;x_scale&#39;</span><span class="p">]</span>
+<span class="go">2.9952</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">data_cube</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;radcal&#39;</span><span class="p">]</span>
+<span class="go">array([8.06751  , 8.060929 , 8.054517 , 8.048271 , 8.042198 , 8.036295 ,</span>
+<span class="go">       8.030562 , 8.024157 , 8.017491 , 8.010971 , 8.0046015, 7.998385 ,</span>
+<span class="go">       7.9923196, 7.9864078, 7.980654 , 7.975055 , 7.969617 , 7.9643393,</span>
+<span class="go">       7.959224 , 7.9542727, 7.949487 , 7.9448686, 7.9404206, 7.9361415],</span>
+<span class="go">      dtype=float32)</span>
+</pre></div>
+</div>
+<p>Here <code class="docutils literal notranslate"><span class="pre">x_scale</span></code> is the number of arcsec between step positions in the raster.
+Most EIS rasters take more than 1 arcsec per step, which degrades the spatial
+resolution but increases the cadence. The variable <code class="docutils literal notranslate"><span class="pre">radcal</span></code> is the
+pre-flight calibration curve for this data window. It includes all of
+the factors for converting counts directly to <span class="math notranslate nohighlight">\(erg/(cm^2 s sr)\)</span>.</p>
+<p>We can make a quick image of the EIS data by making use of the
+<code class="docutils literal notranslate"><span class="pre">.plot()</span></code> method provided in all <code class="docutils literal notranslate"><span class="pre">NDCube</span></code> objects (note, it usually
+helps to sum along the dispersion direction first).</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">data_cube</span><span class="o">.</span><span class="n">sum_spectra</span><span class="p">()</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">aspect</span><span class="o">=</span><span class="n">data_cube</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;aspect_ratio&#39;</span><span class="p">])</span>
+</pre></div>
+</div>
+<div class="figure align-center" id="id3">
+<span id="fig-spectrum"></span><a class="reference internal image-reference" href="../_images/ex_spectrum.png"><img alt="../_images/ex_spectrum.png" src="../_images/ex_spectrum.png" style="width: 240px;" /></a>
+<p class="caption"><span class="caption-number">Fig. 1 </span><span class="caption-text">An example Fe XII 195.119 Å line profile from the raster.</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">.plot()</span></code> method can also be used to display the spectrum from a
+single pixel, as shown below. For illustration, we also convert the data
+back in units of photon counts (this is the same as dividing the
+calibrated data by the <code class="docutils literal notranslate"><span class="pre">.meta['radcal']</span></code> array).</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">ix</span> <span class="o">=</span> <span class="mi">48</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">iy</span> <span class="o">=</span> <span class="mi">326</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">spec</span> <span class="o">=</span> <span class="n">data_cube</span><span class="p">[</span><span class="n">iy</span><span class="p">,</span><span class="n">ix</span><span class="p">,:]</span><span class="o">.</span><span class="n">remove_radcal</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">spec_plot</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">spec_plot</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;ix = </span><span class="si">{</span><span class="n">ix</span><span class="si">}</span><span class="s1">, iy = </span><span class="si">{</span><span class="n">iy</span><span class="si">}</span><span class="s1">, units = counts&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>To perform more advanced plotting, such as logarithmically scaling the
+intensities, you will need to extract the data from the <code class="docutils literal notranslate"><span class="pre">EISCube</span></code> and
+create the figure yourself using any of the various Python plotting
+libraries. For example,</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="n">raster_sum</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">data_cube</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> <span class="c1"># or data_cube.sum_spectra().data</span>
+<span class="n">scaled_img</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">raster_sum</span><span class="p">)</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">scaled_img</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">data_cube</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;extent_arcsec&#39;</span><span class="p">],</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;gray&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="n">data_cube</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;date_obs&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Solar-X [arcsec]&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Solar-Y [arcsec]&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Setting both “aspect” (y_scale/x_scale) and “extent” (data range as
+[left, right, bottom, top]) in <code class="docutils literal notranslate"><span class="pre">plt.imshow()</span></code> can sometimes give
+unexpected results. You may need to experiment with the combination of
+keywords needed to get the plot you expect.</p>
+</div>
+<div class="figure align-center" id="id4">
+<span id="fig-raster"></span><a class="reference internal image-reference" href="../_images/ex_log-scaled_raster.png"><img alt="../_images/ex_log-scaled_raster.png" src="../_images/ex_log-scaled_raster.png" style="width: 240px;" /></a>
+<p class="caption"><span class="caption-number">Fig. 2 </span><span class="caption-text">An example image formed by summing the data for the Fe XII spectral window
+in the dispersion direction. In a subsequent chapter we’ll discuss fitting
+the spectra.</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
+</div>
+<p>We usually don’t care about the numbering of the data windows. It’s more
+natural to want to read the data corresponding to a particular
+wavelength. The <code class="docutils literal notranslate"><span class="pre">eispac.read_wininfo()</span></code> function can be used help
+identify the spectral contents of each data window. The function takes
+an input header file and returns a record array containing the window
+numbers, min and max wavelengths and primary spectral line for each data
+window. Note: for your convenience, a copy of the <code class="docutils literal notranslate"><span class="pre">wininfo</span></code> array is
+also stored in the <code class="docutils literal notranslate"><span class="pre">EISCube.meta</span></code> dictionary.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">eispac</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header_filename</span> <span class="o">=</span> <span class="s1">&#39;eis_20190404_131513.head.h5&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">wininfo</span> <span class="o">=</span> <span class="n">eispac</span><span class="o">.</span><span class="n">read_wininfo</span><span class="p">(</span><span class="n">header_filename</span><span class="p">,</span> <span class="mf">195.12</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">wininfo</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">names</span>
+<span class="go">(&#39;iwin&#39;, &#39;line_id&#39;, &#39;wvl_min&#39;, &#39;wvl_max&#39;, &#39;nl&#39;, &#39;xs&#39;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">wininfo</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">4</span><span class="p">]</span>
+<span class="go">rec.array([(0, &#39;Fe XI 180.400&#39;, 180.03426, 180.72559, 32, 661),</span>
+<span class="go">           (1, &#39;Ca XV 182.100&#39;, 181.75139, 182.44266, 32, 738),</span>
+<span class="go">           (2, &#39;Fe X 184.720&#39;, 183.82512, 185.5865 , 80, 831),</span>
+<span class="go">           (3, &#39;Fe XII 186.750&#39;, 186.3891 , 187.0802 , 32, 946)],</span>
+<span class="go">          dtype=[(&#39;iwin&#39;, &#39;&lt;i4&#39;), (&#39;line_id&#39;, &#39;&lt;U64&#39;), (&#39;wvl_min&#39;, &#39;&lt;f4&#39;),</span>
+<span class="go">                 (&#39;wvl_max&#39;, &#39;&lt;f4&#39;), (&#39;nl&#39;, &#39;&lt;i4&#39;), (&#39;xs&#39;, &#39;&lt;i4&#39;)])</span>
+</pre></div>
+</div>
+<p>We can then use a numpy.where() call on the wininfo array to map
+wavelength to window number. Users familiar with IDL may be interested
+to note that numpy record arrays can be accessed similarly to an IDL
+array of structures (e.g. instead of <code class="docutils literal notranslate"><span class="pre">wininfo['wvl_min']</span></code> below, you
+could also use <code class="docutils literal notranslate"><span class="pre">wininfo.wvl_min</span></code>).</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">wvl</span> <span class="o">=</span> <span class="mf">195.119</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">p</span> <span class="o">=</span> <span class="p">(</span><span class="n">wininfo</span><span class="p">[</span><span class="s1">&#39;wvl_max&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">wvl</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">wvl</span> <span class="o">-</span> <span class="n">wininfo</span><span class="p">[</span><span class="s1">&#39;wvl_min&#39;</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">iwin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">p</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">iwin</span>
+<span class="go">array([7], dtype=int64)</span>
+</pre></div>
+</div>
+<p>If the result is an empty array, the wavelength is not in the data.</p>
+<p class="rubric">Footnotes</p>
+<dl class="footnote brackets">
+<dt class="label" id="id2"><span class="brackets"><a class="fn-backref" href="#id1">1</a></span></dt>
+<dd><p>The <code class="docutils literal notranslate"><span class="pre">.crop_by_coords()</span></code> method will be deprecated and
+renamed in version 2.0 of <code class="docutils literal notranslate"><span class="pre">NDCube</span></code></p>
+</dd>
+</dl>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">eispac</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">User’s Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="01-intro.html">Introduction</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Downloading and Reading the Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="04-prep.html">Level-1 HDF5 File Details</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">User’s Guide</a><ul>
+      <li>Previous: <a href="01-intro.html" title="previous chapter">Introduction</a></li>
+      <li>Next: <a href="04-prep.html" title="next chapter">Level-1 HDF5 File Details</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, NRL EIS Team.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 4.0.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="../_sources/guide/02-read.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
