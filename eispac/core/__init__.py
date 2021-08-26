@@ -6,6 +6,7 @@ from .read_cube import *
 from .read_fit import *
 from .read_template import *
 from .save_fit import *
+from .export_fits import *
 from .scale_guess import *
 from .fitting_functions import *
 from .generate_astropy_model import *
