@@ -1,7 +1,10 @@
 """ Public version of the EIS Python Analysis Code """
 
 import os
+import sys
 import setuptools
+from itertools import chain
+from setuptools.config import read_configuration
 
 def get_version(rel_path):
     here = os.path.abspath(os.path.dirname(__file__))
@@ -17,19 +20,26 @@ def get_version(rel_path):
 # with open(os.path.join(setup_dir, 'README.md', encoding='utf-8')) as f:
 #     readme_text = f.read()
 
+####################################################
+# Programmatically generate combinations of "extras"
+####################################################
+extras = read_configuration("setup.cfg")['options']['extras_require']
+
+# Dev is everything
+extras['dev'] = list(chain(*extras.values()))
+
+# All is everything but tests and docs
+exclude_keys = ("tests", "docs", "dev")
+ex_extras = dict(filter(lambda i: i[0] not in exclude_keys, extras.items()))
+# Concatenate all the values together for 'all'
+extras['all'] = list(chain.from_iterable(ex_extras.values()))
+
 setuptools.setup(
-    name = 'eispac',
     version = get_version("eispac/__init__.py"),
-    description = 'Python analysis tools for Hinode / EIS data',
-    # long_description = readme_text,
-    # long_description_content_type = 'text/markdown',
-    author = 'NRL EISPAC Development Team',
-    author_email = 'N/A',
-    license = 'MIT',
-    url = "https://github.com/USNavalResearchLaboratory/eispac",
+    extras_require = extras,
     project_urls = {
-        "Data": "https://eis.nrl.navy.mil/"},
-    packages = setuptools.find_packages(),
+        "Data": "https://eis.nrl.navy.mil/",
+        "Documentation": "https://eispac.readthedocs.io/"},
     entry_points = {
         "console_scripts": [
             "eis_browse_templates = scripts.eis_browse_templates:eis_browse_templates",
@@ -37,23 +47,5 @@ setuptools.setup(
             "eis_download_files = scripts.eis_download_files:eis_download_files",
             "eis_fit_files = scripts.eis_fit_files:eis_fit_files",
             "eis_plot_fit = scripts.eis_plot_fit:eis_plot_fit"]
-        },
-    classifiers = [
-        "Development Status :: 3 - Alpha"
-        "Programming Language :: Python :: 3.7",
-        "License :: OSI Approved :: MIT License",
-        "Operating System :: OS Independent"],
-    keywords = 'solar, sun, physics, spectroscopy, Hinode, EIS',
-    python_requires = '>=3.7',
-    install_requires = [
-        "numpy>=1.18",
-        "scipy>=1.4",
-        "matplotlib>=3.1",
-        "h5py>=2.9",
-        "astropy>=3.1",
-        "sunpy>=1.1.1",
-        "ndcube>=1.2",
-        "pyqt5",
-        "wget"],
-    include_package_data = True
+        }
     )

@@ -14,10 +14,11 @@ if __name__ == '__main__':
     data_cube = eispac.read_cube(data_filepath, tmplt.central_wave)
 
     # Select a cutout of the raster (note the order of array & plotting indices!)
+    # Note: we want the full wavelength axis, so we set the range far outside the bounds of EIS
     cutout_extent = [48, 165, 254, 378] # units of [arcsec]
-    w_coords = data_cube.axis_world_coords('em.wl')
-    lower_left = (cutout_extent[2]*u.arcsec, cutout_extent[0]*u.arcsec, w_coords[0])
-    upper_right = (cutout_extent[3]*u.arcsec, cutout_extent[1]*u.arcsec, w_coords[-1])
+    # w_coords = data_cube.axis_world_coords('em.wl')
+    lower_left = (cutout_extent[2]*u.arcsec, cutout_extent[0]*u.arcsec, 0*u.angstrom)
+    upper_right = (cutout_extent[3]*u.arcsec, cutout_extent[1]*u.arcsec, 1000*u.angstrom)
     raster_cutout = data_cube.crop_by_coords(lower_left, upper_corner=upper_right)
 
     # Fit the data, then save it to disk and test loading it back in
