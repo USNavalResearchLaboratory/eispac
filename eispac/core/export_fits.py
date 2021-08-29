@@ -1,6 +1,7 @@
 __all__ = ['export_fits']
 
 import sys
+import copy
 import shutil
 import pathlib
 from datetime import datetime, timedelta
@@ -39,6 +40,9 @@ def export_fits(fit_result, save_dir=None, verbose=False):
     if not isinstance(fit_result, EISFitResult):
         print("Error: Please input a valid EISFitResult object.", file=sys.stderr)
         return None
+    elif 'mod_index' not in fit_result.meta.keys():
+        print("Error: Missing mod_index containing pointing information.", file=sys.stderr)
+        return None
 
     # Parse filename and determine the directory and filename
     data_filepath = pathlib.Path(fit_result.meta['filename_head']).resolve()
@@ -75,64 +79,22 @@ def export_fits(fit_result, save_dir=None, verbose=False):
     print('   Directory: '+str(output_dir))
     print('   Filenames: '+output_name)
 
-    # Get the corrected center coords (using both the AIA and CCD offsets)
-    nx_steps = fit_result.n_steps
-    ny_pxls = fit_result.n_pxls
-    pointing = fit_result.meta['pointing']
+    # Fetch index from the meta structure
+    hdr_dict = copy.deepcopy(fit_result.meta['mod_index'])
 
-    x_center = pointing['xcen'] + pointing['offset_x']
-    y_center = pointing['ycen'] + pointing['offset_y']
-    y_center = y_center - np.mean(fit_result.meta['ccd_offset'])
-    x1 = x_center - pointing['x_scale']*nx_steps/2.0
-    x2 = x_center + pointing['x_scale']*nx_steps/2.0
-    y1 = y_center - pointing['y_scale']*ny_pxls/2.0
-    y2 = y_center + pointing['y_scale']*ny_pxls/2.0
+    # Cut out spectral data and update values
+    void = hdr_dict.pop('crval3', None)
+    void = hdr_dict.pop('crpix2', None)
+    void = hdr_dict.pop('cdelt3', None)
+    void = hdr_dict.pop('ctype3', None)
+    void = hdr_dict.pop('cunit3', None)
+    void = hdr_dict.pop('naxis3', None)
+    hdr_dict['naxis'] = 2
+    hdr_dict['line_id'] = fit_result.fit['line_ids'][0]
+    hdr_dict['history'] = 'fit using eispac '+fit_result.eispac_version+' on '+fit_result.date_fit
 
-    # Determine the proper start and end time for the entire raster
-    date_obs = fit_result.meta['index']['date_obs']
-    median_exp = np.median(fit_result.meta['duration'])
-    date_end = datetime.fromisoformat(date_obs) + timedelta(seconds=nx_steps*median_exp)
-    date_end = date_end.isoformat(timespec='milliseconds')
-
-    # Determine the effective location of EIS (i.e. Earth)
-    hg_coords = coords.get_body_heliographic_stonyhurst('earth', time=date_obs)
-
-    # Create a clean and updated fits header
-    output_hdr = fits.Header()
-    output_hdr['naxis'] = 2
-    output_hdr['naxis1'] = nx_steps
-    output_hdr['naxis2'] = ny_pxls
-
-    output_hdr['date_obs'] = date_obs
-    output_hdr['date_end'] = date_end
-
-    output_hdr['crval1'] = x1
-    output_hdr['crpix1'] = 0
-    output_hdr['cdelt1'] = pointing['x_scale']
-    output_hdr['crota1'] = fit_result.meta['index']['crota1']
-    output_hdr['ctype1'] = 'HPLN-TAN'
-    output_hdr['cunit1'] = 'arcsec'
-
-    output_hdr['crval2'] = y1
-    output_hdr['crpix2'] = 0
-    output_hdr['cdelt2'] = pointing['y_scale']
-    output_hdr['crota2'] = fit_result.meta['index']['crota2']
-    output_hdr['ctype2'] = 'HPLT-TAN'
-    output_hdr['cunit2'] = 'arcsec'
-
-    output_hdr['line_id'] = fit_result.fit['line_ids'][0]
-    # output_hdr['fit_file'] = fit_file
-    output_hdr['fovx'] = x2-x1
-    output_hdr['fovy'] = ny_pxls
-    output_hdr['xcen'] = x1 + 0.5*(x2-x1)
-    output_hdr['ycen'] = y1 + 0.5*(y2-y1)
-
-    output_hdr['hgln_obs'] = hg_coords.lon.deg
-    output_hdr['hglt_obs'] = hg_coords.lat.deg
-    output_hdr['dsun_obs'] = hg_coords.radius.m
-
-    output_hdr['history'] = 'fit using eispac '+fit_result.eispac_version+' on '+fit_result.date_fit
-
+    # Create the actual fits header
+    output_hdr = fits.Header(hdr_dict)
 
     # Save the first (and maybe only) .fits file
     fits.writeto(output_filepath, fit_result.fit['int'][:,:,0],
