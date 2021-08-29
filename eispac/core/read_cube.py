@@ -3,10 +3,12 @@ __all__ = ['read_cube']
 import os
 import sys
 import pathlib
+from datetime import datetime, timedelta
 import numpy as np
 import h5py
 import astropy.wcs
 import astropy.units as u
+import sunpy.coordinates as coords
 from eispac.core.eiscube import EISCube
 from eispac.core.read_wininfo import read_wininfo
 from eispac.instr.calc_read_noise import calc_read_noise
@@ -62,7 +64,7 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
         return None
 
     # Initialize "meta" dictionary to contain ALL of the extra EIS information.
-    # We may want to add some of the values as attributes in the EISCube instead.
+    # We may want to add some of the values as attributes of the EISCube instead.
     meta = dict()
 
     # Parse filename and determine the directory and filename
@@ -92,41 +94,11 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
         meta['filename_head'] = str(head_filepath)
         print('Header file,\n   ' + str(head_filepath))
 
-    # Read in min and max wavelength for each window in the file
-    #   so we can search for the requested window
+    # Read in min and max wavelength for each window in the file so we can
+    # search for the requested window. Note: wininfo is a recarray with the
+    # following fields: 'iwin', 'line_id', 'wvl_min', 'wvl_max', 'nl', & 'xs'
     wininfo = read_wininfo(head_filepath)
     num_win = wininfo.size
-    # with h5py.File(head_filepath, 'r') as f_head:
-    #     num_win = f_head['/wininfo/nwin'][0]
-    #     dt = np.dtype([('iwin', 'i4'), ('line_id', 'U64'),
-    #                    ('wvl_min', 'f'), ('wvl_max','f'),
-    #                    ('nl', 'i4'), ('xs','i4')])
-    #     wininfo = np.recarray((num_win,), dtype=dt)
-    #     # wininfo = {'iwin': np.zeros(num_win, dtype='i4'),
-    #     #            'line_id': np.zeros(num_win, dtype='U64'),
-    #     #            'wvl_min': np.zeros(num_win, dtype='f'),
-    #     #            'wvl_max': np.zeros(num_win, dtype='f'),
-    #     #            'nl': np.zeros(num_win, dtype='i4'),
-    #     #            'xs':np.zeros(num_win, dtype='i4')}
-    #     for iwin in range(num_win):
-    #         line_id = f_head[f'/wininfo/win{iwin:02d}/line_id'][0]
-    #         wvl_min = f_head[f'/wininfo/win{iwin:02d}/wvl_min'][0]
-    #         wvl_max = f_head[f'/wininfo/win{iwin:02d}/wvl_max'][0]
-    #         win_nl = f_head[f'/wininfo/win{iwin:02d}/nl'][0]
-    #         win_xs = f_head[f'/wininfo/win{iwin:02d}/xs'][0]
-    #         wininfo[iwin].iwin = iwin
-    #         wininfo[iwin].line_id = line_id.decode('utf-8')
-    #         wininfo[iwin].wvl_min = wvl_min
-    #         wininfo[iwin].wvl_max = wvl_max
-    #         wininfo[iwin].nl = win_nl # NEW
-    #         wininfo[iwin].xs = win_xs # NEW
-    #         # wininfo['iwin'][iwin] = iwin
-    #         # wininfo['line_id'][iwin] = line_id.decode('utf-8')
-    #         # wininfo['wvl_min'][iwin] = wvl_min
-    #         # wininfo['wvl_max'][iwin] = wvl_max
-    #         # wininfo['nl'][iwin] = win_nl
-    #         # wininfo['xs'][iwin] = win_xs
-
     meta['wininfo'] = wininfo
 
     # Locate the requested data window. Exit if it does not exist.
@@ -161,7 +133,6 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
         lv_1_counts = np.array(f_data['level1/'+meta['iwin_str']])
         lv_1_count_units = f_data['level1/intensity_units'][0]
         lv_1_count_units = lv_1_count_units.decode('utf-8')
-
 
     # Read in metadata and instrumental correction factors from head file
     with h5py.File(head_filepath, 'r') as f_head:
@@ -241,8 +212,8 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
     ############################################################################
 
     ### (1) Apply the AIA offset corrections
-    x_center = pointing['xcen']+pointing['offset_x']
-    y_center = pointing['ycen']+pointing['offset_y']
+    x_center = pointing['xcen'] + pointing['offset_x']
+    y_center = pointing['ycen'] + pointing['offset_y']
 
     ### (2) Compute mean ccd offset for the current window and apply to y_center
     # Note_1: 'ccd_offsets' are in units of [pixels] while 'y_center' is in [arcsec].
@@ -270,51 +241,82 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
     base_wave = np.median(corrected_wave[:,:,0])
     wave_delt = np.median(np.diff(corrected_wave, axis=2))
 
-    ### (4) Check values of cdelt and reference pixel coords?
-    # Should we also check crota1 and crota2 here too?
+    ### (4) Calculate reference pixel coords and fov
+    x1 = x_center - pointing['x_scale']*nx_steps/2.0
+    x2 = x_center + pointing['x_scale']*nx_steps/2.0
+    y1 = y_center - pointing['y_scale']*ny_pxls/2.0
+    y2 = y_center + pointing['y_scale']*ny_pxls/2.0
 
-    ### (5) Create a clean header dict with only the values needed by astropy.wcs.WCS
-    # Note: for some reason, the order of axes in the WCS is reversed relative
-    #       to the input data array. We should be careful to document this for users
-    basic_hdr = dict()
+    ### (5) Extract timestamps and calculate the mid point of the observation
+    date_obs = index['date_obs']
+    date_end = index['date_end']
+    date_diff = datetime.fromisoformat(date_end) - datetime.fromisoformat(date_obs)
+    date_mid = datetime.fromisoformat(date_obs) + date_diff/2.0
+    date_mid = date_mid.isoformat(timespec='milliseconds') # convert to string
 
-    basic_hdr['crpix1'] = 0
-    basic_hdr['crval1'] = base_wave
-    basic_hdr['cdelt1'] = wave_delt
-    basic_hdr['naxis1'] = n_wave
-    basic_hdr['ctype1'] = 'Wavelength'
-    basic_hdr['cunit1'] = 'Angstrom'
+    ### (6) Fetch the observer location in heliographic coords
+    hg_coords = coords.get_body_heliographic_stonyhurst('earth', time=date_obs)
 
-    basic_hdr['crpix2'] = (nx_steps+1)/2.0
-    basic_hdr['crval2'] = x_center
-    basic_hdr['cdelt2'] = pointing['x_scale']
-    basic_hdr['naxis2'] = nx_steps
-    basic_hdr['ctype2'] = 'HPLN-TAN' # 'Solar-X'
-    basic_hdr['cunit2'] = 'arcsec'
+    ### (7) Create a new header dict updated values
+    # Note: the order of axes here is the same as the original fits index
+    output_hdr = dict()
 
-    basic_hdr['crpix3'] = (ny_pxls+1)/2.0
-    basic_hdr['crval3'] = y_center
-    basic_hdr['cdelt3'] = pointing['y_scale']
-    basic_hdr['naxis3'] = ny_pxls
-    basic_hdr['ctype3'] = 'HPLT-TAN' # 'Solar-Y'
-    basic_hdr['cunit3'] = 'arcsec'
+    output_hdr['naxis'] = 3
+    output_hdr['date_obs'] = date_obs
+    output_hdr['date_mid'] = date_mid
+    output_hdr['date_end'] = date_end
+
+    output_hdr['telescop'] = 'Hinode'
+    output_hdr['instrume'] = 'EIS'
+    output_hdr['target'] = index['target']
+    output_hdr['stud_acr'] = index['stud_acr']
+    output_hdr['obstitle'] = index['obstitle']
+    output_hdr['line_id'] = wininfo['line_id'][meta['iwin']]
+
+    output_hdr['naxis1'] = nx_steps
+    output_hdr['crval1'] = x1
+    output_hdr['crpix1'] = 1
+    output_hdr['cdelt1'] = pointing['x_scale']
+    output_hdr['ctype1'] = 'HPLN-TAN' # 'Solar-X'
+    output_hdr['cunit1'] = 'arcsec'
+
+    output_hdr['naxis2'] = ny_pxls
+    output_hdr['crval2'] = y1
+    output_hdr['crpix2'] = 1
+    output_hdr['cdelt2'] = pointing['y_scale']
+    output_hdr['ctype2'] = 'HPLT-TAN' # 'Solar-Y'
+    output_hdr['cunit2'] = 'arcsec'
+
+    output_hdr['naxis3'] = n_wave
+    output_hdr['crval3'] = base_wave
+    output_hdr['crpix3'] = 1
+    output_hdr['cdelt3'] = wave_delt
+    output_hdr['ctype3'] = 'Wavelength'
+    output_hdr['cunit3'] = 'Angstrom'
+
+    output_hdr['fovx'] = x2 - x1
+    output_hdr['fovy'] = y2 - y1
+    output_hdr['xcen'] = x1 + 0.5*(x2-x1)
+    output_hdr['ycen'] = y1 + 0.5*(y2-y1)
+
+    output_hdr['hgln_obs'] = hg_coords.lon.deg
+    output_hdr['hglt_obs'] = hg_coords.lat.deg
+    output_hdr['dsun_obs'] = hg_coords.radius.m
 
     # Calculate and append extra keys to meta dict for user convenience
+    meta['mod_index'] = output_hdr
     meta['aspect_ratio'] = pointing['y_scale']/pointing['x_scale']
-    meta['extent_arcsec'] = [0.0, 0.0, 0.0, 0.0] # [left, right, bottom, top]
-    if nx_steps > 1: #proper raster
-        meta['extent_arcsec'][0] = pointing['solar_x'][0]+pointing['offset_x']
-        meta['extent_arcsec'][1] = pointing['solar_x'][-1]+pointing['offset_x']
-    else: # single sit-and-stare slit observation
-        meta['extent_arcsec'][0] = pointing['solar_x']+pointing['offset_x']
-        meta['extent_arcsec'][1] = pointing['solar_x']+pointing['offset_x']+1
-    meta['extent_arcsec'][2] = pointing['solar_y'][0]+pointing['offset_y']-mean_ccd_offset
-    meta['extent_arcsec'][3] = pointing['solar_y'][-1]+pointing['offset_y']-mean_ccd_offset
+    meta['extent_arcsec'] = [x1, x2, y1, y2] # [left, right, bottom, top]
     meta['notes'] = []
 
     try:
         # Create the WCS object
-        clean_wcs = astropy.wcs.WCS(basic_hdr, fix=True)
+        # NB: For some reason, the order of axes in the WCS is reversed relative
+        #     to the data array inside an NDCube. We should take care to fully
+        #     document this for our users.
+        clean_wcs = astropy.wcs.WCS(output_hdr, fix=True)
+        clean_wcs = clean_wcs.swapaxes(0,1) # swap x with y
+        clean_wcs = clean_wcs.swapaxes(0,2) # now swap y with wavelength
 
         # Add a user-supplied constant value to the count array
         if count_offset is not None:

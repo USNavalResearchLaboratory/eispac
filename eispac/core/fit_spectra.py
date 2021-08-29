@@ -271,7 +271,7 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
         wave_cube = eis_cube.wavelength.copy()
         errs_cube = eis_cube.uncertainty.array.copy()
         inten_cube = eis_cube.data.copy()
-        metadata = eis_cube.meta
+        metadata = copy.deepcopy(eis_cube.meta)
         data_units = eis_cube.unit.to_string()
         data_radcal = copy.deepcopy(eis_cube.radcal)
         loc_masked = np.where(eis_cube.mask == True)
@@ -282,7 +282,7 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
         wave_cube = inten.wavelength.copy()
         errs_cube = inten.uncertainty.array.copy()
         inten_cube = inten.data.copy()
-        metadata = inten.meta
+        metadata = copy.deepcopy(inten.meta)
         data_units = inten.unit.to_string()
         data_radcal = copy.deepcopy(inten.radcal)
         loc_masked = np.where(inten.mask == True)
@@ -412,6 +412,27 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
                 fit_res.fit['int'][:,jj,:] = pool_out[jj]['int'][:,0,:]
                 fit_res.fit['err_int'][:,jj,:] = pool_out[jj]['err_int'][:,0,:]
 
+        # Check and update mod_index, if needed (i.e. input raster cutout)
+        # Reminder: the wcs axes are in the order of [wave, X, Y]
+        if 'mod_index' in fit_res.meta.keys():
+            if ((fit_res.meta['mod_index']['naxis1'] != n_steps) or
+                (fit_res.meta['mod_index']['naxis2'] != n_pxls)):
+
+                wcs_header = inten.wcs.to_header()
+                mindx = metadata['mod_index']
+                x1 = mindx['crval1'] + abs(mindx['crpix1']-wcs_header['crpix2'])*mindx['cdelt1']
+                y1 = mindx['crval2'] + abs(mindx['crpix2']-wcs_header['crpix3'])*mindx['cdelt2']
+                x2 = x1 + n_steps*mindx['cdelt1']
+                y2 = y1 + n_pxls*mindx['cdelt2']
+                fit_res.meta['mod_index']['naxis1'] = n_steps
+                fit_res.meta['mod_index']['naxis2'] = n_pxls
+                fit_res.meta['mod_index']['crpix1'] = wcs_header['crpix2']
+                fit_res.meta['mod_index']['crpix2'] = wcs_header['crpix3']
+                fit_res.meta['mod_index']['fovx'] = x2 - x1
+                fit_res.meta['mod_index']['fovy'] = y2 - y1
+                fit_res.meta['mod_index']['xcen'] = x1 + 0.5*(x2-x1)
+                fit_res.meta['mod_index']['ycen'] = y1 + 0.5*(y2-y1)
+
         # print status
         t2 = datetime.now() # end timer
         num_fit = len(np.where(fit_res.fit['status'] > -0)[0])
@@ -425,8 +446,6 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
         print(f'   {num_fit} spectra fit without issues')
         print(f'   {num_too_few} spectra have < {min_points} good data points')
         print(f'   {num_bad_params} spectra have bad or invalid parameters')
-
-
 
         # reset global counters
         cntr.value = 0
