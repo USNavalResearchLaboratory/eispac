@@ -77,6 +77,7 @@ def eis_fit_files():
             temp_data_path = pathlib.Path(data_list[d]).resolve()
             output_dir = temp_data_path.parent
             saved_files = eispac.save_fit(fit_res, save_dir=output_dir)
+            saved_fits_files = eispac.export_fits(fit_res, save_dir=output_dir)
 
     warnings.resetwarnings()
     os.environ['PYTHONWARNINGS'] = 'default'
