@@ -15,11 +15,11 @@ def ccd_offset(wavelength):
     .. math::
         Y^{\prime} = Y - o(\lambda),
 
-    where :math:`o(\lambda)` is the 
+    where :math:`o(\lambda)` is the CCD offset.
     Note that the spatial coordinate system for EIS is evalulated for
     He II 256 Å by cross-correlating with SOT.
 
-    The value of ``eis_ccd_offset`` represents the number of pixels
+    The value of ``ccd_offset`` represents the number of pixels
     that a feature seen in a wavelength sits above the He II 256 Å
     image on the CCD.
 
@@ -30,6 +30,10 @@ def ccd_offset(wavelength):
     - the tilt for LW was *assumed* to be the same as for SW
     - the offset between SW and LW was measured by co-aligning images
       from Fe VIII 185.21 Å and Si VII 275.35 Å
+
+    .. note:: This routine is a (nearly) verbatim translation of the IDL version of
+              eis_ccd_offset written by Peter Young. The above documentation has
+              been adapted from that routine.
 
     Parameters
     ----------
@@ -42,16 +46,14 @@ def ccd_offset(wavelength):
         The value represents how many pixels above He II 256.32 the specified
         wavelength sits on the EIS detectors.
 
-    .. note:: This routine is a (nearly) verbatim translation of the IDL version of
-              eis_ccd_offset written by Peter Young. The above documentation has
-              been adapted from that routine.
-
     References
     ----------
     .. [young09] Young, P.R., et al., 2009, A&A, 495, `587 <https://doi.org/10.1051/0004-6361:200810143>`_
     """
-
-    grating_tilt = -0.0792  # arcsec per angstrom?
+    # FIXME: somewhere in here there is the assumption that 1 arcsec = 1 pixel
+    # This should be explicitly noted and maybe even optionally depend on a
+    # CDELT value.
+    grating_tilt = -0.0792  # arcsec per angstrom? pixel per angstrom?
     wavelength = np.atleast_1d(wavelength)
     # TODO: explain these magic numbers
     offset = grating_tilt * (wavelength-185.21) + 18.5 + grating_tilt * (275.35 - 256.32)

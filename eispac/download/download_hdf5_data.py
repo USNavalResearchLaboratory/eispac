@@ -10,20 +10,23 @@ class download_hdf5_data:
     input is parsed to construct the remote and local filenames, curl is spawned to download
     the files (what if it doesn't exist?), if files exist locally they are skipped.
 
-    inputs:
-    - filename : An EIS filename. Such as,
-        eis_l0_20200311_213413.fits
-        eis_l1_20200311_213413.fits.gz
-        /some_path/eis_l0_20200311_213413.fits
-      filename can be a single string or a list of strings
-
-    options:
-    - datetree (boolean): create a local path organized by date (YYYY/MM/DD)
-    - local_top (string): top of the local path (e.g., data_eis)
-    - nodata (boolean): don't download data files
-    - nohead (boolean): don't download head files
-    - overwrite (boolean): download even if file exists locally
-    - headonly (boolean): equivalent to nodata + overwrite
+    Parameters
+    ----------
+    filename :  `str` or `list`
+        An EIS filename. Such as, eis_l0_20200311_213413.fits, eis_l1_20200311_213413.fits.gz,
+        /some_path/eis_l0_20200311_213413.fits. Can be a single path or a list of paths
+    datetree : `bool`
+        Create a local path organized by date (YYYY/MM/DD)
+    local_top : `str`
+        Top of the local path (e.g., data_eis)
+    nodata : `bool`
+        Don't download data files
+    nohead : `bool`
+        Don't download head files
+    overwrite : `bool`
+        Download even if file exists locally
+    headonly : `bool`
+        Equivalent to ``nodata`` + ``overwrite``
 
     """
 
