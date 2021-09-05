@@ -16,4 +16,3 @@ the ref section.
    05-prep
    06-ack
    07-mpfit_docs
-   08-appendix
