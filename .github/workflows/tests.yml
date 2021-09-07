@@ -1,0 +1,35 @@
+name: Tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - python-version: 3.7
+        - python-version: 3.8
+        - python-version: 3.9
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2.3.1
+      - name: Python 
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: |
+          pip install -e .[test,docs]
+      - name: Test
+        run: pytest
+      - name: Build docs
+        run: |
+          cd docs
+          make html
+        
