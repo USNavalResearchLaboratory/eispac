@@ -12,6 +12,7 @@ Welcome to the documentation for the EIS Python Analysis Code (eispac)!
    :maxdepth: 2
 
    guide/index
+   code_reference/index
 
 
 Indices and tables

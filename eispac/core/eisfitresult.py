@@ -55,11 +55,6 @@ class EISFitResult:
         Copy of the actual Python function named by 'fit_func'
     fit : dict
         Dictionary of output fit parameters
-
-    Methods
-    -------
-    get_fit_profile(y_pixel, x_pixel, component=None, num_wavelengths=100)
-        Calculate the fit intensity profile (total or component) at a location.
     """
 
     def __init__(self, wave=None, template=None, parinfo=None,
