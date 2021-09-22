@@ -18,6 +18,7 @@ class EISCube(NDCube):
         self.wavelength = input_wave
         input_radcal = kwargs.pop('radcal') if 'radcal' in kwargs else 'unknown'
         self._current_radcal = input_radcal
+        kwargs['copy'] = True # Try to ensure meta is not leaked between cutouts
         super().__init__(*args, **kwargs)
 
     @property
@@ -38,12 +39,36 @@ class EISCube(NDCube):
              +' methods to modify or change the radiometric calibration.')
 
     def _slice(self, item):
-        # slice all normal attributes
+        # slice all normal attributes (and force a proper copy of meta, not ref)
         kwargs = super()._slice(item)
+        old_meta = kwargs.pop('meta')
+        kwargs['meta'] = copy.deepcopy(old_meta)
         # The arguments for creating a new instance are saved in kwargs. So we
         # need to add additional keywords with our sliced, extra properties
         kwargs['wavelength'] = self.wavelength[item]
         kwargs['radcal'] = self.radcal
+
+        # Update the 'mod_index' (used for exporting to .fits after fitting)
+        # Reminder: 'mod_index' uses a fits image axes order of [X, Y, Wave]
+        wcs_h = kwargs['wcs'].to_header() # axis order of [wave, X, Y]
+        data_shape = kwargs['wcs'].array_shape # axis order of [Y, X, wave]
+        mindx = copy.deepcopy(kwargs['meta']['mod_index'])
+        x1 = mindx['crval1'] + abs(mindx['crpix1']-wcs_h['crpix2'])*mindx['cdelt1']
+        y1 = mindx['crval2'] + abs(mindx['crpix2']-wcs_h['crpix3'])*mindx['cdelt2']
+        x2 = x1 + data_shape[1]*mindx['cdelt1']
+        y2 = y1 + data_shape[0]*mindx['cdelt2']
+        mindx['naxis1'] = data_shape[1] # X-axis
+        mindx['naxis2'] = data_shape[0] # Y-axis
+        mindx['naxis3'] = data_shape[2] # Wavelength axis
+        mindx['crpix1'] = wcs_h['crpix2']
+        mindx['crpix2'] = wcs_h['crpix3']
+        mindx['crpix3'] = wcs_h['crpix1']
+        mindx['fovx'] = x2 - x1
+        mindx['fovy'] = y2 - y1
+        mindx['xcen'] = x1 + 0.5*(x2-x1)
+        mindx['ycen'] = y1 + 0.5*(y2-y1)
+        kwargs['meta']['mod_index'] = mindx
+
         return kwargs # these must be returned
 
     def apply_radcal(self, input_radcal=None):
@@ -89,6 +114,7 @@ class EISCube(NDCube):
         new_data = self.data.copy()*new_radcal
         new_errs = self.uncertainty.array.copy()*new_radcal
         new_meta = copy.deepcopy(self.meta)
+        new_meta['mod_index']['bunit'] = 'erg / (cm2 s sr)'
         new_meta['notes'].append('Applied radcal to convert photon counts to intensity')
         wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
 
@@ -118,6 +144,7 @@ class EISCube(NDCube):
         new_data = self.data.copy()/self.radcal
         new_errs = self.uncertainty.array.copy()/self.radcal
         new_meta = copy.deepcopy(self.meta)
+        new_meta['mod_index']['bunit'] = 'photon'
         new_meta['notes'].append('Removed radcal to convert intensity to photon counts')
         wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
 

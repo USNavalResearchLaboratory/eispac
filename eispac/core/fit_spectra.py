@@ -16,6 +16,7 @@ from eispac.core.eisfitresult import EISFitResult
 from eispac.core.eisfitresult import create_fit_dict
 from eispac.core.scale_guess import scale_guess
 from eispac.core.mpfit import mpfit
+from eispac.instr import calc_velocity
 
 # i'm sure that there is a better way to do this!
 cntr = mp.Value("i", 0) # a counter
@@ -412,26 +413,16 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
                 fit_res.fit['int'][:,jj,:] = pool_out[jj]['int'][:,0,:]
                 fit_res.fit['err_int'][:,jj,:] = pool_out[jj]['err_int'][:,0,:]
 
-        # Check and update mod_index, if needed (i.e. input raster cutout)
-        # Reminder: the wcs axes are in the order of [wave, X, Y]
-        if 'mod_index' in fit_res.meta.keys():
-            if ((fit_res.meta['mod_index']['naxis1'] != n_steps) or
-                (fit_res.meta['mod_index']['naxis2'] != n_pxls)):
-
-                wcs_header = inten.wcs.to_header()
-                mindx = metadata['mod_index']
-                x1 = mindx['crval1'] + abs(mindx['crpix1']-wcs_header['crpix2'])*mindx['cdelt1']
-                y1 = mindx['crval2'] + abs(mindx['crpix2']-wcs_header['crpix3'])*mindx['cdelt2']
-                x2 = x1 + n_steps*mindx['cdelt1']
-                y2 = y1 + n_pxls*mindx['cdelt2']
-                fit_res.meta['mod_index']['naxis1'] = n_steps
-                fit_res.meta['mod_index']['naxis2'] = n_pxls
-                fit_res.meta['mod_index']['crpix1'] = wcs_header['crpix2']
-                fit_res.meta['mod_index']['crpix2'] = wcs_header['crpix3']
-                fit_res.meta['mod_index']['fovx'] = x2 - x1
-                fit_res.meta['mod_index']['fovy'] = y2 - y1
-                fit_res.meta['mod_index']['xcen'] = x1 + 0.5*(x2-x1)
-                fit_res.meta['mod_index']['ycen'] = y1 + 0.5*(y2-y1)
+        # Calculate the Doppler velocity for each line
+        # TODO: revisit error estimation
+        for gg in range(fit_res.n_gauss):
+            base_wave = parinfo_copy[1+3*gg]['value']
+            obs_cent = fit_res.fit['params'][:,:,1+3*gg]
+            obs_errs = fit_res.fit['perror'][:,:,1+3*gg]
+            velocity = calc_velocity(obs_cent, base_wave)
+            fit_res.fit['vel'][:,:,gg] = velocity
+            rel_err = obs_errs/obs_cent
+            fit_res.fit['err_vel'][:,:,gg] = rel_err*velocity
 
         # print status
         t2 = datetime.now() # end timer

@@ -251,8 +251,8 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
     date_obs = index['date_obs']
     date_end = index['date_end']
     date_diff = datetime.fromisoformat(date_end) - datetime.fromisoformat(date_obs)
-    date_mid = datetime.fromisoformat(date_obs) + date_diff/2.0
-    date_mid = date_mid.isoformat(timespec='milliseconds') # convert to string
+    date_avg = datetime.fromisoformat(date_obs) + date_diff/2.0
+    date_avg = date_avg.isoformat(timespec='milliseconds') # convert to string
 
     ### (6) Fetch the observer location in heliographic coords
     hg_coords = coords.get_body_heliographic_stonyhurst('earth', time=date_obs)
@@ -263,7 +263,8 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
 
     output_hdr['naxis'] = 3
     output_hdr['date_obs'] = date_obs
-    output_hdr['date_mid'] = date_mid
+    output_hdr['date_beg'] = date_obs
+    output_hdr['date_avg'] = date_avg
     output_hdr['date_end'] = date_end
 
     output_hdr['telescop'] = 'Hinode'
@@ -272,6 +273,9 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
     output_hdr['stud_acr'] = index['stud_acr']
     output_hdr['obstitle'] = index['obstitle']
     output_hdr['line_id'] = wininfo['line_id'][meta['iwin']]
+    # output_hdr['param'] = 'Intensity'
+    output_hdr['measrmnt'] = 'intensity'
+    output_hdr['bunit'] = 'unknown' # units of primary observable
 
     output_hdr['naxis1'] = nx_steps
     output_hdr['crval1'] = x1
@@ -344,6 +348,7 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
             cube_errs = lv_1_count_errs
             data_units = 'photon'
 
+        meta['mod_index']['bunit'] = data_units
         output_cube = EISCube(cube_data, wcs=clean_wcs, uncertainty=cube_errs,
                               wavelength=corrected_wave, radcal=radcal_array,
                               meta=meta, unit=data_units, mask=data_mask)

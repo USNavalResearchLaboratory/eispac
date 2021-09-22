@@ -199,14 +199,14 @@ class EISFitResult:
         ----------
         component : int or list, optional
             Integer number (or list of ints) of the functional component(s).
-            If set to None, will return the total combined fit profile.
+            If set to None, will return all parameters that match "param_name".
             Default is None.
         param_name : str, optional
             String name of the requested parameter. If set to None, will not
             filter based on paramater name. Default is None
         coords : list or tupple, optional
-            (Y, X) coordinates of the requested datapoint. If set to None, will
-            instead return the parameters at all locations. Default is None
+            Array (Y, X) coordinates of the requested datapoint. If set to None,
+            will instead return the parameters at all locations. Default is None
         casefold : bool, optional
             If set to True, will ignore case when extracting parameters by
             name. Default is False.
@@ -268,8 +268,8 @@ class EISFitResult:
             If set to None, will return the total combined fit profile.
             Default is None.
         coords : list or tupple, optional
-            (Y, X) coordinates of the requested datapoint. If set to None, will
-            instead return the parameters at all locations. Default is None
+            Array (Y, X) coordinates of the requested datapoint. If set to None,
+            will instead return the profile at all locations. Default is None
         num_wavelengths : int, optional
             Number of wavelength values to compute the fit intensity at. These
             values will be equally spaced and span the entire fit window. If set
@@ -566,6 +566,8 @@ def create_fit_dict(n_pxls, n_steps, n_wave, n_gauss, n_poly, data_units='unknow
               'wavelength': np.zeros((n_pxls, n_steps, n_wave)),
               'int': np.zeros((n_pxls, n_steps, n_gauss)),
               'err_int': np.zeros((n_pxls, n_steps, n_gauss)),
+              'vel': np.zeros((n_pxls, n_steps, n_gauss)),
+              'err_vel': np.zeros((n_pxls, n_steps, n_gauss)),
               # 'peak': np.zeros((n_pxls, n_steps, n_gauss)),
               # 'err_peak': np.zeros((n_pxls, n_steps, n_gauss)),
               # 'centroid': np.zeros((n_pxls, n_steps, n_gauss)),

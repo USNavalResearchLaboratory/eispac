@@ -14,7 +14,7 @@ from eispac.core.save_fit import lineid_to_name
 
 # function to save fit inten to fits files
 def export_fits(fit_result, save_dir=None, verbose=False):
-    """Save a fit line intensity to a .fits file
+    """Save fit line intensites, velocites, and widths to a .fits file
 
     Parameters
     ----------
@@ -26,22 +26,25 @@ def export_fits(fit_result, save_dir=None, verbose=False):
         'cwd', the results will be saved to the current working directory.
         Default is None.
     verbose : bool, optional
-        If set to True, will print the name of each data variable saved.
+        If set to True, will print additional information to the console.
         Default is False.
 
     Returns
     -------
-    output_filepath : list or pathlib.Path object
-        Path object pointing to the output file. If there are more one than one
-        spectral lines fit, each line intensity will be saved to its own file.
+    output_filepath : list of pathlib.Path objects
+        Path object pointing to the output files. Each parameter is saved in a
+        seperate file and, if there are more than one spectral lines fit, in the
+        template, each line will be saved to its own set of files.
     """
 
     # Validate inputs
     if not isinstance(fit_result, EISFitResult):
-        print("Error: Please input a valid EISFitResult object.", file=sys.stderr)
+        print("Error: Please input a valid EISFitResult object.",
+              file=sys.stderr)
         return None
     elif 'mod_index' not in fit_result.meta.keys():
-        print("Error: Missing mod_index containing pointing information.", file=sys.stderr)
+        print("Error: Missing mod_index containing pointing information.",
+              file=sys.stderr)
         return None
 
     # Parse filename and determine the directory and filename
@@ -58,7 +61,8 @@ def export_fits(fit_result, save_dir=None, verbose=False):
             output_dir = pathlib.Path(save_dir)
     else:
         print("Error: Please input a valid save directory or set "
-             +"save_dir='cwd' to save files to the current directory", file=sys.stderr)
+             +"save_dir='cwd' to save files to the current directory",
+             file=sys.stderr)
         return None
 
     if not output_dir.is_dir():
@@ -66,60 +70,100 @@ def export_fits(fit_result, save_dir=None, verbose=False):
         return None
 
     # get file name string
-    file_prefix = data_name.split('.')[0]
+    file_prefix = data_name.split('.')[0] # e.g. "eis_YYYYMMDD_HHMMSS"
     line_name = lineid_to_name(fit_result.fit['line_ids'][0])
     try:
-        template_id = pathlib.Path(fit_result.meta['filename_template'])
-        template_id = template_id.split('.')[1]
+        tmplt_id = pathlib.Path(fit_result.meta['filename_template'])
+        tmplt_id = tmplt_id.split('.')[1]
     except:
-        template_id = str(len(fit_result.fit['line_ids']))+'c'
-    output_name = file_prefix+'.'+line_name+'.'+template_id+'-0.inten.fits'
+        tmplt_id = str(len(fit_result.fit['line_ids']))+'c'
+    output_name = file_prefix+'.'+line_name+'.'+tmplt_id+'-0.inten.fits'
     output_filepath = output_dir.joinpath(output_name)
-    print('Saving fit EIS intensities to fits files...')
+    print('Saving fit EIS intensities, velocities, and widths to fits files...')
     print('   Directory: '+str(output_dir))
-    print('   Filenames: '+output_name)
 
-    # Fetch index from the meta structure
+    # Fetch index from the meta structure, cut out spectral data and update
     hdr_dict = copy.deepcopy(fit_result.meta['mod_index'])
-
-    # Cut out spectral data and update values
     void = hdr_dict.pop('crval3', None)
-    void = hdr_dict.pop('crpix2', None)
+    void = hdr_dict.pop('crpix3', None)
     void = hdr_dict.pop('cdelt3', None)
     void = hdr_dict.pop('ctype3', None)
     void = hdr_dict.pop('cunit3', None)
     void = hdr_dict.pop('naxis3', None)
     hdr_dict['naxis'] = 2
-    hdr_dict['line_id'] = fit_result.fit['line_ids'][0]
-    hdr_dict['history'] = 'fit using eispac '+fit_result.eispac_version+' on '+fit_result.date_fit
+    code_ver = fit_result.eispac_version
+    date_fit = fit_result.date_fit
+    hdr_dict['history'] = 'fit using eispac '+code_ver+' on '+date_fit
+    data_hdr = fits.Header(hdr_dict)
 
-    # Create the actual fits header
-    output_hdr = fits.Header(hdr_dict)
+    # Create the header for the bintable containing the errors
+    err_hdr = copy.deepcopy(data_hdr)
+    void = err_hdr.pop('bunit', None)
+    void = err_hdr.pop('measurement', None)
 
-    # Save the first (and maybe only) .fits file
-    fits.writeto(output_filepath, fit_result.fit['int'][:,:,0],
-                 header=output_hdr, output_verify='fix', overwrite=True)
+    total_num_vals = int(data_hdr['naxis2'])
+    err_tform = str(total_num_vals)+'D'
+    err_tdim = '('+str(data_hdr['naxis1'])+')'
+    err_hdr['naxis1'] = total_num_vals*8
+    err_hdr['naxis2'] = data_hdr['naxis1']
+    err_hdr['tfields'] = data_hdr['naxis2']
+    err_hdr['ttype1'] = 'errors'
+    err_hdr['tdim1'] = err_tdim
+    err_hdr['tform1'] = err_tform
 
-    # If there are multiple line_ids, output each intensity to its own file
+    # Loop over all of the parameters and crewate the fits files
+    # If there are multiple line_ids, output each line to its own set of files
     # and return a list of filepaths (consistent with old IDL workflow)
+    params = ['int', 'vel', 'wid']
+    param_full_names = ['intensity', 'velocity', 'width']
+    num_params = len(params)
     num_line_ids = len(fit_result.fit['line_ids'])
-    if num_line_ids > 1:
-        list_output = [output_filepath]
-        for line_num in range(1, num_line_ids):
-            line_id = fit_result.fit['line_ids'][line_num]
-            if 'NO' in line_id:
-                print(f' LINE ID = {line_id}, skipping')
-                continue
-            new_line_name = lineid_to_name(line_id)
-            new_out_name = file_prefix+'.'+new_line_name+'.'+template_id+'-'+str(line_num)+'.inten.fits'
-            list_output.append(output_dir.joinpath(new_out_name))
-            print('              '+new_out_name) # 14 spaces to align filenames
+    output_files = []
 
-            # Update line_id in header and save another .fits file
-            output_hdr['line_id'] = line_id
-            fits.writeto(list_output[-1], fit_result.fit['int'][:,:,line_num],
-                         header=output_hdr, output_verify='silentfix', overwrite=True)
-        return list_output
-    else:
-        # If only one line, just return the filepath directly (no list)
-        return output_filepath
+    for i in range(num_line_ids):
+        line_id = fit_result.fit['line_ids'][i]
+        if 'NO' in line_id:
+            print(f' LINE ID = {line_id}, skipping')
+            continue
+        line_name = lineid_to_name(line_id)
+
+        for p in range(num_params):
+            output_name = file_prefix+'.'+line_name+'.'+tmplt_id+'-'+str(i)+'.'+params[p]+'.fits'
+            output_files.append(output_dir.joinpath(output_name))
+            if i==0 and p == 0:
+                print('   Filenames: '+output_name)
+            else:
+                print('              '+output_name) # 14 spaces for alignment
+
+            # Fetch data arrays
+            if param_full_names[p] == 'intensity':
+                data_array = fit_result.fit['int'][:,:,i]
+                err_array = fit_result.fit['err_int'][:,:,i]
+                data_hdr['bunit'] = fit_result.fit['param_units'][0]
+            elif param_full_names[p] == 'velocity':
+                data_array = fit_result.fit['vel'][:,:,i]
+                err_array = fit_result.fit['err_vel'][:,:,i]
+                data_hdr['bunit'] = 'km/s'
+            elif param_full_names[p] == 'width':
+                data_array = fit_result.fit['params'][:,:,2+3*i]
+                err_array = fit_result.fit['perror'][:,:,2+3*i]
+                data_hdr['bunit'] = 'Angstrom'
+
+            # Update header information
+            data_hdr['line_id'] = line_id
+            data_hdr['measrmnt'] = param_full_names[p]
+            err_hdr['tunit1'] = data_hdr['bunit']
+
+            # Create fits HDUs and save to a file
+            # NB: Errors are stored in a binary table with n_pxls total rows,
+            #     each with n_steps values. This is reloaded into a np.recarray
+            main_hdu = fits.PrimaryHDU(data_array, header=data_hdr)
+            err_col = fits.Column(name='errors', format=err_tform, dim=err_tdim,
+                                  unit=err_hdr['tunit1'], array=err_array)
+            err_hdu = fits.BinTableHDU.from_columns([err_col], header=err_hdr)
+            hdu_list = fits.HDUList([main_hdu, err_hdu])
+            # hdu_list.writeto(output_files[-1], output_verify='silentfix',
+            hdu_list.writeto(output_files[-1], output_verify='fix',
+                             overwrite=True)
+
+    return output_files
