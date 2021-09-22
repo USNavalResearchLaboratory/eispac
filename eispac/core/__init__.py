@@ -1,5 +1,6 @@
 from .eiscube import *
 from .eisfitresult import *
+from .eismap import *
 from .mpfit import *
 from .read_wininfo import *
 from .read_cube import *
