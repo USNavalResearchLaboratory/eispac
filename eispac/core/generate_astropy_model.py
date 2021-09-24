@@ -1,7 +1,7 @@
 __all__ = ['generate_astropy_model']
 
 from astropy.modeling import models
-from eispac.core.read_template import EISFitTemplate, read_template
+from eispac.core.read_template import EISFitTemplate
 
 # if __name__ == '__main__':
 #     # Import local versions of submodules
@@ -34,7 +34,7 @@ def generate_astropy_model(template):
 
     # Validate input and, if needed, load the template file
     if isinstance(template, str):
-        use_template = read_template(template, quiet=True)
+        use_template = EISFitTemplate.read_template(template, quiet=True)
     elif isinstance(template, EISFitTemplate):
         use_template = template
     else:
