@@ -1,7 +1,6 @@
 import pytest
 
-from eispac.data import get_test_filepath
-from eispac.templates import get_fit_template_filepath
+from eispac.data import get_test_filepath, get_fit_template_filepath
 
 
 @pytest.fixture
