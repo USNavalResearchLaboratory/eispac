@@ -1,10 +1,10 @@
 import pytest
 
 import eispac
-from eispac.templates import template_filenames
+from eispac.templates import fit_template_filenames
 
 
-@pytest.fixture(params=template_filenames())
+@pytest.fixture(params=fit_template_filenames())
 def test_template(request):
     return eispac.EISFitTemplate.read_template(request.param)
 

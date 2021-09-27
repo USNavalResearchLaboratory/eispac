@@ -1,7 +1,7 @@
 import pytest
 
 from eispac.data import get_test_filepath
-from eispac.templates import get_template_filepath
+from eispac.templates import get_fit_template_filepath
 
 
 @pytest.fixture
@@ -21,4 +21,4 @@ def test_fit_filepath():
 
 @pytest.fixture
 def test_template_filepath():
-    return get_template_filepath('fe_12_192_394.1c.template.h5')
+    return get_fit_template_filepath('fe_12_192_394.1c.template.h5')
