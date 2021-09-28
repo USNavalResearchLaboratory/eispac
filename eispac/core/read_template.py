@@ -11,9 +11,13 @@ class EISFitTemplate:
 
     Parameters
     ----------
-    filename
-    template
-    parinfo
+    filename : `str`, `pathlib.Path`
+        Path to fitting template file
+    template : `dict`
+        Dictionary of template parameters
+    parilnfo : `list`
+        List of fitting parameters where each
+        entry is a `dict`
     """
 
     def __init__(self, filename, template, parinfo):
@@ -24,18 +28,12 @@ class EISFitTemplate:
     def __repr__(self):
         rows = []
         rows.append('--- FIT TEMPLATE PARAMETER CONSTRAINTS ---')
-        rows.append(f"{'*':>4} {'Value':>16} {'Fixed':>10} "
-                    +f"{'Limited':>18} {'Limits':>22} {'Tied':>18}")
-        for i in range(len(self.parinfo)):
+        rows.append(
+            f"{'*':>4} {'Value':>16} {'Fixed':>10} {'Limited':>18} {'Limits':>22} {'Tied':>18}")
+        for i, p in enumerate(self.parinfo):
             rows.append(
-                f"{'p['+str(i)+']':>6} "
-                    +f"{self.parinfo[i]['value']:14.4f} "
-                    +f"{self.parinfo[i]['fixed']:10d} "
-                    +f"{self.parinfo[i]['limited'][0]:10d} "
-                    +f"{self.parinfo[i]['limited'][1]:10d} "
-                    +f"{self.parinfo[i]['limits'][0]:12.4f} "
-                    +f"{self.parinfo[i]['limits'][1]:12.4f} "
-                    +f"{self.parinfo[i]['tied']:>18}")
+                f"{f'p[{i}]':>6} {p['value']:14.4f} {p['fixed']:10d} {p['limited'][0]:10d} "
+                + f"{p['limited'][1]:10d} {p['limits'][0]:12.4f} {p['limits'][1]:12.4f} {p['tied']:>18}")
         return '\n'.join(rows)
 
     @property
@@ -49,6 +47,18 @@ class EISFitTemplate:
 
     @staticmethod
     def get_funcinfo(template):
+        """
+        Return a list of dictionaries where each entry describes the
+        parameters for one of the fitting basis functions
+
+        Parameters
+        ----------
+        template : `list`
+
+        Returns
+        -------
+        funcinfo : `list`
+        """
         funcinfo = []
         for g in range(template['n_gauss']):
             funcinfo.append({'func': 'Gaussian1D',
