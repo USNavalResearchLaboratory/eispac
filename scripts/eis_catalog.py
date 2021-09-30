@@ -41,8 +41,8 @@ class Top(QtWidgets.QWidget):
         super(Top, self).__init__(parent)
         self.file_list = None
         self.default_filename = 'eis_filelist.txt'
-        self.default_start_time = '29-May-2018 00:00'
-        self.default_end_time = '29-May-2018 23:59'
+        self.default_start_time = '2018-05-29 00:00' # '29-May-2018 00:00'
+        self.default_end_time = '2018-05-29 23:59' # '29-May-2018 23:59'
         self.default_button_width = 130
         self.default_topdir = 'data_eis/'
         self.dbfile =  dbfile
@@ -57,7 +57,7 @@ class Top(QtWidgets.QWidget):
                         QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
             if ask_db == QtWidgets.QMessageBox.Yes:
                 self.dbfile = download_db()
-                if os.path.isfile(self.dbfile):
+                if not string(self.dbfile).endswith('.part'):
                     self.d = eis_obs_struct.EIS_DB(self.dbfile)
                 else:
                     print('Failed to download EIS database! Exiting...')
