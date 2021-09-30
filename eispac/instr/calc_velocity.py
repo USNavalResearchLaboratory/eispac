@@ -54,6 +54,6 @@ def calc_velocity(observed_wave, rest_wave):
 
     velocity = const.c.to('km/s').value*(obs_wave-wave_0)/wave_0
     median_vel = np.median(velocity)
-    velocity = velocity - median_vel # Is this correcting for an inst. effect?
+    velocity = velocity - median_vel # Rough correction for S/C temp.
 
     return velocity

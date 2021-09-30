@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
 import os
-import urllib.request, requests, wget
+import parfive
+# import urllib.request, requests, wget
+
 
 class download_hdf5_data:
     """
@@ -30,8 +32,8 @@ class download_hdf5_data:
 
     """
 
-    def __init__(self, filename=None, local_top='data_eis', datetree=False, nodata=False, \
-                 nohead=False, overwrite=False, headonly=False):
+    def __init__(self, filename=None, local_top='data_eis', datetree=False,
+                 nodata=False, nohead=False, overwrite=False, headonly=False):
         self.top_url = 'https://eis.nrl.navy.mil/level1/hdf5/'
         self.local_top = local_top
         self.datetree = datetree
@@ -103,40 +105,37 @@ class download_hdf5_data:
         download data and head files, unless told not to
         """
         if not self.nodata:
-            self.download_file(self.remote_data, self.local_data)
+            self.download_file(self.remote_data, self.local_path, self.f_data)
         if not self.nohead:
-            self.download_file(self.remote_head, self.local_head)
+            self.download_file(self.remote_head, self.local_path, self.f_head)
 
-    def download_file(self, remote_file, local_file):
+    def download_file(self, remote_filepath, local_dir, local_name):
         """
-        spawn curl to download the file
+        Use parfive to download the file
         """
-        # check that local directory exists
-        self.check_local_dir(local_file)
-        # check if local file exists
-        if not self.is_local_file(local_file):
+        local_filepath = os.path.join(local_dir, local_name)
+        # check that local directory exists and create as needed
+        self.check_local_dir(local_filepath)
+        if self.overwrite or not os.path.isfile(local_filepath):
             try:
-                print(f'+ downloading {remote_file} -> {local_file}')
-                wget.download(remote_file, local_file)
+                print(f'+ downloading {remote_filepath} -> {local_filepath}')
+                dl = parfive.Downloader(max_conn=2, overwrite=True)
+                dl.enqueue_file(remote_filepath, path=local_dir,
+                                filename=local_name+'.part')
+                dl_result = dl.download()
+                if len(dl_result.errors) == 0:
+                    os.replace(local_filepath+'.part', local_filepath)
+                else:
+                    print(f' ERROR: Incomplete file download.')
                 print('')
             except:
-                print(f' ! Error trying to download: {remote_file}')
+                print(f' ! Error trying to download: {remote_filepath}')
         else:
-            print(f' + {local_file} exists, skipping download')
-
-    def is_local_file(self, local_file):
-        """
-        check if local file exists, overwrite forces new download
-        """
-        exists = os.path.isfile(local_file)
-        if self.overwrite and exists:
-            os.remove(local_file)
-            exists = False
-        return exists
+            print(f' + {local_filepath} exists, skipping download')
 
     def check_local_dir(self, local_file):
         """
-        check if local dir exits; if not, create it
+        check if local dir exits. If not, create it
         """
         local_dir = os.path.dirname(local_file)
         if local_dir != '':
