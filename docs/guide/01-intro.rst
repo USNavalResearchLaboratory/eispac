@@ -100,11 +100,7 @@ try installing the required packages individually first.
 
 -  pyqt >= 5.9
 
-Additionally, some of the command line tools in EISPAC depend on two
-non-Python software packages - ``wget`` and ``cURL``. Both of these
-packages should come preinstalled on most modern operating systems. If
-your system does not, please refer to the respective project websites
-and/or contact your system administrator.
+-  parfive >= 1.5
 
 Installation
 ~~~~~~~~~~~~
