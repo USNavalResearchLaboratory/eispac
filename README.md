@@ -56,8 +56,7 @@ the dependencies manually first, before installing eispac using pip.
 * astropy >= 3.1
 * sunpy >= 1.0.3
 * ndcube >= 1.2.1
-* wget
-* cURL
+* parfive >= 1.5
 
 ### Getting Started
 
@@ -66,7 +65,7 @@ the dependencies manually first, before installing eispac using pip.
 
 * `QUICK_GUIDE.md`: A very brief description of the EISPAC objects.
 
-* `users_guide/EISPAC_Users_Guide.pdf`: A more detailed guide to the software.
+* <https://eispac.readthedocs.io/en/latest/index.html>: Online user's guide
 
 * `notebooks`: Tutorials using Juypter notebooks.
 
@@ -88,8 +87,7 @@ There are currently three core directories:
 
 2. **scripts**: GUI and command line tools
 
-2. **users_guide**: PDF with instructions and examples for how to use the code. Also
-   includes the LaTeX source code.
+2. **docs**: Source reStructuredText files used to build the documentation
 
 The `QUICK_GUIDE.md` text document also give a very brief overview of some key functions.
 It should also be noted that `mpfit.py` was written by Mark Rivers and Sergey Kopsov and
