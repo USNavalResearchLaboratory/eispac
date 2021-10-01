@@ -5,15 +5,11 @@ import os
 import numpy as np
 import h5py
 from pathlib import Path
-
-try:
-    from eis_read_wininfo import eis_read_wininfo    
-except:
-    from eispac.templates.eis_read_wininfo import eis_read_wininfo
+from eispac.core.read_wininfo import read_wininfo as eis_read_wininfo
 
 class eis_find_templates:
     def __init__(self, filename_head=None, verbose=False, ignore_local=False):
-        self.filename_head = None        
+        self.filename_head = None
         self.template_list = None
         self.n_template_files = 0
         self.wininfo = None
@@ -24,7 +20,7 @@ class eis_find_templates:
 
         if filename_head is not None:
             self.filename_head = self.parse_input_filename(filename_head)
-            
+
             self.find_templates()
             self.read_wininfo()
             self.match_templates()
@@ -41,7 +37,7 @@ class eis_find_templates:
         if os.path.isdir('eis_template_dir') and (not self.ignore_local):
             # look for local templates
             self.EIS_TEMPLATE_DIR = 'eis_template_dir'
-        elif os.getenv('EIS_TEMPLATE_DIR') is not None: 
+        elif os.getenv('EIS_TEMPLATE_DIR') is not None:
             # look for an environment variable
             self.EIS_TEMPLATE_DIR = os.getenv('EIS_TEMPLATE_DIR')
         else:
@@ -54,7 +50,7 @@ class eis_find_templates:
         search = os.path.join(self.EIS_TEMPLATE_DIR, '*.template.h5')
         self.template_files = glob.glob(search)
         self.n_template_files = len(self.template_files)
-        
+
         if self.n_template_files > 0:
             self.template_files = sorted(self.template_files)
         else:
@@ -68,12 +64,12 @@ class eis_find_templates:
                 self.wininfo[iwin].wvl_min -= self.delta_wave
                 self.wininfo[iwin].wvl_max += self.delta_wave
             if self.wininfo is None:
-                print(' ! wininfo not read')        
+                print(' ! wininfo not read')
         else:
             print(' ! EIS head file not read')
 
     def match_templates(self):
-        # match windows and templates        
+        # match windows and templates
         if (self.n_template_files == 0) or (self.wininfo is None):
             return
 
@@ -94,7 +90,7 @@ class eis_find_templates:
     def make_text_list(self):
         if (self.n_template_files == 0) or (self.wininfo is None):
             return
-        
+
         txt = []
         wininfo = self.wininfo
         for t in self.template_list:

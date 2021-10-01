@@ -3,11 +3,12 @@
 """
 import pathlib
 
-import astropy.units as u
-from astropy.visualization import ImageNormalize, AsinhStretch
 import numpy as np
+import astropy.units as u
+from astropy.visualization import ImageNormalize, AsinhStretch, LinearStretch
 import sunpy.map
 from sunpy.time import parse_time
+
 
 __all__ = ['EISMap']
 
@@ -82,13 +83,16 @@ class EISMap(sunpy.map.GenericMap):
 
         # Setup plot settings
         self.plot_settings['aspect'] = self.meta['CDELT2'] / self.meta['CDELT1']
+        # self.plot_settings['interpolation'] = 'kaiser' # might want to re-enable
         if self.meta['measrmnt'].lower().startswith('int'):
             self.plot_settings['cmap'] = 'Blues_r'
             self.plot_settings['norm'] = ImageNormalize(stretch=AsinhStretch())
         elif self.meta['measrmnt'].lower().startswith('vel'):
             self.plot_settings['cmap'] = 'RdBu_r'
+            self.plot_settings['norm'] = ImageNormalize(stretch=LinearStretch())
         elif self.meta['measrmnt'].lower().startswith('wid'):
             self.plot_settings['cmap'] = 'viridis'
+            self.plot_settings['norm'] = ImageNormalize(stretch=LinearStretch())
 
     @classmethod
     def is_datasource_for(cls, data, header, **kwargs):
