@@ -15,7 +15,7 @@ from sunpy.time import parse_time
 from sunpy.util.exceptions import SunpyUserWarning
 
 # This registers the EISMap map class
-import eispac
+import eispac  # NOQA
 
 
 @pytest.fixture
@@ -60,6 +60,7 @@ def test_header():
         END 
         """)
     return fits.Header.fromstring(raw_header, sep='\n')
+
 
 @pytest.fixture
 def test_eis_map(test_header):

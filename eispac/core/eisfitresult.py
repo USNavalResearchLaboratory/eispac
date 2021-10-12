@@ -8,7 +8,7 @@ from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 from eispac import __version__ as eispac_version
 import eispac.core.fitting_functions as fit_fns
-from eispac.core.read_template import create_funcinfo
+from eispac.core.read_template import EISFitTemplate
 from eispac.util.rot_xy import rot_xy
 from eispac.instr.ccd_offset import ccd_offset
 
@@ -96,7 +96,7 @@ class EISFitResult:
 
             self.n_gauss = template['n_gauss']
             self.n_poly = template['n_poly']
-            self.funcinfo = create_funcinfo(self.template)
+            self.funcinfo = EISFitTemplate.get_funcinfo(self.template)
             self.fit_func = getattr(fit_fns, func_name)
 
             fit = create_fit_dict(self.n_pxls, self.n_steps, self.n_wave,

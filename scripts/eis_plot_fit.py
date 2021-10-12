@@ -36,7 +36,7 @@ class EIS_PLOT_FIT:
     def read_template(self):
         self.eis_template_file = Path(self.fit.meta['filename_template'])
         self.check_file(self.eis_template_file)
-        self.template = eispac.read_template(self.eis_template_file)
+        self.template = eispac.EISFitTemplate.read_template(self.eis_template_file)
 
     def read_cube(self):
         self.eis_data_file = Path(self.fit.meta['filename_data'])

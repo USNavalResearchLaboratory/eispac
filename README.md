@@ -1,5 +1,10 @@
 # EISPAC - EIS Python Analysis Code
 
+[![eispac CI status](https://github.com/USNavalResearchLaboratory/eispac/workflows/Tests/badge.svg)
+](https://github.com/USNavalResearchLaboratory/eispac/actions/workflows/tests.yml)
+[![Documentation Status](https://readthedocs.org/projects/eispac/badge/?version=latest)](https://eispac.readthedocs.io/en/latest/?badge=latest)
+
+
 This software provides a set of tools for analyzing Hinode/EIS data within a
 python environment. The general approach is as follows:
 

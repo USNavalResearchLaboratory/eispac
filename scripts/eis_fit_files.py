@@ -66,7 +66,7 @@ def eis_fit_files():
         print('')
         print('-----')
         print('')
-        tmplt = eispac.read_template(template_list[t])
+        tmplt = eispac.EISFitTemplate.read_template(template_list[t])
 
         for d in range(n_files):
             print('')
