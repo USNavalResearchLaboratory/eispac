@@ -5,6 +5,7 @@ import os
 import numpy as np
 import h5py
 from pathlib import Path
+import eispac
 from eispac.core.read_wininfo import read_wininfo as eis_read_wininfo
 
 class eis_find_templates:
@@ -42,8 +43,8 @@ class eis_find_templates:
             self.EIS_TEMPLATE_DIR = os.getenv('EIS_TEMPLATE_DIR')
         else:
             # look for the templates distributed with the package
-            path = Path(__file__).parent.absolute()
-            path = os.path.join(path, 'eis_template_dir')
+            root = os.path.dirname(eispac.__file__)
+            path = os.path.join(root, 'data', 'templates')
             self.EIS_TEMPLATE_DIR = path
 
         # find all of the template files
