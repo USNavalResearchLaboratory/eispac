@@ -9,7 +9,7 @@ class EISClient(GenericClient):
     """
     Provides access to the level 1 EIS data in HDF5 format.
 
-    This data is hosted by the `Naval Research Laboratory <https://eis.nrl.navy.mil/>`__
+    This data is hosted by the `Naval Research Laboratory <https://eis.nrl.navy.mil/>`__.
 
     Examples
     --------
@@ -21,9 +21,9 @@ class EISClient(GenericClient):
     ...                       a.Physobs.intensity,
     ...                       a.Source('Hinode'),
     ...                       a.Provider('NRL'),
-    ...                       a.Level('1'))
-    >>> results
-    <sunpy.net.fido_factory.UnifiedResponse object at 0x7fe250ad3d00>
+    ...                       a.Level('1'))  #doctest: +REMOTE_DATA
+    >>> results  #doctest: +REMOTE_DATA
+    <sunpy.net.fido_factory.UnifiedResponse object at ...>
     Results from 1 Provider:
     <BLANKLINE>
     2 Results from the EISClient:
@@ -39,9 +39,9 @@ class EISClient(GenericClient):
     ...                       a.Source('Hinode'),
     ...                       a.Provider('NRL'),
     ...                       a.Level('1'),
-    ...                       FileType('head'))
-    >>> results
-    <sunpy.net.fido_factory.UnifiedResponse object at 0x7fd1baeeefd0>
+    ...                       FileType('head'))  #doctest: +REMOTE_DATA
+    >>> results  #doctest: +REMOTE_DATA
+    <sunpy.net.fido_factory.UnifiedResponse object at ...>
     Results from 1 Provider:
     <BLANKLINE>
     1 Results from the EISClient:
