@@ -8,7 +8,7 @@ if __name__ == '__main__':
     template_filepath = '../templates/eis_template_dir/fe_12_195_119.2c.template.h5'
 
     # read fit template
-    tmplt = eispac.read_template(template_filepath)
+    tmplt = eispac.EISFitTemplate.read_template(template_filepath)
 
     # Read spectral window into an EISCube
     data_cube = eispac.read_cube(data_filepath, tmplt.central_wave)

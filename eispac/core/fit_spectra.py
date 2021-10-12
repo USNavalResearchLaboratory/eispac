@@ -11,7 +11,6 @@ import eispac.core.fitting_functions as fit_fns
 from eispac.core.eiscube import EISCube
 from eispac.core.read_cube import read_cube
 from eispac.core.read_template import EISFitTemplate
-from eispac.core.read_template import read_template
 from eispac.core.eisfitresult import EISFitResult
 from eispac.core.eisfitresult import create_fit_dict
 from eispac.core.scale_guess import scale_guess
@@ -235,7 +234,7 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
     """
     # Validate template & parinfo and read / copy as needed
     if isinstance(template, (str, pathlib.Path)):
-        template_obj = read_template(template)
+        template_obj = EISFitTemplate.read_template(template)
         if template_obj is None:
             return None
         template_copy = copy.deepcopy(template_obj.template)
@@ -457,7 +456,7 @@ if __name__ == '__main__':
     file_template = './templates/eis_template_dir/fe_12_195_119.2c.template.h5'
 
     # read fit template
-    Fe_XII_195_119 = read_template(file_template)
+    Fe_XII_195_119 = EISFitTemplate.read_template(file_template)
 
     # read spectra window
     raster = read_cube(file_data, Fe_XII_195_119.central_wave)

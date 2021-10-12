@@ -1,32 +1,47 @@
+import pathlib
+import warnings
+
 import pytest
+
 import eispac
+from eispac.data import fit_template_filenames
 
-# test_tmplt_filepath = '../templates/eis_template_dir/fe_12_192_394.1c.template.h5'
-test_tmplt_filepath = eispac.templates.template_dir+'/fe_12_192_394.1c.template.h5'
 
-def test_invalid_filepath_type():
-    tmplt = eispac.read_template(42)
-    assert tmplt is None
+@pytest.fixture(params=fit_template_filenames())
+def test_template(request):
+    return eispac.EISFitTemplate.read_template(request.param)
 
-def test_missing_file():
-    tmplt = eispac.read_template('non-existent_file.head.h5')
-    assert tmplt is None
 
-def test_read_template_str_filepath():
-    tmplt = eispac.read_template(test_tmplt_filepath, quiet=True)
-    assert isinstance(tmplt, eispac.EISFitTemplate)
+def test_template_is_template(test_template):
+    assert isinstance(test_template, eispac.EISFitTemplate)
 
-def test_read_template_pathlib_filepath():
-    import pathlib
-    path_obj = pathlib.Path(test_tmplt_filepath)
-    tmplt = eispac.read_template(path_obj, quiet=True)
-    assert isinstance(tmplt, eispac.EISFitTemplate)
 
-def test_print_parinfo():
-    tmplt = eispac.read_template(test_tmplt_filepath, quiet=True)
-    tmplt.print_parinfo()
-    assert isinstance(tmplt, eispac.EISFitTemplate)
+def test_template_has_repr(test_template):
+    assert isinstance(test_template.__repr__(), str)
 
-def test_create_funcinfo():
-    tmplt = eispac.read_template(test_tmplt_filepath)
-    assert len(tmplt.funcinfo) == 2
+
+def test_template_has_funcinfo(test_template):
+    assert isinstance(test_template.funcinfo, list)
+    for f in test_template.funcinfo:
+        assert all(k in f for k in ['func', 'name', 'n_params'])
+
+
+def test_template_has_parinfo(test_template):
+    assert isinstance(test_template.parinfo, list)
+    for f in test_template.parinfo:
+        assert all(k in f for k in ['fixed', 'limited', 'limits', 'tied', 'value'])
+
+
+def test_template_parameters_length(test_template):
+    n_params = sum([f['n_params'] for f in test_template.funcinfo])
+    assert n_params == len(test_template.parinfo)
+
+
+def test_template_central_wave(test_template):
+    assert isinstance(test_template.central_wave, float)
+
+
+@pytest.mark.parametrize('filename', [42, '/not/a/valid/path', pathlib.Path('/not/a/valid/path')])
+def test_bad_filename_returns_none(filename):
+    with pytest.warns(UserWarning, match='Error: Template filepath'):
+        assert eispac.EISFitTemplate.read_template(filename) is None
