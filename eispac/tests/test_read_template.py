@@ -1,7 +1,11 @@
+import pathlib
+import warnings
+
 import pytest
 
 import eispac
 from eispac.data import fit_template_filenames
+
 
 @pytest.fixture(params=fit_template_filenames())
 def test_template(request):
@@ -35,3 +39,9 @@ def test_template_parameters_length(test_template):
 
 def test_template_central_wave(test_template):
     assert isinstance(test_template.central_wave, float)
+
+
+@pytest.mark.parametrize('filename', [42, '/not/a/valid/path', pathlib.Path('/not/a/valid/path')])
+def test_bad_filename_returns_none(filename):
+    with pytest.warns(UserWarning, match='Error: Template filepath'):
+        assert eispac.EISFitTemplate.read_template(filename) is None

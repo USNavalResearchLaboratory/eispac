@@ -1,8 +1,10 @@
 import pathlib
+import warnings
+
 import numpy as np
 import h5py
 
-__all__ = ['EISFitTemplate']
+__all__ = ['EISFitTemplate', 'read_template']
 
 
 class EISFitTemplate:
@@ -44,7 +46,6 @@ class EISFitTemplate:
     def central_wave(self):
         return self.template['wmin'] + (self.template['wmax'] - self.template['wmin']) * 0.5
 
-
     @staticmethod
     def get_funcinfo(template):
         """
@@ -62,12 +63,12 @@ class EISFitTemplate:
         funcinfo = []
         for g in range(template['n_gauss']):
             funcinfo.append({'func': 'Gaussian1D',
-                            'name': template['line_ids'][g],
-                            'n_params': 3})
+                             'name': template['line_ids'][g],
+                             'n_params': 3})
         if template['n_poly'] > 0:
             funcinfo.append({'func': 'Polynomial1D',
-                            'name': 'Background',
-                            'n_params': template['n_poly']})
+                             'name': 'Background',
+                             'n_params': template['n_poly']})
         return funcinfo
 
     @classmethod
@@ -80,6 +81,18 @@ class EISFitTemplate:
         filename : `str`, `pathlib.Path`
             Path to template file
         """
+        # NOTE: return None here rather than allow h5py to handle
+        # exception so that spectral fitting pipeline can error
+        # more gracefully
+        # FIXME: replace with proper exception handling and logging
+        if not isinstance(filename, (str, pathlib.Path)):
+            warnings.warn('Error: Template filepath must be either a string or pathlib.Path')
+            return None
+        filename = pathlib.Path(filename)
+        if not filename.is_file():
+            warnings.warn(f'Error: Template filepath {filename} does not exist')
+            return None
+
         with h5py.File(filename, 'r') as f_temp:
             # Template
             template = {}
@@ -105,6 +118,11 @@ class EISFitTemplate:
                 parinfo.append(parameter)
 
         return cls(filename, template, parinfo)
+
+
+# This is an alias to make the interface to reading template files a bit more
+# user-friendly.
+read_template = EISFitTemplate.read_template
 
 
 if __name__ == '__main__':
