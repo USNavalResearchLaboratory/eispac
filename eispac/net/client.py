@@ -70,5 +70,5 @@ class EISClient(GenericClient):
                 ('1', 'EIS: The EIS client can only return level 1 data. Level 0 EIS data is available from the VSO.')
             ],
             FileType: [('data', 'These files contain the actual intensity data'),
-                       ('head', 'These files contain only the header metadata')],
+                       ('header', 'These files contain only the header metadata')],
         }

@@ -10,13 +10,15 @@ class FileType(SimpleAttr):
     Parameters
     ----------
     value: `str`
-        Either "data" or "head"
+        Either "data" or "header"
     """
     
     def __init__(self, value):
         if not isinstance(value, str):
             raise ValueError('File type must be a string')
         value = value.lower()
-        if value not in ['data', 'head']:
-            raise ValueError(f'File type {value} must be either "data" or "head".')
+        if value not in ['data', 'header']:
+            raise ValueError(f'File type {value} must be either "data" or "header".')
+        # The actual files are labeled "head" but "header" is more readable
+        value = 'head' if value == 'header' else value
         super().__init__(value)
