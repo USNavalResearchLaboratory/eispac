@@ -71,7 +71,7 @@ class EISMap(sunpy.map.GenericMap):
         self.meta['date-end'] = self.meta.get('date_end')
         self.meta['date-obs'] = self.meta.get('date_obs')
         self.meta['date-avg'] = self.meta.get('date_avg')
-        # NOTE: this block can be removed once sunpy>=3.1 is only supported as 
+        # NOTE: this block can be removed once sunpy>=3.1 is only supported as
         # the .date_average property will always be constructed in this way if
         # date_start and date_end are present
         if self.meta['date-avg'] is None:
@@ -90,6 +90,8 @@ class EISMap(sunpy.map.GenericMap):
         elif self.meta['measrmnt'].lower().startswith('vel'):
             self.plot_settings['cmap'] = 'RdBu_r'
             self.plot_settings['norm'] = ImageNormalize(stretch=LinearStretch())
+            self.plot_settings['vmin'] = -40.0
+            self.plot_settings['vmax'] = 40.0
         elif self.meta['measrmnt'].lower().startswith('wid'):
             self.plot_settings['cmap'] = 'viridis'
             self.plot_settings['norm'] = ImageNormalize(stretch=LinearStretch())
