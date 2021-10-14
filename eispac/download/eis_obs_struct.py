@@ -47,6 +47,10 @@ class EIS_DB():
         self.conn.create_function("regexp", 2, regexp)
         self.cur = self.conn.cursor()
 
+        # Create indexes for tl_id (should speed up mk_list and mk_list_main)
+        self.cur.execute('CREATE INDEX IF NOT EXISTS main_tl_idx ON eis_main (tl_id);')
+        self.cur.execute('CREATE INDEX IF NOT EXISTS exp_tl_idx ON eis_experiment (tl_id);')
+
         self.load_ll()
         self.load_raster()
 
@@ -87,7 +91,7 @@ class EIS_DB():
 
             # Get needed row from from main
             tl_id = row['tl_id']
-            main_string = """stud_acr , study_id, obstitle, obs_dec, sci_obj"""
+            main_string = """stud_acr, study_id, obstitle, obs_dec, sci_obj"""
             self.cur.execute("select " + main_string + """ from eis_main
                 where tl_id = ?""", (tl_id,))
             main_row, = self.cur.fetchall()
@@ -122,8 +126,7 @@ class EIS_DB():
                     if item['id'] == ll_id:
                         ll_row = item
 
-                self.eis_str.append(EIS_Struct(erow,
-                                               ll_row, rast_row, row))
+                self.eis_str.append(EIS_Struct(erow, ll_row, rast_row, row))
 
     def get_by_date(self, t0, t1):
         """Retrieve info from eis_experiment for date range. Time is
@@ -159,7 +162,7 @@ class EIS_DB():
             else:
                 t1 = utc2tai(date[1])
             self.cur.execute("select " + exp_string + """ from
-                              eis_experiment where rast_id=? and 
+                              eis_experiment where rast_id=? and
                               date_obs between ? and ?""",
                               (rast_id, t0, t1))
             self.mk_list()
@@ -168,10 +171,10 @@ class EIS_DB():
         """Retrieve all the executions of a particular study id."""
 
         # First we do the main database
-        exp_string = """tl_id, stud_acr, study_id, obstitle, 
+        exp_string = """tl_id, stud_acr, study_id, obstitle,
                         obs_dec, sci_obj"""
         if date == None:
-            self.cur.execute("select " + exp_string + """ from 
+            self.cur.execute("select " + exp_string + """ from
                               eis_main where study_id=?""",
                               (study_id,))
             self.mk_list_main()
@@ -181,7 +184,7 @@ class EIS_DB():
                 t1 = t0 + 86400.0 # just add a day
             else:
                 t1 = utc2tai(date[1])
-            self.cur.execute("select " + exp_string + """ from 
+            self.cur.execute("select " + exp_string + """ from
                               eis_main where study_id=? and
                               date_obs between ? and ?""",
                               (study_id, t0, t1))
@@ -200,12 +203,12 @@ class EIS_DB():
             print(row)
 
     def get_by_acronym(self, acronym, date=None):
-        """Retrieve info using the study acronym. Regular 
+        """Retrieve info using the study acronym. Regular
            expressions are fine."""
-        exp_string = """tl_id, stud_acr, study_id, obstitle, 
+        exp_string = """tl_id, stud_acr, study_id, obstitle,
                         obs_dec, sci_obj"""
         if date == None:
-            self.cur.execute("select " + exp_string + """ from 
+            self.cur.execute("select " + exp_string + """ from
                               eis_main where stud_acr regexp ?""",
                               (acronym,))
             self.mk_list_main()
@@ -215,7 +218,7 @@ class EIS_DB():
                 t1 = t0 + 86400.0 # just add a day
             else:
                 t1 = utc2tai(date[1])
-            self.cur.execute("select " + exp_string + """ from 
+            self.cur.execute("select " + exp_string + """ from
                               eis_main where stud_acr regexp ? and
                               date_obs between ? and ?""",
                               (acronym, t0, t1))
@@ -307,7 +310,7 @@ class EIS_Struct(object):
         """Clean up exposure time info."""
         self.exptime = np.array(self.exposures.split(','), dtype=np.float)
         self.exptime = self.exptime[0:self.nexp]/1000.0 # convert to seconds
-        
+
 def members(obj):
     """List all the member variables in an object."""
     result = [attr for attr in dir(obj) if not callable(attr)
@@ -333,7 +336,7 @@ def main():
     #d.get_by_rast_id('51')
     d.get_by_user_sql("""from eis_experiment where
                          rast_id=51 and
-                         xcen between -500 and 500 and 
+                         xcen between -500 and 500 and
                          ycen between -500 and 500 and
                          fovx >= 60""")
 
@@ -356,4 +359,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

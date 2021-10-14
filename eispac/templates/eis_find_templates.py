@@ -4,7 +4,7 @@ import glob
 import os
 import numpy as np
 import h5py
-from pathlib import Path
+import pathlib
 import eispac
 from eispac.core.read_wininfo import read_wininfo as eis_read_wininfo
 
@@ -36,13 +36,17 @@ class eis_find_templates:
     def find_templates(self):
         # find the templates
         if os.path.isdir('eis_template_dir') and (not self.ignore_local):
-            # look for local templates
+            # look for local templates (old default, before 2021-10-14)
             self.EIS_TEMPLATE_DIR = 'eis_template_dir'
+        elif os.path.isdir('eis_fit_templates') and (not self.ignore_local):
+            # look for local templates (current default, after 2021-1014)
+            self.EIS_TEMPLATE_DIR = 'eis_fit_templates'
         elif os.getenv('EIS_TEMPLATE_DIR') is not None:
             # look for an environment variable
             self.EIS_TEMPLATE_DIR = os.getenv('EIS_TEMPLATE_DIR')
         else:
             # look for the templates distributed with the package
+            # root = str(pathlib.Path(__file__).parent.parent.absolute())
             root = os.path.dirname(eispac.__file__)
             path = os.path.join(root, 'data', 'templates')
             self.EIS_TEMPLATE_DIR = path

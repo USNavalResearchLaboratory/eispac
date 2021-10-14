@@ -16,12 +16,12 @@ class Top(QWidget):
     def __init__(self, eis):
         super().__init__()
         self.eis = eis
-        self.default_dir = 'eis_template_dir'
+        self.save_dir = os.path.join(os.getcwd(), 'eis_fit_templates') # 'eis_template_dir'
         self.font_default = QtGui.QFont("Courier", 12)
         self.font_small = QtGui.QFont("Courier", 10)
-        self.winNX = 1458
-        self.winNY = 614
-        self.leftNX = 450
+        self.imgNX = 1458
+        self.imgNY = 614
+        self.colNX = 200 # min width of the three columns at top the the gui
 
         self.initUI()
 
@@ -29,17 +29,27 @@ class Top(QWidget):
         self.buttonQuit = QPushButton('Quit')
         self.buttonQuit.setFont(self.font_default)
         self.buttonQuit.clicked.connect(self.on_click_button_quit)
-        self.buttonQuit.resize(self.leftNX, self.frameGeometry().height())
+        self.buttonQuit.resize(self.colNX, self.frameGeometry().height())
 
-        self.buttonSelect = QPushButton('Select a header file')
+        self.buttonSelect = QPushButton('Select header')
         self.buttonSelect.setFont(self.font_default)
         self.buttonSelect.clicked.connect(self.on_click_button_select)
-        self.buttonSelect.resize(self.leftNX, self.frameGeometry().height())
+        self.buttonSelect.resize(self.colNX, self.frameGeometry().height())
+
+        self.buttonDir = QPushButton('Change save dir')
+        self.buttonDir.setFont(self.font_default)
+        self.buttonDir.clicked.connect(self.on_click_button_dir)
+        self.buttonDir.resize(self.colNX, self.frameGeometry().height())
+
+        self.buttonCopy = QPushButton('Copy template')
+        self.buttonCopy.setFont(self.font_default)
+        self.buttonCopy.clicked.connect(self.on_click_button_copy)
+        self.buttonCopy.resize(self.colNX, self.buttonCopy.frameGeometry().height())
 
         self.fileLabel = QLabel()
         self.fileLabel.setFont(self.font_default)
         self.fileLabel.setAlignment(Qt.AlignCenter)
-        self.fileLabel.resize(self.leftNX, self.fileLabel.frameGeometry().height())
+        self.fileLabel.resize(self.colNX, self.fileLabel.frameGeometry().height())
         self.setup_file_label()
 
         self.listTemplates = QListWidget()
@@ -47,47 +57,59 @@ class Top(QWidget):
         self.listTemplates.clicked.connect(self.on_click_list_templates)
         self.setup_list()
 
-        self.buttonCopy = QPushButton('Copy Template to Local Dir')
-        self.buttonCopy.setFont(self.font_default)
-        self.buttonCopy.clicked.connect(self.on_click_button_copy)
-        self.buttonCopy.resize(self.leftNX, self.buttonCopy.frameGeometry().height())
-
         self.textWindow = QTextEdit()
         self.textWindow.setFont(self.font_small)
-        info = ('* Select an EIS HDF header file.\n\n'
-            +'* Templates relevant to that file will be listed.\n\n'
-            +'* Make a selection to display the template applied to some'
-            +' represenative solar spectra.\n\n'
-            +'* Use the copy button to copy the template file to a local'
-            +' directory.\n\n'
-            +'* You only need to copy one file for the template of a'
-            ' multi-component fit. All components are listed separately.')
+        info = ('* Select an EIS HDF header file to see a list of relevent'
+               +' templates\n\n'
+               +'* Make a selection to display the template applied to'
+               +' representative solar spectra.\n\n'
+               +'* Use the copy button to copy the selected template file to'
+               +' the directory given below.\n\n'
+               +'* You only need to copy one file for the template of a'
+               +' multi-component fit. All components are listed separately.')
         self.textWindow.append(info+'\n')
         self.textWindow.setReadOnly(True)
-        self.textWindow.resize(self.leftNX, self.textWindow.frameGeometry().height())
+        self.textWindow.resize(self.colNX, self.textWindow.frameGeometry().height())
+
+        self.savedirBox = QLineEdit(self)
+        self.savedirBox.resize(self.colNX, self.savedirBox.frameGeometry().height())
+        self.savedirBox.setText(self.save_dir)
 
         self.window = QLabel()
-        buff = np.zeros((self.winNX, self.winNX, 3), dtype=np.int16)
-        image = QImage(buff, self.winNX, self.winNY, QImage.Format_ARGB32)
+        buff = np.zeros((self.imgNX, self.imgNX, 3), dtype=np.int16)
+        image = QImage(buff, self.imgNX, self.imgNY, QImage.Format_ARGB32)
         self.window.setPixmap(QPixmap(image))
 
-        vbox1 = QVBoxLayout()
-        vbox1.addWidget(self.buttonQuit)
-        vbox1.addWidget(self.buttonSelect)
-        vbox1.addWidget(self.fileLabel)
-        vbox1.addWidget(self.listTemplates)
-        vbox1.addWidget(self.buttonCopy)
-        vbox1.addWidget(self.textWindow)
-        vbox1.addStretch()
+        # TO-DO: Consider switching to a proper widget grid
+        left_box = QVBoxLayout()
+        left_box.addWidget(self.buttonQuit)
+        left_box.addWidget(self.buttonSelect)
+        left_box.addWidget(self.buttonDir)
+        left_box.addWidget(self.buttonCopy)
+        left_box.addStretch()
 
-        vbox2 = QVBoxLayout()
-        vbox2.addWidget(self.window)
+        mid_box = QVBoxLayout()
+        mid_box.addWidget(self.fileLabel)
+        mid_box.addWidget(self.listTemplates)
 
-        hbox = QHBoxLayout()
-        hbox.addLayout(vbox1)
-        hbox.addLayout(vbox2)
+        right_box = QVBoxLayout()
+        right_box.addWidget(self.textWindow)
+        right_box.addWidget(self.savedirBox)
+        right_box.addStretch()
 
-        self.setLayout(hbox)
+        top_box = QHBoxLayout()
+        top_box.addLayout(left_box)
+        top_box.addLayout(mid_box)
+        top_box.addLayout(right_box)
+
+        bot_box = QVBoxLayout()
+        bot_box.addWidget(self.window)
+
+        vbox = QVBoxLayout()
+        vbox.addLayout(top_box)
+        vbox.addLayout(bot_box)
+
+        self.setLayout(vbox)
 
         # --- display the widget
         self.setWindowTitle('Select EIS Fitting Template')
@@ -104,15 +126,14 @@ class Top(QWidget):
         nrows = self.listTemplates.sizeHintForRow(0)*count + \
             2*self.listTemplates.frameWidth() + 5
         # self.listTemplates.setFixedSize(400, nrows)
-        self.listTemplates.resize(self.leftNX, nrows)
+        self.listTemplates.resize(self.colNX, nrows)
 
     def setup_file_label(self):
         if self.eis.filename_head is not None:
             f = os.path.basename(self.eis.filename_head)
             f = f.split('.')[0]
             s = ('Selected header: '+f+'\n'
-                +'--- Available Templates ---\n'
-                +'filename,   window num,   wmin,   wmax')
+                +'template file,   window num,   wmin,   wmax')
             self.fileLabel.setText(s)
         else:
             self.fileLabel.setText('No file has been selected')
@@ -120,24 +141,6 @@ class Top(QWidget):
     def on_click_button_quit(self):
         # --- quit the app
         QApplication.instance().quit()
-
-    def on_click_button_copy(self):
-        item = self.listTemplates.currentItem()
-        index = self.listTemplates.indexFromItem(item)
-        n = index.row()
-        template_file = self.eis.template_list[n][0]
-
-        if not os.path.isdir(self.default_dir):
-            os.mkdir(self.default_dir)
-            s = f'created {self.default_dir}'
-            print(s)
-            self.textWindow.append(s)
-
-        shutil.copy2(template_file, self.default_dir)
-
-        s = f'copied {os.path.basename(template_file)} to {self.default_dir}'
-        print(s)
-        self.textWindow.append(s)
 
     def on_click_button_select(self):
         options = QFileDialog.Options()
@@ -151,6 +154,35 @@ class Top(QWidget):
             self.setup_file_label()
             self.set_blank_image()
 
+    def on_click_button_dir(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        options |= QFileDialog.ShowDirsOnly
+        new_savedir = QFileDialog.getExistingDirectory(self, 'Select a directory',
+                                                       options=options)
+        if os.path.isdir(new_savedir):
+            self.save_dir = new_savedir
+            self.savedirBox.setText(self.save_dir)
+
+    def on_click_button_copy(self):
+        item = self.listTemplates.currentItem()
+        index = self.listTemplates.indexFromItem(item)
+        n = index.row()
+        template_file = self.eis.template_list[n][0]
+
+        self.save_dir = self.savedirBox.text()
+        if not os.path.isdir(self.save_dir):
+            os.mkdir(self.save_dir)
+            s = f'Created {self.save_dir}'
+            print(s)
+            self.textWindow.append(s)
+
+        shutil.copy2(template_file, self.save_dir)
+
+        s = f'Copied {os.path.basename(template_file)} to {self.save_dir}'
+        print(s)
+        self.textWindow.append(s)
+
     def on_click_list_templates(self):
         item = self.listTemplates.currentItem()
         index = self.listTemplates.indexFromItem(item)
@@ -161,12 +193,15 @@ class Top(QWidget):
     def display_image(self, image_file):
         if os.path.isfile(image_file):
             pixmap = QPixmap(image_file)
-            pixmap = pixmap.scaled(self.winNX, self.winNY)
+            pixmap = pixmap.scaled(self.imgNX, self.imgNY)
             self.window.setPixmap(pixmap)
+        else:
+            s = f'Error: cannot find or display {image_file}'
+            self.textWindow.append(s)
 
     def set_blank_image(self):
-        buff = np.zeros((self.winNX, self.winNX, 3), dtype=np.int16)
-        image = QImage(buff, self.winNX, self.winNY, QImage.Format_ARGB32)
+        buff = np.zeros((self.imgNX, self.imgNX, 3), dtype=np.int16)
+        image = QImage(buff, self.imgNX, self.imgNY, QImage.Format_ARGB32)
         self.window.setPixmap(QPixmap(image))
 
 def eis_browse_templates():

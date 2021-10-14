@@ -40,11 +40,12 @@ class Top(QtWidgets.QWidget):
     def __init__(self, dbfile, parent=None):
         super(Top, self).__init__(parent)
         self.file_list = None
+        self.selected_file = None
         self.default_filename = 'eis_filelist.txt'
         self.default_start_time = '2018-05-29 00:00' # '29-May-2018 00:00'
         self.default_end_time = '2018-05-29 23:59' # '29-May-2018 23:59'
         self.default_button_width = 130
-        self.default_topdir = 'data_eis/'
+        self.default_topdir = os.path.join(os.getcwd(), 'data_eis')
         self.dbfile =  dbfile
 
         if os.path.isfile(self.dbfile):
@@ -71,24 +72,24 @@ class Top(QtWidgets.QWidget):
     def init_ui(self):
         """Manage everything."""
         self.grid = QtWidgets.QGridLayout(self)
-
-        # Info at the top
         self.gui_row = 0
-        self.top()
 
-        # Search criteria
-        self.search_left()
-        self.search_center()
-        self.search_right()
+        # Quit, Help, Update DB buttons (with info)
+        self.top_menu()
+
+        # Selecting search criteria
+        self.select_dates() # left
+        self.select_id() # center
+        self.select_acronym() # right
 
         # Catalog info
-        self.main()
+        self.catalog_table()
 
-        # Info for one item, a possible future addition.
+        # Info for a single search result
         self.details()
 
         # Bottom stuff
-        self.bottom()
+        self.save_options()
 
         # And away we go
         self.setLayout(self.grid)
@@ -99,39 +100,41 @@ class Top(QtWidgets.QWidget):
     def event_quit(self):
         QtWidgets.QApplication.instance().quit()
 
-    def top(self):
-        """Minimal info at the top."""
+    def top_menu(self):
+        """Basic menu option."""
         self.quit = QtWidgets.QPushButton('Quit')
         self.quit.setFixedWidth(self.default_button_width)
         self.quit.clicked.connect(self.event_quit)
 
         self.help = QtWidgets.QPushButton('Help', self)
-        self.help.setFixedWidth(150)
+        self.help.setFixedWidth(self.default_button_width)
         self.help.clicked.connect(self.event_help)
 
         self.grid.addWidget(self.quit, self.gui_row, 0)
         self.grid.addWidget(self.help, self.gui_row, 1)
 
-        self.gui_row += 1
+        # self.gui_row += 1
 
-        self.top_title =  QtWidgets.QLabel(self)
+        self.db_info =  QtWidgets.QLabel(self)
         if os.path.isfile(self.dbfile):
             self.update_db_file_label()
         else:
-            self.top_title.setText('Unable to locate file: ' + self.dbfile)
-        self.grid.addWidget(self.top_title, self.gui_row, 1, 1, 5)
+            self.db_info.setText('Unable to locate file: ' + self.dbfile)
+        # self.grid.addWidget(self.db_info, self.gui_row, 1, 1, 5)
+        self.grid.addWidget(self.db_info, self.gui_row, 3, 1, 3)
 
         self.download_db = QtWidgets.QPushButton('Get Latest DB', self)
         self.download_db.setFixedWidth(self.default_button_width)
-        self.grid.addWidget(self.download_db, self.gui_row, 0)
+        # self.grid.addWidget(self.download_db, self.gui_row, 0)
+        self.grid.addWidget(self.download_db, self.gui_row, 2)
         self.download_db.clicked.connect(self.event_download_db)
 
         self.gui_row += 1
 
     def update_db_file_label(self):
-         t = 'Using file: '+os.path.abspath(self.dbfile)+'  DB Downloaded : '+ \
+         t = 'DB file: '+os.path.abspath(self.dbfile)+'\nDownload date: '+ \
                 time.ctime(os.path.getmtime(self.dbfile)).lstrip().rstrip()
-         self.top_title.setText(t)
+         self.db_info.setText(t)
 
     def event_download_db(self):
         self.info_detail.clear()
@@ -177,6 +180,7 @@ level 0 files from ISAS.
 
     def event_db_file_search(self):
         """Find a db file to use, if needed."""
+        # Note: this function is not used. Do we still need it?
         db_dialog = QtWidgets.QFileDialog(self)
         if have_Qt5:
             file_name, _ = db_dialog.getOpenFileName()
@@ -185,14 +189,14 @@ level 0 files from ISAS.
         save = self.gui_row
         self.gui_row = 0
         if file_name != '':
-            self.top(file_name)
+            self.Top(file_name)
         self.gui_row = save
 
-    def search_left(self):
+    def select_dates(self):
         """Process search criteria, dates."""
         title = QtWidgets.QLabel(self)
         title.setText('Search Criteria. Selecting a time range ' +
-                      '(ISO standard) HIGHLY recommended)')
+                      '(ISO standard HIGHLY recommended)')
         self.grid.addWidget(title, self.gui_row, 0, 1, 6)
         self.gui_row += 1
 
@@ -218,24 +222,37 @@ level 0 files from ISAS.
         search_start = QtWidgets.QPushButton('Search', self)
         search_start.setFixedWidth(self.default_button_width)
         self.grid.addWidget(search_start, self.gui_row, 0, 1, 6)
-        search_start.clicked.connect(self.event_search_new)
+        search_start.clicked.connect(self.event_search)
 
         time_set = QtWidgets.QPushButton('Last 3 Weeks', self)
         time_set.setFixedWidth(self.default_button_width)
         self.grid.addWidget(time_set, self.gui_row, 1, 1, 6)
         time_set.clicked.connect(self.event_time_set)
+
+        # time_mission = QtWidgets.QPushButton('Full mission', self)
+        # time_mission.setFixedWidth(self.default_button_width)
+        # self.grid.addWidget(time_set, self.gui_row, 1, 1, 6)
+        # time_mission.clicked.connect(self.event_time_mission)
+
         self.gui_row -= 2
 
     def event_time_set(self):
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(weeks=3)
-        fmt = '%d-%b-%Y'
+        fmt = '%Y-%m-%d' #'%d-%b-%Y'
         start_time_s = start_time.strftime(fmt+' 00:00')
         end_time_s = end_time.strftime(fmt+' 23:59')
         self.start_time.setText(start_time_s)
         self.end_time.setText(end_time_s)
 
-    def search_center(self):
+    def event_time_mission(self):
+        fmt = '%Y-%m-%d' #'%d-%b-%Y'
+        start_time_s = '2006-10-21 00:00'
+        end_time_s = datetime.utcnow().strftime(fmt+' 23:59')
+        self.start_time.setText(start_time_s)
+        self.end_time.setText(end_time_s)
+
+    def select_id(self):
         """Select by study ID."""
         title = QtWidgets.QLabel(self)
         title.setText('Select by Study ID')
@@ -256,7 +273,7 @@ level 0 files from ISAS.
         self.grid.addWidget(self.b1, self.gui_row, 2, 1, 2)
         self.gui_row -= 2
 
-    def search_right(self):
+    def select_acronym(self):
         """Select by study acronym."""
         title = QtWidgets.QLabel(self)
         title.setText('Select by Acronym (first few characters will do)')
@@ -277,38 +294,6 @@ level 0 files from ISAS.
         self.gui_row += 1
 
     def event_search(self):
-        """Validate and process search request."""
-
-        # First must have dates
-        start_time = str(self.start_time.text())
-        end_time = str(self.end_time.text())
-
-        self.d.get_by_date(start_time, end_time)
-        if len(self.d.eis_str) > 0:
-            # print('nrows: ', len(self.d.eis_str))
-            # print(eis_obs_struct.members(self.d.eis_str[0]))
-            info = []
-            i = 0
-            for row in self.d.eis_str:
-                info.append([row.tl_id, row.stud_acr, row.date_obs,
-                             row.obstitle, row.filename, row.xcen,
-                             row.ycen, row.study_id])
-        else:
-            print('No entries found')
-
-        info.sort(key=lambda x: x[2])
-
-        if self.b1.checkState() == 2:
-            s_id = str(self.study.text())
-            info = [x for x in info if str(x[7]) == s_id]
-        elif self.b2.checkState() == 2:
-            text = str(self.acronym.text())
-            r = re.compile(text, flags=re.IGNORECASE)
-            info = [x for x in info if r.match(x[1])]
-
-        self.mk_table(info)
-
-    def event_search_new(self):
         """Validate and process search request."""
         start_time = str(self.start_time.text())
         end_time = str(self.end_time.text())
@@ -336,32 +321,46 @@ level 0 files from ISAS.
             text = str(self.acronym.text())
             self.d.get_by_acronym(text)
 
+        self.selected_file = None
         if len(self.d.eis_str) > 0:
             # print('nrows: ', len(self.d.eis_str))
             # print(eis_obs_struct.members(self.d.eis_str[0]))
             info = []
             i = 0
             for row in self.d.eis_str:
-                info.append([row.tl_id, row.stud_acr, row.date_obs,
-                             row.obstitle, row.filename, row.xcen,
-                             row.ycen, row.study_id])
-            info.sort(key=lambda x: x[4]) # sort on file name
+                # info.append([row.tl_id, row.stud_acr, row.date_obs,
+                #              row.obstitle, row.filename, row.xcen,
+                #              row.ycen, row.study_id])
+                info.append([row.date_obs, row.study_id, row.stud_acr,
+                             row.obstitle,  row.xcen, row.ycen,
+                             row.filename, row.tl_id])
+            info.sort(key=lambda x: x[6]) # sort on file name
+            self.search_info.setText('Found '+str(len(info))+' observations')
             self.mk_table(info)
         else:
             self.info_detail.clear()
             self.file_list = []
+            self.search_info.setText('Found 0 observations')
             self.info_detail.append('No entries found')
 
-    def main(self):
-        """Display main cat info."""
+    def catalog_table(self):
+        """Table with summary of search results"""
         title = QtWidgets.QLabel(self)
         title.setText('Catalog Search Results')
         self.grid.addWidget(title, self.gui_row, 0, 1, 2)
+
+        self.search_info = QtWidgets.QLabel(self)
+        self.search_info.setText('Found ?? observations')
+        self.grid.addWidget(self.search_info, self.gui_row, 2, 1, 2)
         self.gui_row += 1
 
-        headers = ['Timeline ID', 'Study Acronym', 'Date Observed',
-                   'Description', 'Filename', 'Xcen', 'Ycen']
-        widths = [100, 180, 170, 350, 200, 80, 80]
+        # headers = ['Timeline ID', 'Study Acronym', 'Date Observed',
+        #            'Description', 'Filename', 'Xcen', 'Ycen']
+        # widths = [100, 180, 170, 350, 200, 80, 80]
+
+        headers = ['Date Observed', 'Study ID', 'Study Acronym',
+                   'Description (obstitle)', 'Xcen', 'Ycen', 'Filename']
+        widths = [180, 90, 180, 350, 80, 80, 210]
 
         self.table_m = QtWidgets.QTableWidget(self)
         self.table_m.verticalHeader().setVisible(False)
@@ -383,29 +382,29 @@ level 0 files from ISAS.
         self.table_m.clearContents()
         self.table_m.setRowCount(len_info)
         for row in range(len_info):
-            # Sequence
-            item = QtWidgets.QTableWidgetItem(str(info[row][0]))
-            self.table_m.setItem(row, 0, item)
-            # Study acronym
-            item = QtWidgets.QTableWidgetItem(info[row][1])
-            self.table_m.setItem(row, 1, item)
             # Date and start time
+            item = QtWidgets.QTableWidgetItem(info[row][0])
+            self.table_m.setItem(row, 0, item)
+            # Study ID
+            item = QtWidgets.QTableWidgetItem(str(info[row][1]))
+            self.table_m.setItem(row, 1, item)
+            # Study acronym
             item = QtWidgets.QTableWidgetItem(info[row][2])
             self.table_m.setItem(row, 2, item)
             # Description
             item = QtWidgets.QTableWidgetItem(info[row][3])
             self.table_m.setItem(row, 3, item)
-            # Filename
-            item = QtWidgets.QTableWidgetItem(info[row][4])
-            self.table_m.setItem(row, 4, item)
-            self.file_list.append(info[row][4])
             # Xcen and Ycen
+            fstring = '{:0.1f}'.format(info[row][4])
+            item = QtWidgets.QTableWidgetItem(fstring)
+            self.table_m.setItem(row, 4, item)
             fstring = '{:0.1f}'.format(info[row][5])
             item = QtWidgets.QTableWidgetItem(fstring)
             self.table_m.setItem(row, 5, item)
-            fstring = '{:0.1f}'.format(info[row][6])
-            item = QtWidgets.QTableWidgetItem(fstring)
+            # Filename
+            item = QtWidgets.QTableWidgetItem(info[row][6])
             self.table_m.setItem(row, 6, item)
+            self.file_list.append(info[row][6])
 
         # Any cells highlighted?
         self.table_m.cellClicked.connect(self.get_details)
@@ -413,7 +412,7 @@ level 0 files from ISAS.
     def get_details(self, row, column):
         """Provide details on selected cell."""
         self.info_detail.clear()
-        info = self.fill_info(str(self.table_m.item(row, 4).text()))
+        info = self.fill_info(str(self.table_m.item(row, 6).text()))
         for line in info:
             self.info_detail.append(line)
         self.info_detail.verticalScrollBar().\
@@ -424,6 +423,7 @@ level 0 files from ISAS.
         info = []
         if len(self.d.eis_str) != 0:
             row, = [x for x in self.d.eis_str if x.filename == str(file)]
+            self.selected_file = row.filename
             info.append("{0:<20} {1}".format('filename', row.filename))
             info.append("{0:<20} {1}".format('date_obs', row.date_obs))
             info.append("{0:<20} {1}".format('date_end', row.date_end))
@@ -457,7 +457,7 @@ level 0 files from ISAS.
     def details(self):
         """Display detailed cat info."""
         title = QtWidgets.QLabel(self)
-        title.setText('Details on Selected Item')
+        title.setText('Details')
         self.grid.addWidget(title, self.gui_row, 0, 1, 6)
         self.gui_row += 1
 
@@ -472,46 +472,87 @@ level 0 files from ISAS.
         self.gui_row += 1
         self.info_detail.setReadOnly(True)
 
-    def bottom(self):
-        """Display bottom info."""
-        download_list = QtWidgets.QPushButton('Download Files', self)
-        download_list.setFixedWidth(self.default_button_width)
-        self.grid.addWidget(download_list, self.gui_row, 0)
-        download_list.clicked.connect(self.event_download_file_list)
+    def save_options(self):
+        """Controls for saving files."""
 
-        self.topdir_box = QtWidgets.QLineEdit(self)
-        self.topdir_box.setFixedWidth(self.default_button_width)
-        self.topdir_box.setText(self.default_topdir)
-        self.grid.addWidget(self.topdir_box, self.gui_row, 1)
+        set_save_dir = QtWidgets.QPushButton('Change save dir', self)
+        set_save_dir.setFixedWidth(self.default_button_width)
+        self.grid.addWidget(set_save_dir, self.gui_row, 0)
+        set_save_dir.clicked.connect(self.event_set_save_dir)
 
         self.radio = QtWidgets.QRadioButton("Use Date Tree")
         self.radio.setFixedWidth(self.default_button_width)
-        self.grid.addWidget(self.radio, self.gui_row, 2)
+        self.grid.addWidget(self.radio, self.gui_row, 1)
+
+        self.topdir_box = QtWidgets.QLineEdit(self)
+        # self.topdir_box.setFixedWidth(self.default_button_width)
+        self.topdir_box.resize(4*self.default_button_width, self.frameGeometry().height())
+        self.topdir_box.setText(self.default_topdir)
+        self.grid.addWidget(self.topdir_box, self.gui_row, 2, 1, 4)
 
         self.gui_row += 1
 
+        download_selected = QtWidgets.QPushButton('Download Selected', self)
+        download_selected.setFixedWidth(self.default_button_width)
+        self.grid.addWidget(download_selected, self.gui_row, 0)
+        download_selected.clicked.connect(self.event_download_selected)
+
+        download_list = QtWidgets.QPushButton('Download All', self)
+        download_list.setFixedWidth(self.default_button_width)
+        self.grid.addWidget(download_list, self.gui_row, 1)
+        download_list.clicked.connect(self.event_download_file_list)
+
         self.save_list = QtWidgets.QPushButton('Save File List', self)
         self.save_list.setFixedWidth(self.default_button_width)
-        self.grid.addWidget(self.save_list, self.gui_row, 0)
+        self.grid.addWidget(self.save_list, self.gui_row, 2)
         self.save_list.clicked.connect(self.event_save_file_list)
 
         self.filename_box = QtWidgets.QLineEdit(self)
         self.filename_box.setFixedWidth(self.default_button_width)
         self.filename_box.setText(self.default_filename)
-        self.grid.addWidget(self.filename_box, self.gui_row, 1)
+        self.grid.addWidget(self.filename_box, self.gui_row, 3)
+
+    def event_set_save_dir(self):
+        options = QtWidgets.QFileDialog.Options()
+        options |= QtWidgets.QFileDialog.DontUseNativeDialog
+        options |= QtWidgets.QFileDialog.ShowDirsOnly
+        new_savedir = QtWidgets.QFileDialog.getExistingDirectory(self,
+                                                'Select a directory',
+                                                options=options)
+        if os.path.isdir(new_savedir):
+            self.topdir_box.setText(new_savedir)
+
+    def event_download_selected(self):
+        if self.selected_file is not None:
+            datetree = self.radio.isChecked()
+            topdir = self.topdir_box.text()
+            self.info_detail.clear()
+            info = (f'Downloading {self.selected_file}\n'
+                    f'   Save dir: {os.path.abspath(self.dbfile)}\n\n'
+                    f'Please wait...')
+            self.info_detail.append(info)
+            QtWidgets.QApplication.processEvents() # update gui while user waits
+            o = download_hdf5_data(filename=self.selected_file, datetree=datetree, local_top=topdir)
+            self.info_detail.append('\nComplete')
 
     def event_download_file_list(self):
         if self.file_list is not None:
             datetree = self.radio.isChecked()
             topdir = self.topdir_box.text()
-
 #            sys.stdout = OutLog(self.info_detail, sys.stdout)
 #            sys.stderr = OutLog(self.info_detail, sys.stderr)
-
+            self.info_detail.clear()
+            info = (f'Downloading all files listed above\n'
+                    f'   Save dir: {os.path.abspath(self.dbfile)}\n\n'
+                    f'Please wait (see console for download progress)...')
+            self.info_detail.append(info)
+            QtWidgets.QApplication.processEvents() # update gui while user waits
             o = download_hdf5_data(filename=self.file_list, datetree=datetree, local_top=topdir)
+            self.info_detail.append('\nComplete')
+
 
     def event_save_file_list(self):
-        """Save the displayed list of files, one per line."""
+        """Save a list of the displayed files, one per line."""
         if self.file_list is not None:
             filename = self.filename_box.text()
             if filename != '':
@@ -541,7 +582,7 @@ def eis_catalog():
         # option 1 - user inputs the file
         db_file = sys.argv[1]
     else:
-        # option 2a - use file from SSW (configured environmentS)
+        # option 2a - use file from SSW (fully configured environments)
         ssw_dir = os.environ.get('SSW')
         if ssw_dir is None:
             # option 2b - use file from SSW (search for SSW installation)

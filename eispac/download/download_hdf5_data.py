@@ -121,7 +121,7 @@ class download_hdf5_data:
                 print(f'+ downloading {remote_filepath} -> {local_filepath}')
                 dl = parfive.Downloader(max_conn=2, overwrite=True)
                 dl.enqueue_file(remote_filepath, path=local_dir,
-                                filename=local_name+'.part')
+                                filename=local_name+'.part', verify_ssl=False)
                 dl_result = dl.download()
                 if len(dl_result.errors) == 0:
                     os.replace(local_filepath+'.part', local_filepath)
