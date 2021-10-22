@@ -83,18 +83,14 @@ class EISMap(sunpy.map.GenericMap):
 
         # Setup plot settings
         self.plot_settings['aspect'] = self.meta['CDELT2'] / self.meta['CDELT1']
-        # self.plot_settings['interpolation'] = 'kaiser' # might want to re-enable
         if self.meta['measrmnt'].lower().startswith('int'):
             self.plot_settings['cmap'] = 'Blues_r'
             self.plot_settings['norm'] = ImageNormalize(stretch=AsinhStretch())
         elif self.meta['measrmnt'].lower().startswith('vel'):
             self.plot_settings['cmap'] = 'RdBu_r'
-            self.plot_settings['norm'] = ImageNormalize(stretch=LinearStretch())
-            self.plot_settings['vmin'] = -40.0
-            self.plot_settings['vmax'] = 40.0
+            self.plot_settings['norm'] = ImageNormalize(vmin=-40.0, vmax=40.0)
         elif self.meta['measrmnt'].lower().startswith('wid'):
             self.plot_settings['cmap'] = 'viridis'
-            self.plot_settings['norm'] = ImageNormalize(stretch=LinearStretch())
 
     @classmethod
     def is_datasource_for(cls, data, header, **kwargs):
