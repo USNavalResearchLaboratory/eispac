@@ -7,8 +7,8 @@ features, at least initially. Very much a work in progress.
 
 (2017-Apr-12) First working version added to git.
 (2020-Dec-16) Now tries to find SSW if the 'SSW' environment variable is missing
-(2020-Dec-18) If no database is found, as the user if they want to download it.
-
+(2020-Dec-18) If no database is found, ask the user if they want to download it.
+(2021-Oct-22) Major update adding in more search criteria and faster queries.
 """
 __all__ = ['eis_catalog']
 
@@ -44,10 +44,34 @@ class Top(QtWidgets.QWidget):
         self.default_filename = 'eis_filelist.txt'
         self.default_start_time = '2018-05-29 00:00' # '29-May-2018 00:00'
         self.default_end_time = '2018-05-29 23:59' # '29-May-2018 23:59'
-        self.default_button_width = 130
+        self.default_button_width = 165 #130
         self.default_topdir = os.path.join(os.getcwd(), 'data_eis')
-        self.dbfile =  dbfile
+        self.dbfile = dbfile
 
+        # Font settings
+        if have_Qt4:
+            self.default_font = QtWidgets.QFont()
+            self.small_font = QtWidgets.QFont()
+            self.info_detail_font = QtWidgets.QFont("Courier New", 9)
+        else:
+            self.default_font = QtGui.QFont()
+            self.small_font = QtGui.QFont()
+            self.info_detail_font = QtGui.QFont("Courier New", 9)
+        self.default_font.setPointSize(11)
+        self.small_font.setPointSize(9)
+
+        # Dict of search criteria to include as options in the drop-down list
+        # Note: the keys:value pairs give the mapping of gui_label:sqlite_col
+        self.criteria = {'Date Only':'date_obs', 'Study ID':'study_id',
+                         'Study Acronym':'stud_acr', 'HOP ID':'jop_id',
+                         'Target':'target', 'Sci. Obj.':'sci_obj',
+                         'Obs. Title':'obstitle'}
+        # Filter drop-down lists. given as gui_label:filter_value pairs
+        self.rast_types = {'Any':None, 'Scan (0)':0, 'Sit-and-Stare (1)':1}
+        self.slit_slot = {'Any':None, '1" slit (0)':0, '2" slit (2)':2,
+                          '40" slot (3)':3, '266" slot (1)':1}
+
+        # Check for EIS database
         if os.path.isfile(self.dbfile):
             self.d = eis_obs_struct.EIS_DB(self.dbfile)
         else:
@@ -73,28 +97,32 @@ class Top(QtWidgets.QWidget):
         """Manage everything."""
         self.grid = QtWidgets.QGridLayout(self)
         self.gui_row = 0
+        # self.setStyleSheet("QLabel{font-size: 11pt;}")
 
-        # Quit, Help, Update DB buttons (with info)
-        self.top_menu()
+        # Quit, Help, Update DB buttons (with filename & timestamp)
+        self.top_menu() # very top
 
         # Selecting search criteria
-        self.select_dates() # left
-        self.select_id() # center
-        self.select_acronym() # right
+        self.select_dates() # top left
+        self.select_primary() # top center
+
+        # Filter values
+        self.set_filters() # top center
 
         # Catalog info
-        self.catalog_table()
+        self.catalog_table() # middle left
 
         # Info for a single search result
-        self.details()
+        self.details() # right
 
         # Bottom stuff
-        self.save_options()
+        self.save_options() # bottom left
 
         # And away we go
         self.setLayout(self.grid)
-        self.setGeometry(200, 200, 1240, 800)
+        self.setGeometry(50, 100, 1800, 800)
         self.setWindowTitle('EIS As-Run Catalog Information')
+        self.event_help()
         self.show()
 
     def event_quit(self):
@@ -104,30 +132,31 @@ class Top(QtWidgets.QWidget):
         """Basic menu option."""
         self.quit = QtWidgets.QPushButton('Quit')
         self.quit.setFixedWidth(self.default_button_width)
+        self.quit.setFont(self.default_font)
         self.quit.clicked.connect(self.event_quit)
 
         self.help = QtWidgets.QPushButton('Help', self)
         self.help.setFixedWidth(self.default_button_width)
+        self.help.setFont(self.default_font)
         self.help.clicked.connect(self.event_help)
 
-        self.grid.addWidget(self.quit, self.gui_row, 0)
-        self.grid.addWidget(self.help, self.gui_row, 1)
+        self.download_db = QtWidgets.QPushButton('Get Latest DB', self)
+        self.download_db.setFixedWidth(self.default_button_width)
+        self.download_db.setFont(self.default_font)
+        self.download_db.clicked.connect(self.event_download_db)
 
-        # self.gui_row += 1
-
-        self.db_info =  QtWidgets.QLabel(self)
+        self.db_info = QtWidgets.QLabel(self)
+        self.db_info.setFixedWidth(3*self.default_button_width)
+        self.db_info.setFont(self.small_font)
         if os.path.isfile(self.dbfile):
             self.update_db_file_label()
         else:
             self.db_info.setText('Unable to locate file: ' + self.dbfile)
-        # self.grid.addWidget(self.db_info, self.gui_row, 1, 1, 5)
-        self.grid.addWidget(self.db_info, self.gui_row, 3, 1, 3)
 
-        self.download_db = QtWidgets.QPushButton('Get Latest DB', self)
-        self.download_db.setFixedWidth(self.default_button_width)
-        # self.grid.addWidget(self.download_db, self.gui_row, 0)
+        self.grid.addWidget(self.quit, self.gui_row, 0)
+        self.grid.addWidget(self.help, self.gui_row, 1)
         self.grid.addWidget(self.download_db, self.gui_row, 2)
-        self.download_db.clicked.connect(self.event_download_db)
+        self.grid.addWidget(self.db_info, self.gui_row, 3, 1, 3)
 
         self.gui_row += 1
 
@@ -156,87 +185,101 @@ class Top(QtWidgets.QWidget):
     def event_help(self):
         """Put help info in details window."""
         self.info_detail.clear()
-        info = """EIS As-Run Catalog Search Tool
+        help_text = """EIS As-Run Catalog Search Tool
 
-The search can be on a date range (ISO standard, e.g., yyyy-mm-dd
-and optionally hh:mm) only, a date range and either the Study ID
-or the Study Acronym, or the Study ID or the Study Acronym alone.
-If only the start date is provided, a search of that date and the
-following 24 hours is assumed. Searches with no date range can
-take a VERY long time, so be patient.
+* Please use ISO format dates (e.g., YYYY-MM-DD HH:MM). If only
+  the start date is provided, the end date will be assumed to be
+  24 hours later. WARNING: "Date Only" searches over the entire
+  mission can take a VERY long time, please be patient.
 
-Highlighting any item in a row in the search result will display
-more detailed information from the database about the observation
-in this window.
+* Primary search criteria descriptions:
 
-Clicking on the Save File List button will produce a text file
-with one file per line, which can be used as input to other
-programs, for example, get_eis_level0.py, which will retreive the
-level 0 files from ISAS.
+  Study ID
+      ID number for specific observation plan (line list, raster
+      steps, etc.). Studies may repeated throughout the mission.
+
+  Study Acronym
+      Short text label for the study. You only need to input the
+      first few characters (case is ignored).
+
+  HOP ID
+      Hinode Operation Plan ID. Assigned to observations that were
+      coordinated with other telescopes or spacecraft missions.
+      Also known as "JOP ID" (Joint Obs. Program ID)
+
+  Target
+      Main observation target (e.g., Active Region, Quiet Sun).
+
+  Sci. Obj.
+      Target phenomena (e.g., AR, QS, BP, LMB)
+
+  Obs. Title
+      Observation title. Just a word or two is enough, results will
+      be shown for all titles containing the input text.
+
+  Please Note: If "Target" and "Sci. Obj." are not defined by the
+  study author, default values "Quiet Sun" & "QS" are assigned,
+  regardless of the actual observation target.
+
+* If the "Use Date Tree" box is checked, files will be downloaded
+  into subdirectories organized by date (../YYYY/MM/DD/)
 """
-        self.info_detail.append(info)
-        self.info_detail.verticalScrollBar().\
-            setValue(self.info_detail.verticalScrollBar().minimum())
-
-    def event_db_file_search(self):
-        """Find a db file to use, if needed."""
-        # Note: this function is not used. Do we still need it?
-        db_dialog = QtWidgets.QFileDialog(self)
-        if have_Qt5:
-            file_name, _ = db_dialog.getOpenFileName()
-        else:
-            file_name = db_dialog.getOpenFileName()
-        save = self.gui_row
-        self.gui_row = 0
-        if file_name != '':
-            self.Top(file_name)
-        self.gui_row = save
+        self.info_detail.append(help_text)
+        self.info_detail.verticalScrollBar().setValue(
+                                self.info_detail.verticalScrollBar().minimum())
 
     def select_dates(self):
-        """Process search criteria, dates."""
+        """Set time range and make button for running the search"""
         title = QtWidgets.QLabel(self)
-        title.setText('Search Criteria. Selecting a time range ' +
-                      '(ISO standard HIGHLY recommended)')
-        self.grid.addWidget(title, self.gui_row, 0, 1, 6)
+        title.setText('Select Time Range')
+        title.setFont(self.default_font)
+        self.grid.addWidget(title, self.gui_row, 0, 1, 2)
         self.gui_row += 1
 
         start_t = QtWidgets.QLabel(self)
         start_t.setText('Start Time')
+        start_t.setFont(self.default_font)
         self.start_time = QtWidgets.QLineEdit(self)
         self.start_time.setFixedWidth(self.default_button_width)
         self.start_time.setText(self.default_start_time)
-
+        self.start_time.setFont(self.default_font)
         self.grid.addWidget(start_t, self.gui_row, 0)
         self.grid.addWidget(self.start_time, self.gui_row, 1)
         self.gui_row += 1
 
         end_t = QtWidgets.QLabel(self)
         end_t.setText('End Time')
+        end_t.setFont(self.default_font)
         self.end_time = QtWidgets.QLineEdit(self)
         self.end_time.setFixedWidth(self.default_button_width)
         self.end_time.setText(self.default_end_time)
+        self.end_time.setFont(self.default_font)
         self.grid.addWidget(end_t, self.gui_row, 0)
         self.grid.addWidget(self.end_time, self.gui_row, 1)
         self.gui_row += 1
 
+        time_recent = QtWidgets.QPushButton('Last 3 Weeks', self)
+        time_recent.setFixedWidth(self.default_button_width)
+        time_recent.setFont(self.default_font)
+        self.grid.addWidget(time_recent, self.gui_row, 0, 1, 6)
+        time_recent.clicked.connect(self.event_time_recent)
+
+        time_mission = QtWidgets.QPushButton('Full Mission', self)
+        time_mission.setFixedWidth(self.default_button_width)
+        time_mission.setFont(self.default_font)
+        self.grid.addWidget(time_mission, self.gui_row, 1, 1, 5)
+        time_mission.clicked.connect(self.event_time_mission)
+        self.gui_row += 1
+
         search_start = QtWidgets.QPushButton('Search', self)
         search_start.setFixedWidth(self.default_button_width)
+        search_start.setFont(self.default_font)
         self.grid.addWidget(search_start, self.gui_row, 0, 1, 6)
         search_start.clicked.connect(self.event_search)
 
-        time_set = QtWidgets.QPushButton('Last 3 Weeks', self)
-        time_set.setFixedWidth(self.default_button_width)
-        self.grid.addWidget(time_set, self.gui_row, 1, 1, 6)
-        time_set.clicked.connect(self.event_time_set)
+        self.gui_row -= 4
 
-        # time_mission = QtWidgets.QPushButton('Full mission', self)
-        # time_mission.setFixedWidth(self.default_button_width)
-        # self.grid.addWidget(time_set, self.gui_row, 1, 1, 6)
-        # time_mission.clicked.connect(self.event_time_mission)
-
-        self.gui_row -= 2
-
-    def event_time_set(self):
+    def event_time_recent(self):
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(weeks=3)
         fmt = '%Y-%m-%d' #'%d-%b-%Y'
@@ -252,74 +295,104 @@ level 0 files from ISAS.
         self.start_time.setText(start_time_s)
         self.end_time.setText(end_time_s)
 
-    def select_id(self):
-        """Select by study ID."""
+    def select_primary(self):
+        """Set primary search criterion"""
         title = QtWidgets.QLabel(self)
-        title.setText('Select by Study ID')
+        title.setText('Primary Search Criteria')
         title.setAlignment(QtCore.Qt.AlignBottom)
-        study_t = QtWidgets.QLabel(self)
-        study_t.setText('Study ID')
-        self.study = QtWidgets.QLineEdit(self)
-        self.study.setFixedWidth(150)
+        title.setFont(self.default_font)
+        self.primary_box = QtWidgets.QComboBox()
+        self.primary_box.addItems([item for item in self.criteria.keys()])
+        self.primary_box.setFixedWidth(self.default_button_width) # or 150
+        self.primary_box.setFont(self.default_font)
+        self.primary_text = QtWidgets.QLineEdit(self)
+        self.primary_text.setFont(self.default_font)
 
         self.grid.addWidget(title, self.gui_row, 2, 1, 2)
         self.gui_row += 1
-        self.grid.addWidget(study_t, self.gui_row, 2)
-        self.grid.addWidget(self.study, self.gui_row, 3)
+        self.grid.addWidget(self.primary_box, self.gui_row, 2)
+        self.grid.addWidget(self.primary_text, self.gui_row, 3, 1, 3)
+
+        # Advance gui row as needed
         self.gui_row += 1
 
-        self.b1 = QtWidgets.QCheckBox('Use ID')
-
-        self.grid.addWidget(self.b1, self.gui_row, 2, 1, 2)
-        self.gui_row -= 2
-
-    def select_acronym(self):
-        """Select by study acronym."""
+    def set_filters(self):
+        """Set seawrch result filters"""
         title = QtWidgets.QLabel(self)
-        title.setText('Select by Acronym (first few characters will do)')
+        title.setText('Result Filters')
         title.setAlignment(QtCore.Qt.AlignBottom)
-        acro_t = QtWidgets.QLabel(self)
-        acro_t.setText('Study Acronym')
-        self.acronym = QtWidgets.QLineEdit(self)
+        title.setFont(self.default_font)
 
-        self.grid.addWidget(title, self.gui_row, 4, 1, 2)
+        rast_type_title = QtWidgets.QLabel(self)
+        rast_type_title.setText('Raster Type (#)')
+        rast_type_title.setFont(self.default_font)
+        self.rast_type_box = QtWidgets.QComboBox()
+        self.rast_type_box.addItems([item for item in self.rast_types.keys()])
+        self.rast_type_box.setFixedWidth(self.default_button_width) # or 150
+        self.rast_type_box.setFont(self.default_font)
+
+        slit_slot_title = QtWidgets.QLabel(self)
+        slit_slot_title.setText('Slit/Slot (slit_index)')
+        slit_slot_title.setFont(self.default_font)
+        self.slit_slot_box = QtWidgets.QComboBox()
+        self.slit_slot_box.addItems([item for item in self.slit_slot.keys()])
+        self.slit_slot_box.setFixedWidth(self.default_button_width) # or 150
+        self.slit_slot_box.setFont(self.default_font)
+
+        wave_title = QtWidgets.QLabel(self)
+        wave_title.setText(u'Wavelength(s) [\u212B]')
+        wave_title.setFont(self.default_font)
+        self.wave_text = QtWidgets.QLineEdit(self)
+        self.wave_text.setFixedWidth(self.default_button_width) # or 150
+        self.wave_text.setFont(self.default_font)
+
+        apply_filter = QtWidgets.QPushButton('Apply Filters', self)
+        apply_filter.setFixedWidth(self.default_button_width)
+        apply_filter.setFont(self.default_font)
+        apply_filter.clicked.connect(self.event_apply_filter)
+
+        clear_filter = QtWidgets.QPushButton('Clear Filters', self)
+        clear_filter.setFixedWidth(self.default_button_width)
+        clear_filter.setFont(self.default_font)
+        clear_filter.clicked.connect(self.event_clear_filter)
+
+        self.grid.addWidget(title, self.gui_row, 2, 1, 2)
         self.gui_row += 1
-        self.grid.addWidget(acro_t, self.gui_row, 4)
-        self.grid.addWidget(self.acronym, self.gui_row, 5)
+        self.grid.addWidget(clear_filter, self.gui_row, 2)
+        self.grid.addWidget(rast_type_title, self.gui_row, 3)
+        self.grid.addWidget(slit_slot_title, self.gui_row, 4)
+        self.grid.addWidget(wave_title, self.gui_row, 5)
         self.gui_row += 1
+        self.grid.addWidget(apply_filter, self.gui_row, 2)
+        self.grid.addWidget(self.rast_type_box, self.gui_row, 3)
+        self.grid.addWidget(self.slit_slot_box, self.gui_row, 4)
+        self.grid.addWidget(self.wave_text, self.gui_row, 5)
 
-        self.b2 = QtWidgets.QCheckBox('Use Acronym')
-
-        self.grid.addWidget(self.b2, self.gui_row, 4, 1, 2)
+        # Advance gui row as needed
         self.gui_row += 1
 
     def event_search(self):
         """Validate and process search request."""
+        self.search_info.setText('Found ?? search results')
+        self.filter_info.setText('Showing ?? filter matches')
+        self.info_detail.clear()
+        self.info_detail.append('Searching database. Please wait...')
+        self.table_m.clearContents()
+        self.table_m.setRowCount(1)
+        QtWidgets.QApplication.processEvents() # update gui while user waits
+
+        # Get dates and user input text
         start_time = str(self.start_time.text())
         end_time = str(self.end_time.text())
+        primary_key = str(self.primary_box.currentText())
+        primary_value = str(self.primary_text.text())
 
-        if self.b1.checkState() == 2 and self.b2.checkState() == 2:
-            self.info_detail.clear()
-            self.info_detail.append("Both Study ID and Study Acronym " +
-                                    "should not be checked.")
-            self.info_detail.append("Using Study ID only.")
-
-        # Roll through all the cases
-        if start_time != '' and self.b1.checkState() != 2 \
-                            and self.b2.checkState() != 2:
-            self.d.get_by_date(start_time, end_time)
-        elif start_time != '' and self.b1.checkState() == 2:
-            s_id = str(self.study.text())
-            self.d.get_by_study_id(s_id, date=[start_time, end_time])
-        elif start_time != '' and self.b2.checkState() == 2:
-            text = str(self.acronym.text())
-            self.d.get_by_acronym(text, date=[start_time, end_time])
-        elif start_time == '' and self.b1.checkState() == 2:
-            s_id = str(self.study.text())
-            self.d.get_by_study_id(s_id)
-        elif start_time == '' and self.b2.checkState() == 2:
-            text = str(self.acronym.text())
-            self.d.get_by_acronym(text)
+        if self.criteria[primary_key] == 'date_obs':
+            self.d.query_main(date=[start_time, end_time])
+        else:
+            search_kwargs = {'date':[start_time, end_time]}
+            search_kwargs[self.criteria[primary_key]] = primary_value
+            self.d.query_main(**search_kwargs)
 
         self.selected_file = None
         if len(self.d.eis_str) > 0:
@@ -328,39 +401,53 @@ level 0 files from ISAS.
             info = []
             i = 0
             for row in self.d.eis_str:
-                # info.append([row.tl_id, row.stud_acr, row.date_obs,
-                #              row.obstitle, row.filename, row.xcen,
-                #              row.ycen, row.study_id])
                 info.append([row.date_obs, row.study_id, row.stud_acr,
-                             row.obstitle,  row.xcen, row.ycen,
-                             row.filename, row.tl_id])
-            info.sort(key=lambda x: x[6]) # sort on file name
-            self.search_info.setText('Found '+str(len(info))+' observations')
+                             row.obstitle, row.xcen, row.ycen,
+                             row.filename, row.tl_id, row.rastertype,
+                             row.slit_index, row.wavemin, row.wavemax])
+            info.sort(key=lambda x: x[6]) # sort by filename
+            self.count_results = len(info)
+            self.search_info.setText('Found '+str(len(info))+' search results')
+            self.info_detail.append('Search complete!')
+            self.info_detail.append('\nSelect any item in a row to see more'
+                                   +' information')
+            self.table_info = info
             self.mk_table(info)
         else:
-            self.info_detail.clear()
             self.file_list = []
-            self.search_info.setText('Found 0 observations')
+            self.table_info = [(None, None, None, None, None, None,
+                                None, None, None, None, None, None)]
+            self.count_results = 0
+            self.search_info.setText('Found 0 search results')
+            self.filter_info.setText('Showing 0 filter matches')
+            self.info_detail.clear()
             self.info_detail.append('No entries found')
 
     def catalog_table(self):
         """Table with summary of search results"""
-        title = QtWidgets.QLabel(self)
-        title.setText('Catalog Search Results')
-        self.grid.addWidget(title, self.gui_row, 0, 1, 2)
+        # title = QtWidgets.QLabel(self)
+        # title.setText('Catalog Search Results')
+        # title.setFont(self.default_font)
+        # self.grid.addWidget(title, self.gui_row, 0, 1, 2)
 
         self.search_info = QtWidgets.QLabel(self)
-        self.search_info.setText('Found ?? observations')
-        self.grid.addWidget(self.search_info, self.gui_row, 2, 1, 2)
+        self.search_info.setText('Found ?? search results')
+        self.search_info.setFont(self.default_font)
+        self.grid.addWidget(self.search_info, self.gui_row, 0, 1, 2)
+
+        self.filter_info = QtWidgets.QLabel(self)
+        self.filter_info.setText('Showing ?? filter matches')
+        self.filter_info.setFont(self.default_font)
+        self.grid.addWidget(self.filter_info, self.gui_row, 2, 1, 2)
         self.gui_row += 1
 
-        # headers = ['Timeline ID', 'Study Acronym', 'Date Observed',
-        #            'Description', 'Filename', 'Xcen', 'Ycen']
-        # widths = [100, 180, 170, 350, 200, 80, 80]
+        # headers = ['Date Observed', 'Study ID', 'Study Acronym',
+        #            'Obs. Title', 'Xcen', 'Ycen', 'Filename']
+        # widths = [180, 80, 180, 350, 80, 80, 210]
 
         headers = ['Date Observed', 'Study ID', 'Study Acronym',
-                   'Description (obstitle)', 'Xcen', 'Ycen', 'Filename']
-        widths = [180, 90, 180, 350, 80, 80, 210]
+                   'Obs. Title', 'Xcen', 'Ycen']
+        widths = [180, 80, 180, 350, 80, 80]
 
         self.table_m = QtWidgets.QTableWidget(self)
         self.table_m.verticalHeader().setVisible(False)
@@ -377,34 +464,71 @@ level 0 files from ISAS.
     def mk_table(self, info):
         """Add entries to the results table."""
         len_info = len(info)
-        num_cols = len(info[0])
         self.file_list = []
         self.table_m.clearContents()
-        self.table_m.setRowCount(len_info)
+        self.table_m.setRowCount(1)
+        # self.table_m.setRowCount(len_info)
+        r_type = self.rast_types[self.rast_type_box.currentText()]
+        s_index = self.slit_slot[self.slit_slot_box.currentText()]
+        wave_list = list(str(self.wave_text.text()).strip().split(','))
+        self.count_filtered = 0
         for row in range(len_info):
+            # Apply result filters (raster type, slit index, wavelengths)
+            if r_type is not None and int(info[row][8]) != r_type:
+                continue
+            elif s_index is not None and int(info[row][9]) != s_index:
+                continue
+            elif any(wave_list):
+                missing_wave = False
+                for w in range(len(wave_list)):
+                    try:
+                        wvl = float(wave_list[w])
+                        # row[10] == wavemin array, row[11] == wavemax array
+                        wave_check = (wvl - info[row][10])*(info[row][11] - wvl)
+                        if wave_check.max() < 0:
+                            missing_wave = True
+                            break
+                    except:
+                        # Might be good to print a warning about invalid inputs
+                        pass
+                if missing_wave:
+                    continue
+
+            # If row passes all filters, extend the table and append data
+            new_row_ind = self.count_filtered
+            self.count_filtered += 1
+            self.table_m.setRowCount(self.count_filtered)
+
             # Date and start time
             item = QtWidgets.QTableWidgetItem(info[row][0])
-            self.table_m.setItem(row, 0, item)
+            self.table_m.setItem(new_row_ind, 0, item)
             # Study ID
             item = QtWidgets.QTableWidgetItem(str(info[row][1]))
-            self.table_m.setItem(row, 1, item)
+            self.table_m.setItem(new_row_ind, 1, item)
             # Study acronym
             item = QtWidgets.QTableWidgetItem(info[row][2])
-            self.table_m.setItem(row, 2, item)
+            self.table_m.setItem(new_row_ind, 2, item)
             # Description
             item = QtWidgets.QTableWidgetItem(info[row][3])
-            self.table_m.setItem(row, 3, item)
+            self.table_m.setItem(new_row_ind, 3, item)
             # Xcen and Ycen
             fstring = '{:0.1f}'.format(info[row][4])
             item = QtWidgets.QTableWidgetItem(fstring)
-            self.table_m.setItem(row, 4, item)
+            self.table_m.setItem(new_row_ind, 4, item)
             fstring = '{:0.1f}'.format(info[row][5])
             item = QtWidgets.QTableWidgetItem(fstring)
-            self.table_m.setItem(row, 5, item)
-            # Filename
-            item = QtWidgets.QTableWidgetItem(info[row][6])
-            self.table_m.setItem(row, 6, item)
+            self.table_m.setItem(new_row_ind, 5, item)
+            # # Filename
+            # item = QtWidgets.QTableWidgetItem(info[row][6])
+            # self.table_m.setItem(row, 6, item)
             self.file_list.append(info[row][6])
+
+        # Update filter count label
+        if r_type is None and s_index is None and not any(wave_list):
+            self.filter_info.setText('Showing all results (no filter applied)')
+        else:
+            self.filter_info.setText('Showing '+str(self.count_filtered)
+                                    +' filter matches')
 
         # Any cells highlighted?
         self.table_m.cellClicked.connect(self.get_details)
@@ -412,11 +536,19 @@ level 0 files from ISAS.
     def get_details(self, row, column):
         """Provide details on selected cell."""
         self.info_detail.clear()
-        info = self.fill_info(str(self.table_m.item(row, 6).text()))
-        for line in info:
-            self.info_detail.append(line)
-        self.info_detail.verticalScrollBar().\
-            setValue(self.info_detail.verticalScrollBar().minimum())
+        # Checking for a valid filename prevents crashes when a new search is
+        # made and the results list is empty
+        try:
+            # row_filename = str(self.table_info[row][6])
+            row_filename = str(self.file_list[row])
+        except:
+            row_filename = None
+        if row_filename:
+            info = self.fill_info(row_filename)
+            for line in info:
+                self.info_detail.append(line)
+            self.info_detail.verticalScrollBar().\
+                setValue(self.info_detail.verticalScrollBar().minimum())
 
     def fill_info(self, file):
         """Retrieve useful info for a selected file."""
@@ -436,80 +568,104 @@ level 0 files from ISAS.
             info.append("{0:<20} {1}".format('stud_acr', row.stud_acr))
             info.append("{0:<20} {1}".format('rast_acr', row.rast_acr))
             info.append("{0:<20} {1}".format('rast_id', row.rast_id))
-            temp = "".join(format(x, "<6.1f") for x in row.wave)
-            info.append("{0:<20} {1}".format('wave', temp))
-            temp = "".join(format(x, "<6.1f") for x in row.wavemin)
-            info.append("{0:<20} {1}".format('wavemin', temp))
-            temp = "".join(format(x, "<6.1f") for x in row.wavemax)
-            info.append("{0:<20} {1}".format('wavemax', temp))
-            info.append("{0:<20} {1}".format('width', row.width))
+            info.append("{0:<20} {1}".format('jop_id', row.jop_id))
             info.append("{0:<20} {1}".format('obstitle', row.obstitle))
             info.append("{0:<20} {1}".format('obs_dec', row.obs_dec))
             info.append("{0:<20} {1}".format('sci_obj', row.sci_obj))
+            info.append("{0:<20} {1}".format('target', row.target))
+            info.append("{0:<20} {1}".format('rastertype', row.rastertype))
             info.append("{0:<20} {1}".format('slit_index', row.slit_index))
             info.append("{0:<20} {1}".format('scan_fm_nsteps', row.scan_fm_nsteps))
             info.append("{0:<20} {1}".format('scan_fm_stepsize',
                                              row.scan_fm_stepsize))
             info.append("{0:<20} {1}".format('nexp', row.nexp))
             info.append("{0:<20} {1}".format('exptime', row.exptime))
+
+            info.append(f"\n\n{'----- Line List -----':^55}")
+            info.append(f"{'window':<8} {'title':<20} "
+                       +f"{'wavemin':<9} {'wavemax':<9} {'width':<5}")
+            for i in range(0,len(row.ll_title)):
+                info.append(f"{i:<8} {row.ll_title[i]:<20} "
+                           +f"{row.wavemin[i]:<9.2f} {row.wavemax[i]:<9.2f} "
+                           +f"{row.width[i]:<5}")
+            info.append("\n")
         return info
 
     def details(self):
         """Display detailed cat info."""
         title = QtWidgets.QLabel(self)
         title.setText('Details')
-        self.grid.addWidget(title, self.gui_row, 0, 1, 6)
-        self.gui_row += 1
+        title.setFont(self.default_font)
+        # self.grid.addWidget(title, self.gui_row, 0, 1, 6)
+        # self.grid.addWidget(title, self.gui_row, 6, 1, 3)
+        self.grid.addWidget(title, 1, 6, 1, 3)
+        # self.gui_row += 1
 
         self.info_detail = QtWidgets.QTextEdit()
-        if have_Qt4:
-            font = QtWidgets.QFont("Courier New")
-        else:
-            font = QtGui.QFont("Courier New")
-        self.info_detail.setFont(font)
-        self.grid.addWidget(self.info_detail, self.gui_row, 0, 1, 6)
+        self.info_detail.setFont(self.info_detail_font)
+        # self.grid.addWidget(self.info_detail, self.gui_row, 0, 1, 6)
+        # self.grid.addWidget(self.info_detail, self.gui_row, 6, 1, 3)
+        self.grid.addWidget(self.info_detail, 2, 6, self.gui_row, 3)
         #self.grid.setRowStretch(self.gui_row, 1)
-        self.gui_row += 1
+        # self.gui_row += 1
         self.info_detail.setReadOnly(True)
+
+    def event_apply_filter(self):
+        if self.count_results > 0:
+            self.mk_table(self.table_info)
+
+    def event_clear_filter(self):
+        self.rast_type_box.setCurrentIndex(0)
+        self.slit_slot_box.setCurrentIndex(0)
+        self.wave_text.clear()
+        if self.count_results > 0:
+            self.mk_table(self.table_info)
 
     def save_options(self):
         """Controls for saving files."""
 
-        set_save_dir = QtWidgets.QPushButton('Change save dir', self)
+        set_save_dir = QtWidgets.QPushButton('Change Save Dir', self)
         set_save_dir.setFixedWidth(self.default_button_width)
+        set_save_dir.setFont(self.default_font)
         self.grid.addWidget(set_save_dir, self.gui_row, 0)
         set_save_dir.clicked.connect(self.event_set_save_dir)
 
         self.radio = QtWidgets.QRadioButton("Use Date Tree")
         self.radio.setFixedWidth(self.default_button_width)
+        self.radio.setFont(self.default_font)
         self.grid.addWidget(self.radio, self.gui_row, 1)
 
         self.topdir_box = QtWidgets.QLineEdit(self)
         # self.topdir_box.setFixedWidth(self.default_button_width)
         self.topdir_box.resize(4*self.default_button_width, self.frameGeometry().height())
         self.topdir_box.setText(self.default_topdir)
+        self.topdir_box.setFont(self.default_font)
         self.grid.addWidget(self.topdir_box, self.gui_row, 2, 1, 4)
 
         self.gui_row += 1
 
         download_selected = QtWidgets.QPushButton('Download Selected', self)
         download_selected.setFixedWidth(self.default_button_width)
+        download_selected.setFont(self.default_font)
         self.grid.addWidget(download_selected, self.gui_row, 0)
         download_selected.clicked.connect(self.event_download_selected)
 
         download_list = QtWidgets.QPushButton('Download All', self)
         download_list.setFixedWidth(self.default_button_width)
+        download_list.setFont(self.default_font)
         self.grid.addWidget(download_list, self.gui_row, 1)
         download_list.clicked.connect(self.event_download_file_list)
 
         self.save_list = QtWidgets.QPushButton('Save File List', self)
         self.save_list.setFixedWidth(self.default_button_width)
+        self.save_list.setFont(self.default_font)
         self.grid.addWidget(self.save_list, self.gui_row, 2)
         self.save_list.clicked.connect(self.event_save_file_list)
 
         self.filename_box = QtWidgets.QLineEdit(self)
         self.filename_box.setFixedWidth(self.default_button_width)
         self.filename_box.setText(self.default_filename)
+        self.filename_box.setFont(self.default_font)
         self.grid.addWidget(self.filename_box, self.gui_row, 3)
 
     def event_set_save_dir(self):
@@ -528,7 +684,7 @@ level 0 files from ISAS.
             topdir = self.topdir_box.text()
             self.info_detail.clear()
             info = (f'Downloading {self.selected_file}\n'
-                    f'   Save dir: {os.path.abspath(self.dbfile)}\n\n'
+                    f'   Save dir: {topdir}\n\n'
                     f'Please wait...')
             self.info_detail.append(info)
             QtWidgets.QApplication.processEvents() # update gui while user waits
@@ -543,7 +699,7 @@ level 0 files from ISAS.
 #            sys.stderr = OutLog(self.info_detail, sys.stderr)
             self.info_detail.clear()
             info = (f'Downloading all files listed above\n'
-                    f'   Save dir: {os.path.abspath(self.dbfile)}\n\n'
+                    f'   Save dir: {topdir}\n\n'
                     f'Please wait (see console for download progress)...')
             self.info_detail.append(info)
             QtWidgets.QApplication.processEvents() # update gui while user waits
