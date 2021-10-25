@@ -83,6 +83,7 @@ class EISMap(sunpy.map.GenericMap):
 
         # Setup plot settings
         self.plot_settings['aspect'] = self.meta['CDELT2'] / self.meta['CDELT1']
+        # self.plot_settings['interpolation'] = 'kaiser' # KEEP FOR REFERENCE
         if self.meta['measrmnt'].lower().startswith('int'):
             self.plot_settings['cmap'] = 'Blues_r'
             self.plot_settings['norm'] = ImageNormalize(stretch=AsinhStretch())
