@@ -9,7 +9,9 @@ import matplotlib.pyplot as plt
 from eispac import __version__ as eispac_version
 import eispac.core.fitting_functions as fit_fns
 from eispac.core.read_template import EISFitTemplate
+from eispac.core.eismap import EISMap
 from eispac.util.rot_xy import rot_xy
+from eispac.instr.calc_velocity import calc_velocity
 from eispac.instr.ccd_offset import ccd_offset
 
 class EISFitResult:
@@ -274,6 +276,14 @@ class EISFitResult:
             Number of wavelength values to compute the fit intensity at. These
             values will be equally spaced and span the entire fit window. If set
             to None, will use the observed wavelength values. Default is None.
+        wave_range : list or array, optional
+            List or array with two elements giving the wavelength range to use
+            for calculating the intensity profile.
+        use_mask : bool, optional
+            If set to True and num_wavelengths == None (i.e. intensity is
+            computed at observed wavelength values), then apply the mask that
+            was used for the fitting process to filter out bad data or
+            observations outside of fit template range.
 
         Returns
         -------
@@ -370,6 +380,128 @@ class EISFitResult:
                 fit_inten = np.ma.array(fit_inten, mask=mask_arr)
 
         return fit_wave, fit_inten
+
+    def calculate_velocity(self, component=0, rest_wave=None,
+                           update_results=True, **kwargs):
+        """Calculate the Doppler velocity for a selected gaussian component
+
+        Parameters
+        ----------
+        component : int, optional
+            Integer number of the fit gaussian. Default is 0 (first line in fit)
+        rest_wave : float or str, optional
+            Rest wavelength value in units of [Angstrom]. If given a string, will
+            check to see if it is a spectral line ID and, if it is, will try to
+            extract the rest wavelength. If set to None, will use the initial
+            value specified in the .parinfo dictionary. Default is None.
+        update_results : bool, optional
+            If set to True, will update the .fit['vel'] and .fit['err_vel']
+            arrays in this. Default is True.
+        **kwargs : dict or keywords, optional
+            Optional keywords to pass to eispac.instr.calc_velocity()
+
+        Returns
+        -------
+        velocity : array
+            Array of calculated Doppler velocities
+        rel_error : array
+            Array of relative error values for the velocities
+        """
+        # Validate input values
+        gauss_ind = component
+        if gauss_ind < 0 or gauss_ind >= self.n_gauss:
+            print('Error: invalid component number. Please input a number'
+                 +' >= 0 and < the total number of gaussians in the fit.')
+            return None
+
+        if rest_wave is None:
+            rest_wave = self.parinfo[1+3*gauss_ind]['value']
+
+        # Calculate the velocities
+        obs_cent = self.fit['params'][:,:,1+3*gauss_ind]
+        obs_errs = self.fit['perror'][:,:,1+3*gauss_ind]
+        velocity = calc_velocity(obs_cent, rest_wave, **kwargs)
+        rel_error = obs_errs/obs_cent
+        if velocity is not None:
+            rel_error = rel_error*velocity
+
+        if update_results and velocity is not None:
+            self.fit['vel'][:,:,gauss_ind] = velocity
+            self.fit['err_vel'][:,:,gauss_ind] = rel_error*velocity
+
+        return velocity, rel_error
+
+    def get_map(self, component=0, measurement='intensity', **kwargs):
+        """Return an EISMap of either intensity, velocity, or width
+
+        Parameters
+        ----------
+        component : int, optional
+            Integer number of the fit gaussian. Default is 0 (first line in fit)
+        measurement : string, optional
+            Measured parameter to create the map for. Choose from "intensity",
+            "velocity", or "width". Default is "intensity"
+        **kwargs : dict or keywords, optional
+            Optional keywords to pass to EISMap
+
+        Returns
+        -------
+        output_map : EISMap class instance
+            EISMap of the requested measurement.
+        """
+        # Validate input values
+        gauss_ind = component
+        if gauss_ind < 0 or gauss_ind >= self.n_gauss:
+            print('Error: invalid component number. Please input a number'
+                 +' >= 0 and < the total number of gaussians in the fit.')
+            return None
+
+        if not isinstance(measurement, str):
+            print('Error: invalid measurement datatype. Please input a string'
+                 +' with a value of "intensity", "velocity", or "width"')
+            return None
+
+        if self.meta is None or 'mod_index' not in self.meta.keys():
+            print("Error: Missing mod_index containing pointing information.")
+            return None
+
+        # Fetch index from the meta structure, cut out spectral data and update
+        hdr_dict = copy.deepcopy(self.meta['mod_index'])
+        void = hdr_dict.pop('crval3', None)
+        void = hdr_dict.pop('crpix3', None)
+        void = hdr_dict.pop('cdelt3', None)
+        void = hdr_dict.pop('ctype3', None)
+        void = hdr_dict.pop('cunit3', None)
+        void = hdr_dict.pop('naxis3', None)
+        hdr_dict['naxis'] = 2
+        hdr_dict['line_id'] = self.fit['line_ids'][gauss_ind]
+        code_ver = self.eispac_version
+        date_fit = self.date_fit
+        hdr_dict['history'] = 'fit using eispac '+code_ver+' on '+date_fit
+
+        if measurement.lower().startswith('int'):
+            hdr_dict['measrmnt'] = 'intensity'
+            data_array = copy.deepcopy(self.fit['int'][:,:,gauss_ind])
+            err_array = copy.deepcopy(self.fit['err_int'][:,:,gauss_ind])
+            hdr_dict['bunit'] = self.fit['param_units'][0]
+        elif measurement.lower().startswith('vel'):
+            hdr_dict['measrmnt'] = 'velocity'
+            data_array = copy.deepcopy(self.fit['vel'][:,:,gauss_ind])
+            err_array = copy.deepcopy(self.fit['err_vel'][:,:,gauss_ind])
+            hdr_dict['bunit'] = 'km/s'
+        elif measurement.lower().startswith('wid'):
+            hdr_dict['measrmnt'] = 'width'
+            data_array = copy.deepcopy(self.fit['params'][:,:,2+3*gauss_ind])
+            err_array = copy.deepcopy(self.fit['perror'][:,:,2+3*gauss_ind])
+            hdr_dict['bunit'] = 'Angstrom'
+        else:
+            print('Error: unknown measurement value. Please input a string'
+                 +' with a value of "intensity", "velocity", or "width"')
+            return None
+
+        output_map = EISMap(data_array, hdr_dict, uncertainty=err_array, **kwargs)
+
+        return output_map
 
     def apply_radcal(self, input_radcal=None):
         """Apply a radiometric calibration curve (user-inputted or preflight)
@@ -502,7 +634,11 @@ class EISFitResult:
         return output_res
 
     def rot_fov(self, end_time):
-        # Return pointing information for the raster rotated to the input time.
+        """ Return pointing information for the raster rotated to the input time.
+        """
+        if self.meta is None or 'pointing' not in self.meta.keys():
+            print("Error: missing pointing information.")
+            return None
         pointing = self.meta['pointing']
         xcen = pointing['xcen'] + pointing['offset_x']
         ycen = pointing['ycen'] + pointing['offset_y']
@@ -512,19 +648,27 @@ class EISFitResult:
         return fov
 
     def plot_fov(self, end_time, color='red', lw=1, ls='-'):
-        # Return a patch of the raster FOV for plotting on an image.
+        """ Return a patch of the raster FOV for plotting on an image.
+        """
         fov = self.rot_fov(end_time)
         x1 = fov['xcen'] - fov['fovx']/2
         y1 = fov['ycen'] - fov['fovy']/2
-        rect = plt.Rectangle((x1, y1), fov['fovx'], fov['fovy'], fc='none', ec=color, lw=lw, ls=ls)
+        rect = plt.Rectangle((x1, y1), fov['fovx'], fov['fovy'],
+                             fc='none', ec=color, lw=lw, ls=ls)
         return rect
 
     def get_aspect_ratio(self):
-        # Aspect_ratio is given as y_scale/x_scale (NB: y_scale is 1 arcsec)
+        """ Return the data aspect Ratio
+        """
+        # NB: Aspect_ratio is given as y_scale/x_scale (NB: y_scale is 1 arcsec)
+        if self.meta is None or 'aspect_ratio' not in self.meta.keys():
+            print("Error: aspect ratio is unknown. Returning a value of 1.0")
+            return 1.0
         return self.meta['aspect_ratio']
 
     def shift2wave(self, array, wave=195.119):
-        # Shift an array from this fit to the desired wavelength
+        """ Shift an array from this fit to the desired wavelength
+        """
         this_wave = self.fit['wave_range'].mean()
         disp = np.zeros(len(array.shape))
         disp[0] = ccd_offset(wave) - ccd_offset(this_wave)
