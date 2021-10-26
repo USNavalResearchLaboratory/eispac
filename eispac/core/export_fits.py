@@ -42,7 +42,7 @@ def export_fits(fit_result, save_dir=None, verbose=False):
         print("Error: Please input a valid EISFitResult object.",
               file=sys.stderr)
         return None
-    elif 'mod_index' not in fit_result.meta.keys():
+    elif fit_result.meta is None or 'mod_index' not in fit_result.meta.keys():
         print("Error: Missing mod_index containing pointing information.",
               file=sys.stderr)
         return None

@@ -89,7 +89,9 @@ class EISMap(sunpy.map.GenericMap):
             self.plot_settings['norm'] = ImageNormalize(stretch=AsinhStretch())
         elif self.meta['measrmnt'].lower().startswith('vel'):
             self.plot_settings['cmap'] = 'RdBu_r'
-            self.plot_settings['norm'] = ImageNormalize(vmin=-40.0, vmax=40.0)
+            # Autoscale color range to 3*std (rounded to nearest multiple of 5)
+            vlim = 5*round(3*self.data.std()/5)
+            self.plot_settings['norm'] = ImageNormalize(vmin=-vlim, vmax=vlim)
         elif self.meta['measrmnt'].lower().startswith('wid'):
             self.plot_settings['cmap'] = 'viridis'
 
