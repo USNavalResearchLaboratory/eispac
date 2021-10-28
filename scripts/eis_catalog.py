@@ -688,7 +688,8 @@ class Top(QtWidgets.QWidget):
                     f'Please wait...')
             self.info_detail.append(info)
             QtWidgets.QApplication.processEvents() # update gui while user waits
-            o = download_hdf5_data(filename=self.selected_file, datetree=datetree, local_top=topdir)
+            o = download_hdf5_data(filename=self.selected_file, datetree=datetree,
+                                   local_top=topdir, overwrite=True)
             self.info_detail.append('\nComplete')
 
     def event_download_file_list(self):
@@ -703,7 +704,8 @@ class Top(QtWidgets.QWidget):
                     f'Please wait (see console for download progress)...')
             self.info_detail.append(info)
             QtWidgets.QApplication.processEvents() # update gui while user waits
-            o = download_hdf5_data(filename=self.file_list, datetree=datetree, local_top=topdir)
+            o = download_hdf5_data(filename=self.file_list, datetree=datetree,
+                                   local_top=topdir, overwrite=True)
             self.info_detail.append('\nComplete')
 
 

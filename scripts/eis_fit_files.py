@@ -10,14 +10,23 @@ import eispac
 
 def eis_fit_files():
 
-    if len(sys.argv) !=3:
+    if len(sys.argv) <= 1:
+        print('NOTICE: No directories or filepaths input.')
+        print('Will attempt to fit all EIS files found in the current directory'
+             +' using any fit templates also found')
+        print('')
+        input_data = str(os.getcwd())
+        input_template = str(os.getcwd())
+    elif len(sys.argv) == 3:
+        input_data = str(sys.argv[1])
+        input_template = str(sys.argv[2])
+    elif len(sys.argv) != 3:
         print('ERROR: Invalid number of input arguments.')
-        print('   Please input either lists or directories containing')
-        print('   the data template files you wish to fit. For example,')
-        print('   >> eis_fit_files {DATA_DIR} {TEMPLATE_DIR}')
+        print('Please input either lists or directories containing')
+        print('the data and template files you wish to fit. For example,')
+        print('>> eis_fit_files {DATA_DIR} {TEMPLATE_DIR}')
         sys.exit()
 
-    input_data = str(sys.argv[1])
     if isinstance(input_data, (str, pathlib.Path)):
         abs_data_path = pathlib.Path(input_data).resolve()
         if abs_data_path.is_file():
@@ -34,7 +43,6 @@ def eis_fit_files():
         print('Please input either a string, list, or pathlib.Path.')
         sys.exit()
 
-    input_template = str(sys.argv[2])
     if isinstance(input_template, (str, pathlib.Path)):
         abs_template_path = pathlib.Path(input_template).resolve()
         if abs_template_path.is_file():

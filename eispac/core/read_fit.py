@@ -8,16 +8,6 @@ import h5py
 import eispac.core.fitting_functions as fit_fns
 from eispac.core.eisfitresult import EISFitResult
 
-# if __name__ == '__main__':
-#     # Import local versions of submodules
-#     print('Notice: Loading local version of eispac submodules')
-#     import fitting_functions as fit_fns
-#     from eisfitresult import EISFitResult
-# else:
-#     # Import from installed package
-#     import eispac.fitting_functions as fit_fns
-#     from eispac.eisfitresult import EISFitResult
-
 def walk_and_load(hdf5_file, hdf5_path, verbose=False):
     """Helper function for loading EISFitResult data from a HDF5 file.
 
@@ -108,14 +98,16 @@ def read_fit(filename, verbose=False):
 
     fit_filepath = input_dir.joinpath(input_name)
     if not fit_filepath.is_file():
-        print('Error: fit result file does not exist, ' + str(filename), file=sys.stderr)
+        print('Error: fit result file does not exist, ' + str(filename),
+              file=sys.stderr)
         return None
 
     # Initialize the output EISFitResult object
     fit_result = EISFitResult(empty=True)
 
     # Loop over each EISFitResult attribute and load data structure from the file
-    print('Reading fit result from ', str(filename))
+    print('Reading fit result from, ')
+    print('   '+str(filename))
     with h5py.File(filename, 'r') as fit_file:
         top_key_list = list(fit_file.keys())
         fit_key_list = list(fit_file['fit'].keys())
