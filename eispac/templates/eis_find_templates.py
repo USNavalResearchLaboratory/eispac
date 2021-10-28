@@ -26,7 +26,8 @@ class eis_find_templates:
             self.read_wininfo()
             self.match_templates()
             self.make_text_list()
-            if verbose: self.print_text_list()
+            if verbose:
+                self.print_text_list()
 
     def parse_input_filename(self, input_filename):
         path = os.path.dirname(input_filename)

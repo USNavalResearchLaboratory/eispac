@@ -573,10 +573,12 @@ class EISFitResult:
 
         new_fit = copy.deepcopy(self.fit)
         new_fit['param_units'] = output_res.fit['param_units']
+
         new_fit['params'][:,:,loc_peaks] = new_peaks
         new_fit['params'][:,:,loc_const] = new_const
         output_res.fit = new_fit
-        output_res.meta = self.meta
+        output_res.meta = copy.deepcopy(self.meta)
+        output_res.meta['mod_index']['bunit'] = 'erg / (cm2 s sr)'
 
         return output_res
 
@@ -629,7 +631,8 @@ class EISFitResult:
         new_fit['params'][:,:,loc_peaks] = new_peaks
         new_fit['params'][:,:,loc_const] = new_const
         output_res.fit = new_fit
-        output_res.meta = self.meta
+        output_res.meta = copy.deepcopy(self.meta)
+        output_res.meta['mod_index']['bunit'] = 'photon'
 
         return output_res
 

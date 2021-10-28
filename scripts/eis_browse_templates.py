@@ -61,15 +61,22 @@ class Top(QWidget):
         self.textWindow.setFont(self.font_small)
         info = ('* Select an EIS HDF header file to see a list of relevent'
                +' templates\n\n'
-               +'* Make a selection to display the template applied to'
-               +' representative solar spectra.\n\n'
+               +'* Select a row in the table to display an example plot of'
+               +' the template applied to representative solar spectra.\n\n'
                +'* Use the copy button to copy the selected template file to'
                +' the directory given below.\n\n'
-               +'* You only need to copy one file for the template of a'
-               +' multi-component fit. All components are listed separately.')
+               +'* Some templates contain multiple component Gaussians. Each'
+               +' component is listed seperately, however you only need to copy'
+               +' one file.')
         self.textWindow.append(info+'\n')
         self.textWindow.setReadOnly(True)
         self.textWindow.resize(self.colNX, self.textWindow.frameGeometry().height())
+
+        self.savedirLabel = QLabel()
+        self.savedirLabel.setFont(self.font_default)
+        self.savedirLabel.setAlignment(Qt.AlignLeft)
+        self.savedirLabel.resize(self.colNX, self.savedirLabel.frameGeometry().height())
+        self.savedirLabel.setText('Save directory')
 
         self.savedirBox = QLineEdit(self)
         self.savedirBox.resize(self.colNX, self.savedirBox.frameGeometry().height())
@@ -80,7 +87,7 @@ class Top(QWidget):
         image = QImage(buff, self.imgNX, self.imgNY, QImage.Format_ARGB32)
         self.window.setPixmap(QPixmap(image))
 
-        # TO-DO: Consider switching to a proper widget grid
+        # TO-DO: Replace this mess of nested boxes with a proper widget grid
         left_box = QVBoxLayout()
         left_box.addWidget(self.buttonQuit)
         left_box.addWidget(self.buttonSelect)
@@ -94,8 +101,8 @@ class Top(QWidget):
 
         right_box = QVBoxLayout()
         right_box.addWidget(self.textWindow)
+        right_box.addWidget(self.savedirLabel)
         right_box.addWidget(self.savedirBox)
-        right_box.addStretch()
 
         top_box = QHBoxLayout()
         top_box.addLayout(left_box)
@@ -109,10 +116,10 @@ class Top(QWidget):
         vbox.addLayout(top_box)
         vbox.addLayout(bot_box)
 
-        self.setLayout(vbox)
-
         # --- display the widget
-        self.setWindowTitle('Select EIS Fitting Template')
+        self.setLayout(vbox)
+        self.setGeometry(50, 100, 1600, 900)
+        self.setWindowTitle('Browse EIS Fitting Template')
         self.show()
 
     def setup_list(self):
@@ -133,7 +140,7 @@ class Top(QWidget):
             f = os.path.basename(self.eis.filename_head)
             f = f.split('.')[0]
             s = ('Selected header: '+f+'\n'
-                +'template file,   window num,   wmin,   wmax')
+                +'template file,       window,   wmin,   wmax')
             self.fileLabel.setText(s)
         else:
             self.fileLabel.setText('No file has been selected')

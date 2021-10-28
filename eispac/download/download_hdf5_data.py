@@ -29,17 +29,21 @@ class download_hdf5_data:
         Download even if file exists locally
     headonly : `bool`
         Equivalent to ``nodata`` + ``overwrite``
+    max_conn : int
+        Max number of download connections that parfive will use
 
     """
 
     def __init__(self, filename=None, local_top='data_eis', datetree=False,
-                 nodata=False, nohead=False, overwrite=False, headonly=False):
+                 nodata=False, nohead=False, overwrite=False, headonly=False,
+                 max_conn=2):
         self.top_url = 'https://eis.nrl.navy.mil/level1/hdf5/'
         self.local_top = local_top
         self.datetree = datetree
         self.nodata = nodata
         self.nohead = nohead
         self.overwrite = overwrite
+        self.max_conn = max_conn
         if headonly:
             self.nodata = True
             self.overwrite = True
@@ -88,12 +92,13 @@ class download_hdf5_data:
         """
         convert an eis fits filename into an hdf5 filename; extract year, month, day
         """
-        # extract and format the filename
-        f = os.path.basename(input_filename) # something like /path/eis_l0_20200311_213413.fits.gz
+        # Extract and format the filename
+        # For exmaple, /path/eis_l0_20200311_213413.fits.gz
+        f = os.path.basename(input_filename)
         f = f.split('.')[0] # eis_l0_20200311_213413
         f = f.replace('_l0_', '_') # eis_20200311_213413
         f = f.replace('_l1_', '_') # eis_20200311_213413
-        # extract year, month, day from filename
+        # Extract year, month, day from filename
         d = f.split('_')[1] # 20200311
         year = d[0:4]
         month = d[4:6]
@@ -119,7 +124,7 @@ class download_hdf5_data:
         if self.overwrite or not os.path.isfile(local_filepath):
             try:
                 print(f'+ downloading {remote_filepath} -> {local_filepath}')
-                dl = parfive.Downloader(max_conn=2, overwrite=True)
+                dl = parfive.Downloader(max_conn=self.max_conn, overwrite=True)
                 dl.enqueue_file(remote_filepath, path=local_dir,
                                 filename=local_name+'.part', verify_ssl=False)
                 dl_result = dl.download()

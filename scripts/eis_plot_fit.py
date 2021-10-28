@@ -1,20 +1,21 @@
 #!/usr/bin/env python
 __all__ = ['eis_plot_fit']
 
-import matplotlib.pyplot as plt
+import os
 import sys
-import eispac
-import numpy as np
 from pathlib import Path
+import numpy as np
+import matplotlib.pyplot as plt
+import eispac
 
 speed_of_light_km = 299792.458
 
-vmin = -40. # velocity min scaling in km/s
-vmax = 40.  # velocity max scaling in km/s
+vmin = -20 #-40. # velocity min scaling in km/s
+vmax = 20 #40.  # velocity max scaling in km/s
 wmin = 25   # width min scaling in mA
 wmax = 45   # width max scaling in mA
 
-class EIS_PLOT_FIT:
+class EISFitPlot:
 
     def __init__(self, eis_fit_file=None, show=True):
         if eis_fit_file is not None:
@@ -54,33 +55,36 @@ class EIS_PLOT_FIT:
         scaled = (scaled-imin)/(imax-imin)
         return scaled
 
-    def scale_velocity(self, centroid, line_id):
-        wave0 = float(line_id.split()[2])
-        velocity = speed_of_light_km*(centroid-wave0)/wave0
-        med = np.median(velocity)
-        velocity = velocity - med
-       
+    def scale_velocity(self, velocity):
         scaled = np.clip(velocity, vmin, vmax)
         scaled = (scaled-vmin)/(vmax-vmin)
         return scaled
 
     def scale_width(self, width):
-        width *= 1000.
+        width *= 1000.0
         scaled = np.clip(width, wmin, wmax)
         scaled = (scaled-wmin)/(wmax-wmin)
-        return scaled        
+        return scaled
 
     def display_fit(self, show=True):
-        component = self.fit.fit['main_component'] # the line of interest, could be multiple
-        line_id = self.template.template['line_ids'][component] # the line id for this line
-        
-        intensity = self.fit.fit['int'][:,:,component] # the integrated line intensity
+        # component number and line ID for line of interest, could be multiple
+        component = self.fit.fit['main_component']
+        line_id = self.template.template['line_ids'][component]
+
+        # the integrated line intensity
+        intensity = self.fit.fit['int'][:,:,component]
         intensity_error = self.fit.fit['err_int'][:,:,component]
-        
-        centroid, error_centroid = self.fit.get_params(param_name='centroid') # fit centroid
+
+        # fit centroid
+        centroid, error_centroid = self.fit.get_params(param_name='centroid')
         centroid = centroid[:,:,component]
-        
-        width, error_width = self.fit.get_params(param_name='width') # fit gaussian width
+
+        # doppler velocity
+        velocity = self.fit.fit['vel'][:,:,component]
+        velocity_error = self.fit.fit['err_vel'][:,:,component]
+
+        # fit gaussian width
+        width, error_width = self.fit.get_params(param_name='width')
         width = width[:,:,component]
 
         x_scale = self.fit.meta['pointing']['x_scale'] # arcsec per x steps
@@ -88,46 +92,54 @@ class EIS_PLOT_FIT:
         aspect = y_scale/x_scale
 
         fig, (ax1, ax2, ax3) = plt.subplots(1,3, figsize=(10,5))
-        
+
         scaled_int = self.scale_intensity(intensity)
-        scaled_vel = self.scale_velocity(centroid, line_id)
+        scaled_vel = self.scale_velocity(velocity)
         scaled_wdh = self.scale_width(width)
 
         ax1.imshow(scaled_int, aspect=aspect, cmap='inferno', origin='lower', clim=(0,1))
         ax1.set_title('Intensity')
         ax1.set_xlabel('Solar X (pixels)')
         ax1.set_ylabel('Solar Y (pixels)')
-        
+
         ax2.imshow(scaled_vel, aspect=aspect, cmap='RdBu_r', origin='lower', clim=(0,1))
         ax2.set_title('Velocity')
         ax2.set_xlabel('Solar X (pixels)')
-        
+
         ax3.imshow(scaled_wdh, aspect=aspect, cmap='viridis', origin='lower', clim=(0,1))
         ax3.set_title('Line Width')
-        ax3.set_xlabel('Solar X (pixels)')        
+        ax3.set_xlabel('Solar X (pixels)')
 
-        t = self.eis_fit_file.stem + ' | ' + line_id
-        fig.text(0.5, 0.96, t, ha='center', va='center')
+        title = self.eis_fit_file.stem + ' | ' + line_id
+        fig.text(0.5, 0.96, title, ha='center', va='center')
 
         opf = self.eis_fit_file.with_suffix('.png')
         plt.savefig(opf, dpi=200)
         print(f' + saved {opf}')
-        if show: plt.show()
+        if show:
+            plt.show()
 
 def eis_plot_fit():
-    if len(sys.argv) != 2:
-        print(' ! input the name of an EIS fit file')
-        print(' > eis_plot_fit data_eis/eis_20190404_131513.fe_12_195_119.2c-0.fit.h5')
+    if len(sys.argv) <= 1:
+        print('NOTICE: No directory or filepath input.')
+        print('Will attempt to save plots for all .fit.h5 files '
+             +' found in the current directory.')
+        print('')
+        input_path = Path(os.getcwd())
+    elif len(sys.argv) == 2:
+        input_path = Path(sys.argv[1])
+    elif len(sys.argv) > 2:
+        print('ERROR: Please input a directory or path to a .fit.h5 file')
+        print('For example,')
+        print('>> eis_plot_fit data_eis/eis_20190404_131513.fe_12_195_119.2c-0.fit.h5')
         exit()
 
-    p = Path(sys.argv[1])
+    if input_path.is_file():
+        out = EISFitPlot(str(p))
 
-    if p.is_file():
-        o = EIS_PLOT_FIT(str(p))
-        
-    if p.is_dir():
-        for f in p.glob('*.fit.h5'):
-            o = EIS_PLOT_FIT(f, show=False)
-        
+    if input_path.is_dir():
+        for file in input_path.glob('*.fit.h5'):
+            out = EISFitPlot(file, show=False)
+
 if __name__ == '__main__':
     eis_plot_fit()
