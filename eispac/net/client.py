@@ -35,10 +35,10 @@ class EISClient(GenericClient):
     Results from 1 Provider:
     <BLANKLINE>
     2 Results from the EISClient:
-           Start Time               End Time        Instrument  Physobs  Source Provider Level FileType
-    ----------------------- ----------------------- ---------- --------- ------ -------- ----- --------
-    2020-11-09 00:10:12.000 2020-11-09 00:10:12.999        EIS intensity HINODE      NRL     1     data
-    2020-11-09 00:10:12.000 2020-11-09 00:10:12.999        EIS intensity HINODE      NRL     1     head
+           Start Time               End Time        Instrument ... Level FileType
+    ----------------------- ----------------------- ---------- ... ----- --------
+    2020-11-09 00:10:12.000 2020-11-09 00:10:12.999        EIS ...     1     data
+    2020-11-09 00:10:12.000 2020-11-09 00:10:12.999        EIS ...     1     head
     <BLANKLINE>
     <BLANKLINE>
     >>> results = Fido.search(a.Time('2020-11-09 00:00:00','2020-11-09 01:00:00'),
@@ -53,9 +53,9 @@ class EISClient(GenericClient):
     Results from 1 Provider:
     <BLANKLINE>
     1 Results from the EISClient:
-           Start Time               End Time        Instrument  Physobs  Source Provider Level FileType
-    ----------------------- ----------------------- ---------- --------- ------ -------- ----- --------
-    2020-11-09 00:10:12.000 2020-11-09 00:10:12.999        EIS intensity HINODE      NRL     1     head
+           Start Time               End Time        Instrument ... Level FileType
+    ----------------------- ----------------------- ---------- ... ----- --------
+    2020-11-09 00:10:12.000 2020-11-09 00:10:12.999        EIS ...     1     head
     <BLANKLINE>
     <BLANKLINE>
     """
@@ -77,6 +77,6 @@ class EISClient(GenericClient):
             attrs.Level: [
                 ('1', 'EIS: The EIS client can only return level 1 data. Level 0 EIS data is available from the VSO.')
             ],
-            FileType: [('data', 'These files contain the actual intensity data'),
-                       ('header', 'These files contain only the header metadata')],
+            FileType: [('data', 'These files contain the actual intensity data.'),
+                       ('head', 'These files contain only the header metadata.')],
         }
