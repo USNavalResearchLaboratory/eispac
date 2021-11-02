@@ -9,15 +9,7 @@ class EISClient(GenericClient):
     """
     Provides access to the level 1 EIS data in HDF5 format.
 
-<<<<<<< HEAD
-<<<<<<< HEAD
     This data is hosted by the `Naval Research Laboratory <https://eis.nrl.navy.mil/>`__.
-=======
-    This data is hosted by the `Naval Research Laboratory <https://eis.nrl.navy.mil/>`__
->>>>>>> add Fido client and filetype attr
-=======
-    This data is hosted by the `Naval Research Laboratory <https://eis.nrl.navy.mil/>`__.
->>>>>>> example formatting
 
     Examples
     --------
