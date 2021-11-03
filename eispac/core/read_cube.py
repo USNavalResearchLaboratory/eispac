@@ -266,36 +266,43 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
     output_hdr['date_beg'] = date_obs
     output_hdr['date_avg'] = date_avg
     output_hdr['date_end'] = date_end
+    output_hdr['timesys'] = 'UTC'
 
     output_hdr['telescop'] = 'Hinode'
     output_hdr['instrume'] = 'EIS'
-    output_hdr['target'] = index['target']
     output_hdr['stud_acr'] = index['stud_acr']
     output_hdr['obstitle'] = index['obstitle']
+    output_hdr['target'] = index['target']
+    output_hdr['sci_obj'] = index['sci_obj']
     output_hdr['line_id'] = wininfo['line_id'][meta['iwin']]
-    # output_hdr['param'] = 'Intensity'
     output_hdr['measrmnt'] = 'intensity'
     output_hdr['bunit'] = 'unknown' # units of primary observable
+    output_hdr['slit_id'] = index['slit_id']
+    output_hdr['slit_ind'] = index['slit_ind']
+    output_hdr['nraster'] = index['nraster']
 
     output_hdr['naxis1'] = nx_steps
+    output_hdr['cname1'] = 'Solar-X'
     output_hdr['crval1'] = x1
     output_hdr['crpix1'] = 1
     output_hdr['cdelt1'] = pointing['x_scale']
-    output_hdr['ctype1'] = 'HPLN-TAN' # 'Solar-X'
+    output_hdr['ctype1'] = 'HPLN-TAN'
     output_hdr['cunit1'] = 'arcsec'
 
     output_hdr['naxis2'] = ny_pxls
+    output_hdr['cname2'] = 'Solar-Y'
     output_hdr['crval2'] = y1
     output_hdr['crpix2'] = 1
     output_hdr['cdelt2'] = pointing['y_scale']
-    output_hdr['ctype2'] = 'HPLT-TAN' # 'Solar-Y'
+    output_hdr['ctype2'] = 'HPLT-TAN'
     output_hdr['cunit2'] = 'arcsec'
 
     output_hdr['naxis3'] = n_wave
+    output_hdr['cname3'] = 'Wavelength'
     output_hdr['crval3'] = base_wave
     output_hdr['crpix3'] = 1
     output_hdr['cdelt3'] = wave_delt
-    output_hdr['ctype3'] = 'Wavelength'
+    output_hdr['ctype3'] = 'WAVE'
     output_hdr['cunit3'] = 'Angstrom'
 
     output_hdr['fovx'] = x2 - x1
@@ -309,7 +316,8 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
 
     # Calculate and append extra keys to meta dict for user convenience
     meta['mod_index'] = output_hdr
-    meta['aspect_ratio'] = pointing['y_scale']/pointing['x_scale']
+    meta['aspect'] = pointing['y_scale']/pointing['x_scale']
+    meta['aspect_ratio'] = pointing['y_scale']/pointing['x_scale'] # DEPRICATED
     meta['extent_arcsec'] = [x1, x2, y1, y2] # [left, right, bottom, top]
     meta['notes'] = []
 

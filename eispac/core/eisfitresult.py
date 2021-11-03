@@ -467,6 +467,7 @@ class EISFitResult:
 
         # Fetch index from the meta structure, cut out spectral data and update
         hdr_dict = copy.deepcopy(self.meta['mod_index'])
+        void = hdr_dict.pop('cname3', None)
         void = hdr_dict.pop('crval3', None)
         void = hdr_dict.pop('crpix3', None)
         void = hdr_dict.pop('cdelt3', None)

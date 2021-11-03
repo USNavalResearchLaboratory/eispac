@@ -84,6 +84,7 @@ def export_fits(fit_result, save_dir=None, verbose=False):
 
     # Fetch index from the meta structure, cut out spectral data and update
     hdr_dict = copy.deepcopy(fit_result.meta['mod_index'])
+    void = hdr_dict.pop('cname3', None)
     void = hdr_dict.pop('crval3', None)
     void = hdr_dict.pop('crpix3', None)
     void = hdr_dict.pop('cdelt3', None)
