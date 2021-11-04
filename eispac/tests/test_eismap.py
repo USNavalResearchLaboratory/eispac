@@ -21,43 +21,43 @@ import eispac  # NOQA
 @pytest.fixture
 def test_header():
     raw_header = dedent("""\
-        SIMPLE  =                    T / conforms to FITS standard                      
-        BITPIX  =                  -64 / array data type                                
-        NAXIS   =                    2 / number of array dimensions                     
-        NAXIS1  =                   60                                                  
-        NAXIS2  =                  512                                                  
-        EXTEND  =                    T                                                  
-        DATE_OBS= '2010-07-23T14:32:10.000'                                             
-        DATE_BEG= '2010-07-23T14:32:10.000'                                             
-        DATE_AVG= '2010-07-23T15:03:07.000'                                             
-        DATE_END= '2010-07-23T15:34:04.000'                                             
-        TELESCOP= 'Hinode  '                                                            
-        INSTRUME= 'EIS     '                                                            
-        TARGET  = 'Active Region'                                                       
-        STUD_ACR= 'HPW021_VEL_120x512v1'                                                
+        SIMPLE  =                    T / conforms to FITS standard
+        BITPIX  =                  -64 / array data type
+        NAXIS   =                    2 / number of array dimensions
+        NAXIS1  =                   60
+        NAXIS2  =                  512
+        EXTEND  =                    T
+        DATE_OBS= '2010-07-23T14:32:10.000'
+        DATE_BEG= '2010-07-23T14:32:10.000'
+        DATE_AVG= '2010-07-23T15:03:07.000'
+        DATE_END= '2010-07-23T15:34:04.000'
+        TELESCOP= 'Hinode  '
+        INSTRUME= 'EIS     '
+        TARGET  = 'Active Region'
+        STUD_ACR= 'HPW021_VEL_120x512v1'
         OBSTITLE= 'Scan of the core of AR 11089 as context for full CCD sit-and-stare.&'
-        LINE_ID = 'Fe XII 195.119'                                                      
-        MEASRMNT= 'intensity'                                                           
-        BUNIT   = 'erg / (cm2 s sr)'                                                    
-        CRVAL1  =   -430.9469060897827                                                  
-        CRPIX1  =                    1                                                  
-        CDELT1  =    1.996799945831299                                                  
-        CTYPE1  = 'HPLN-TAN'                                                            
-        CUNIT1  = 'arcsec  '                                                            
-        CRVAL2  =   -693.4184875488281                                                  
-        CRPIX2  =                    1                                                  
-        CDELT2  =                  1.0                                                  
-        CTYPE2  = 'HPLT-TAN'                                                            
-        CUNIT2  = 'arcsec  '                                                            
-        FOVX    =    119.8079967498779                                                  
-        FOVY    =                512.0                                                  
-        XCEN    =   -371.0429077148438                                                  
-        YCEN    =   -437.4184875488281                                                  
-        HGLN_OBS=                  0.0                                                  
-        HGLT_OBS=    5.097799430847445                                                  
-        DSUN_OBS=    151971313690.6726                                                  
-        HISTORY fit using eispac 0.92.0 on 2021-09-27T13:58:29                          
-        END 
+        LINE_ID = 'Fe XII 195.119'
+        MEASRMNT= 'intensity'
+        BUNIT   = 'erg / (cm2 s sr)'
+        CRVAL1  =   -430.9469060897827
+        CRPIX1  =                    1
+        CDELT1  =    1.996799945831299
+        CTYPE1  = 'HPLN-TAN'
+        CUNIT1  = 'arcsec  '
+        CRVAL2  =   -693.4184875488281
+        CRPIX2  =                    1
+        CDELT2  =                  1.0
+        CTYPE2  = 'HPLT-TAN'
+        CUNIT2  = 'arcsec  '
+        FOVX    =    119.8079967498779
+        FOVY    =                512.0
+        XCEN    =   -371.0429077148438
+        YCEN    =   -437.4184875488281
+        HGLN_OBS=                  0.0
+        HGLT_OBS=    5.097799430847445
+        DSUN_OBS=    151971313690.6726
+        HISTORY fit using eispac 0.92.0 on 2021-09-27T13:58:29
+        END
         """)
     return fits.Header.fromstring(raw_header, sep='\n')
 
@@ -93,7 +93,7 @@ def test_plot_settings(test_eis_map):
 
 
 def test_date(test_eis_map, test_header):
-    # NOTE: these tests will change slightly with sunpy 3.1 decause of the existence of 
+    # NOTE: these tests will change slightly with sunpy 3.1 decause of the existence of
     # date-beg, date-end, and date-avg keys
     # Case 1: date_obs and date_end exist
     assert test_eis_map.meta['date-beg'] == test_eis_map.meta['date_beg']
@@ -129,5 +129,6 @@ def test_date(test_eis_map, test_header):
     del header['date_avg']
     now = astropy.time.Time.now()
     new_map = sunpy.map.Map(test_eis_map.data, header)
-    with pytest.warns(SunpyUserWarning, match='Missing metadata for observation time'):
-        assert new_map.date - now < 1*u.s
+    assert new_map.date - now < 1*u.s
+    # with pytest.warns(SunpyUserWarning, match='Missing metadata for observation time'):
+    #     assert new_map.date - now < 1*u.s
