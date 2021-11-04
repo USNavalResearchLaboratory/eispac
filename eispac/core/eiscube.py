@@ -5,6 +5,8 @@ import copy
 import numpy as np
 import astropy.units as u
 from astropy.convolution import convolve, CustomKernel
+from astropy.coordinates import SkyCoord
+from ndcube import __version__ as ndcube_ver
 from ndcube import NDCube
 
 class EISCube(NDCube):
@@ -39,10 +41,9 @@ class EISCube(NDCube):
              +' methods to modify or change the radiometric calibration.')
 
     def _slice(self, item):
-        # slice all normal attributes (and force a proper copy of meta, not ref)
-        kwargs = super()._slice(item)
+        kwargs = super()._slice(item) # slice all normal attributes
         old_meta = kwargs.pop('meta')
-        kwargs['meta'] = copy.deepcopy(old_meta)
+        kwargs['meta'] = copy.deepcopy(old_meta) # no refs, please!
         # The arguments for creating a new instance are saved in kwargs. So we
         # need to add additional keywords with our sliced, extra properties
         kwargs['wavelength'] = self.wavelength[item]
@@ -50,24 +51,78 @@ class EISCube(NDCube):
 
         # Update the 'mod_index' (used for exporting to .fits after fitting)
         # Reminder: 'mod_index' uses a fits image axes order of [X, Y, Wave]
-        wcs_h = kwargs['wcs'].to_header() # axis order of [wave, X, Y]
-        data_shape = kwargs['wcs'].array_shape # axis order of [Y, X, wave]
-        mindx = copy.deepcopy(kwargs['meta']['mod_index'])
-        x1 = mindx['crval1'] + abs(mindx['crpix1']-wcs_h['crpix2'])*mindx['cdelt1']
-        y1 = mindx['crval2'] + abs(mindx['crpix2']-wcs_h['crpix3'])*mindx['cdelt2']
-        x2 = x1 + data_shape[1]*mindx['cdelt1']
-        y2 = y1 + data_shape[0]*mindx['cdelt2']
-        mindx['naxis1'] = data_shape[1] # X-axis
-        mindx['naxis2'] = data_shape[0] # Y-axis
-        mindx['naxis3'] = data_shape[2] # Wavelength axis
-        mindx['crpix1'] = wcs_h['crpix2']
-        mindx['crpix2'] = wcs_h['crpix3']
-        mindx['crpix3'] = wcs_h['crpix1']
-        mindx['fovx'] = x2 - x1
-        mindx['fovy'] = y2 - y1
-        mindx['xcen'] = x1 + 0.5*(x2-x1)
-        mindx['ycen'] = y1 + 0.5*(y2-y1)
-        kwargs['meta']['mod_index'] = mindx
+        m_idx = copy.deepcopy(kwargs['meta']['mod_index'])
+        ll_wcs = kwargs['wcs'].low_level_wcs
+        wcs_arr_shape = ll_wcs.array_shape # axis order of [Y, X, wave]
+        new_ori = kwargs['wcs'].array_index_to_world(0,0,0)
+        ax_shape = [1, 1, 1] # true length of [Y, X, Wave] axes
+
+        if isinstance(new_ori, list):
+            # 3D subcube or 2D [spatial, wave] slice (one axis removed)
+            x1 = new_ori[-1].Tx.to('arcsec').value
+            y1 = new_ori[-1].Ty.to('arcsec').value
+            w1 = new_ori[0].to('Angstrom').value
+        elif isinstance(new_ori, SkyCoord):
+            # 2D slice at a given wavelength value or 1D spatial profile
+            x1 = new_ori.Tx.to('arcsec').value
+            y1 = new_ori.Ty.to('arcsec').value
+            lost_unit = ll_wcs.dropped_world_dimensions['world_axis_units']
+            lost_value = ll_wcs.dropped_world_dimensions['value']
+            w1 = u.Quantity(lost_value[0], lost_unit[0]).to('Angstrom').value
+        elif isinstance(new_ori, u.Quantity):
+            # Single spectrum at a selected location
+            w1 = new_ori.to('Angstrom').value
+            lost_units = ll_wcs.dropped_world_dimensions['world_axis_units']
+            lost_values = ll_wcs.dropped_world_dimensions['value']
+            x1 = u.Quantity(lost_values[0], lost_units[0]).to('arcsec').value
+            y1 = u.Quantity(lost_values[1], lost_units[1]).to('arcsec').value
+
+        # ndcube >= 2.0 drops all shallow (length 1) axes from .array_shape
+        # UNLESS an axis was sliced with explicit start:stop values of i:i+1
+        # Unfortunatly, this means there is no reliable method to identify the
+        # true length of each axis and which axis was dropped (if any).
+        # Therefore, we must resort to checking the type of each input
+        # slice parameter in "item" and try to manaully match axes with lengths
+        if ndcube_ver >= '2.0.0':
+            # First, extract and rearrange old shape in order of [Y, X, Wave]
+            old_shape = (m_idx['naxis2'], m_idx['naxis1'], m_idx['naxis3'])
+            ax_i = 0 # true axis index
+            wcs_i = 0 # sliced wcs axis index
+            # Note: we must take care when slicing a 2D slice of a cube
+            for s_i in range(len(item)):
+                while ax_i <= 2:
+                    if old_shape[ax_i] == 1:
+                        # skip previously dropped axes
+                        ax_i += 1
+                    else:
+                        if isinstance(item[s_i], slice):
+                            ax_shape[ax_i] = wcs_arr_shape[wcs_i]
+                            wcs_i += 1
+                        else:
+                            ax_shape[ax_i] = 1
+                        ax_i += 1
+                        break
+        else:
+            # Works just fine in ndcube 1.4.2 (for all kinds of slices)
+            ax_shape = wcs_arr_shape
+
+        x2 = x1 + ax_shape[1]*m_idx['cdelt1']
+        y2 = y1 + ax_shape[0]*m_idx['cdelt2']
+        x_shift = round(abs(x1 - m_idx['crval1'])/m_idx['cdelt1'])
+        y_shift = round(abs(y1 - m_idx['crval2'])/m_idx['cdelt2'])
+        w_shift = round(abs(w1 - m_idx['crval3'])/m_idx['cdelt3'])
+        m_idx['naxis1'] = ax_shape[1] # X-axis
+        m_idx['naxis2'] = ax_shape[0] # Y-axis
+        m_idx['naxis3'] = ax_shape[2] # Wavelength axis
+        m_idx['crpix1'] = 1.0 - x_shift
+        m_idx['crpix2'] = 1.0 - y_shift
+        m_idx['crpix3'] = 1.0 - w_shift
+        m_idx['fovx'] = x2 - x1
+        m_idx['fovy'] = y2 - y1
+        m_idx['xcen'] = x1 + 0.5*(x2-x1)
+        m_idx['ycen'] = y1 + 0.5*(y2-y1)
+        kwargs['meta']['mod_index'] = m_idx
+        kwargs['meta']['extent_arcsec'] = [x1, x2, y1, y2] # [L, R, Top, Bot]
 
         return kwargs # these must be returned
 
@@ -116,12 +171,14 @@ class EISCube(NDCube):
         new_meta = copy.deepcopy(self.meta)
         new_meta['mod_index']['bunit'] = 'erg / (cm2 s sr)'
         new_meta['notes'].append('Applied radcal to convert photon counts to intensity')
-        wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
+        # wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
 
         output_cube = EISCube(new_data, wcs=self.wcs, uncertainty=new_errs,
                               wavelength=self.wavelength, radcal=output_radcal,
                               meta=new_meta, unit='erg / (cm2 s sr)',
-                              mask=self.mask, missing_axes=wcs_mask)
+                              # mask=self.mask, missing_axes=wcs_mask)
+                              mask=self.mask)
+
         return output_cube
 
     def remove_radcal(self):
@@ -146,12 +203,14 @@ class EISCube(NDCube):
         new_meta = copy.deepcopy(self.meta)
         new_meta['mod_index']['bunit'] = 'photon'
         new_meta['notes'].append('Removed radcal to convert intensity to photon counts')
-        wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
+        # wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
 
         output_cube = EISCube(new_data, wcs=self.wcs, uncertainty=new_errs,
                               wavelength=self.wavelength, radcal=None,
                               meta=new_meta, unit='photon',
-                              mask=self.mask, missing_axes=wcs_mask)
+                              # mask=self.mask, missing_axes=wcs_mask)
+                              mask=self.mask)
+
         return output_cube
 
     def sum_spectra(self, wave_range=None, units=u.Angstrom):
@@ -352,11 +411,12 @@ class EISCube(NDCube):
         old_radcal = self.radcal
         new_meta = copy.deepcopy(self.meta)
         new_meta['notes'].append('Smoothed using pixel widths of '+str(wid_list))
-        wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
+        # wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
 
         output_cube = EISCube(sm_data, wcs=self.wcs, uncertainty=sm_errs,
                               wavelength=self.wavelength, radcal=old_radcal,
                               meta=new_meta, unit=self.unit,
-                              mask=sm_data_mask, missing_axes=wcs_mask)
+                              # mask=sm_data_mask, missing_axes=wcs_mask)
+                              mask=sm_data_mask)
 
         return output_cube

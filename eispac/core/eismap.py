@@ -82,7 +82,7 @@ class EISMap(sunpy.map.GenericMap):
                 self.meta['date-avg'] = (start + (end - start)/2).isot
 
         # Setup plot settings
-        self.plot_settings['aspect'] = self.meta['CDELT2'] / self.meta['CDELT1']
+        self.plot_settings['aspect'] = self.meta['cdelt2'] / self.meta['cdelt1']
         # self.plot_settings['interpolation'] = 'kaiser' # KEEP FOR REFERENCE
         if self.meta['measrmnt'].lower().startswith('int'):
             self.plot_settings['cmap'] = 'Blues_r'
