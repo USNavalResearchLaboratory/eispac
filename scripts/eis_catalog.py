@@ -82,7 +82,7 @@ class Top(QtWidgets.QWidget):
                         QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
             if ask_db == QtWidgets.QMessageBox.Yes:
                 self.dbfile = download_db()
-                if not string(self.dbfile).endswith('.part'):
+                if not str(self.dbfile).endswith('.part'):
                     self.d = eis_obs_struct.EIS_DB(self.dbfile)
                 else:
                     print('Failed to download EIS database! Exiting...')
