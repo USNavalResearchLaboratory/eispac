@@ -10,9 +10,9 @@ from astropy.io import fits
 import astropy.time
 import astropy.units as u
 from astropy.visualization import ImageNormalize, AsinhStretch
+import sunpy
 import sunpy.map
 from sunpy.time import parse_time
-from sunpy.util.exceptions import SunpyUserWarning
 
 # This registers the EISMap map class
 import eispac  # NOQA
@@ -121,7 +121,9 @@ def test_date(test_eis_map, test_header):
     del header['date_end']
     new_map = sunpy.map.Map(test_eis_map.data, header)
     assert new_map.date.isot == new_map.meta['date-obs']
-    # Case 5: no parsable date information, time defaults to now
+
+
+def test_missing_date_raises_warning(test_eis_map, test_header):
     header = copy.deepcopy(test_header)
     del header['date_end']
     del header['date_obs']
@@ -129,6 +131,13 @@ def test_date(test_eis_map, test_header):
     del header['date_avg']
     now = astropy.time.Time.now()
     new_map = sunpy.map.Map(test_eis_map.data, header)
-    assert new_map.date - now < 1*u.s
-    # with pytest.warns(SunpyUserWarning, match='Missing metadata for observation time'):
-    #     assert new_map.date - now < 1*u.s
+    # This raises a slightly different warning in in sunpy>=3.1
+    version = float('.'.join(sunpy.__version__.split('.')[:-1]))
+    if version >= 3.1:
+        from sunpy.util.exceptions import SunpyMetadataWarning
+        expected_warning = SunpyMetadataWarning
+    else:
+        from sunpy.util.exceptions import SunpyUserWarning
+        expected_warning = SunpyUserWarning
+    with pytest.warns(expected_warning, match='Missing metadata for observation time'):
+        assert new_map.date - now < 1*u.s
