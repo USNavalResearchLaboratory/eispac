@@ -54,25 +54,27 @@ a list of the required packages (older package versions might still work). Note:
 you are using conda to manage your Python packages, you may wish to install or update
 the dependencies manually first, before installing eispac using pip.
 * python >= 3.7
-* numpy >= 1.18.1
-* scipy >= 1.4.1
+* numpy >= 1.18
+* scipy >= 1.4
 * matplotlib >= 3.1
 * h5py >= 2.9
 * astropy >= 3.1
-* sunpy >= 1.0.3
-* ndcube >= 1.2.1
+* sunpy >= 2.1
+* ndcube >= 2.0.0
 * parfive >= 1.5
+* python-dateutil>=2.8
 
 ### Getting Started
 
-* `QUICK_GUIDE-cli.md`: A very brief description of some command line tools for downloading and
-  fitting the data
+* **Online user's guide**: <https://eispac.readthedocs.io/en/latest/index.html>:
 
-* `QUICK_GUIDE.md`: A very brief description of the EISPAC objects.
+* `QUICK_GUIDE-cli.md`: A very brief description of some command line tools for searching,
+  downloading, and fitting the EIS observations
 
-* <https://eispac.readthedocs.io/en/latest/index.html>: Online user's guide
+* `QUICK_GUIDE.md`: A very brief description of EISPAC functions and objects.
 
-* `notebooks`: Tutorials using Juypter notebooks.
+* `examples`: Tutorials using Juypter notebooks. In particular, `eispac_tutorial.ipynb` contains
+  complete overview and introduction to using EISPAC
 
 ## Code Organization
 
@@ -82,17 +84,14 @@ There are currently three core directories:
    read level 1 HDF5 files and fit templates and fit spectra using mpfit.
 
    Notable subdirectories:
-   * `../eispac/core/`:  Main code directory. All functions here are loading into the
+   * `../eispac/core/`:  Main code directory. All functions here are loaded into the
      top-level namespace (i.e. eispac.{function name})
-   * `../eispac/data/`:  Example data containing a full EIS raster from 2019-04-04
-     at 13:15:13.
-   * `../eispac/examples/`: Example scripts showing how to load and fit the example data
-   * `../eispac/templates/`: fit templates for specific spectral lines. These HDF5
-     files are direct conversions of the ".genx" files used by some IDL users.
+   * `../eispac/data/`: Contains fitting templates for specific spectral lines. These HDF5
+     files are direct conversions of the ".genx" files used by some IDL users. Also included is an example EIS raster from 2021-03-06 at 06:44:44.
 
 2. **scripts**: GUI and command line tools
 
-2. **docs**: Source reStructuredText files used to build the documentation
+2. **docs**: Source reStructuredText files used to build the online documentation
 
 The `QUICK_GUIDE.md` text document also give a very brief overview of some key functions.
 It should also be noted that `mpfit.py` was written by Mark Rivers and Sergey Kopsov and

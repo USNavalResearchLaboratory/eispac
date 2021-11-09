@@ -126,6 +126,13 @@ class EISCube(NDCube):
 
         return kwargs # these must be returned
 
+    def crop_by_coords(self, *args, **kwargs):
+        """REMOVED IN NDCube 2.0"""
+        print('Error: crop_by_coords() was removed in NDCube 2.0. Please use'
+             +' the .crop() or .crop_by_values() methods instead. See the'
+             +' NDCube documentation for more information.', file=sys.stderr)
+        return None
+
     def apply_radcal(self, input_radcal=None):
         """Apply a radiometric calibration curve (user-inputted or preflight)
 
@@ -236,8 +243,11 @@ class EISCube(NDCube):
         """
         if wave_range is None:
             # Sum over entire wavelength axis and return an NDCube
+            try:
+                new_wcs = self.wcs.dropaxis(0)
+            except:
+                new_wcs = copy.deepcopy(self[:,:,0].wcs)
             sum_data = np.sum(self.data, axis=2)
-            new_wcs = self.wcs.dropaxis(0)
             new_meta = copy.deepcopy(self.meta)
             new_meta['notes'].append('Summed over entire wavelength axis.')
             return NDCube(sum_data, new_wcs, meta=new_meta)
@@ -317,8 +327,11 @@ class EISCube(NDCube):
                 abs_w_diff = np.abs(w_coords - use_range[w])
                 w_indices[w] = np.argmin(abs_w_diff)
 
+        try:
+            new_wcs = self.wcs.dropaxis(0)
+        except:
+            new_wcs = copy.deepcopy(self[:,:,0].wcs)
         sum_data = np.sum(self.data[:,:,w_indices[0]:w_indices[1]+1], axis=2)
-        new_wcs = self.wcs.dropaxis(0)
         new_meta = copy.deepcopy(self.meta)
         new_meta['notes'].append('Summed wavelength axis over the range of '
                                 +str(use_range)+' '+str(range_units[0]))
