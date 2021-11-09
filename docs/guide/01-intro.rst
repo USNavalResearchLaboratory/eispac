@@ -84,9 +84,9 @@ try installing the required packages individually first.
 
 -  python >= 3.7
 
--  numpy >= 1.18.1
+-  numpy >= 1.18
 
--  scipy >= 1.4.1
+-  scipy >= 1.4
 
 -  matplotlib >= 3.1
 
@@ -94,13 +94,15 @@ try installing the required packages individually first.
 
 -  astropy >= 3.1
 
--  sunpy >= 1.0.3
+-  sunpy >= 2.1
 
--  ndcube >= 1.2.1
+-  ndcube >= 2.0
 
 -  pyqt >= 5.9
 
 -  parfive >= 1.5
+
+- python-dateutil >= 2.8
 
 Installation
 ~~~~~~~~~~~~
