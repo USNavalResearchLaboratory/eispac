@@ -1,411 +1,401 @@
 """
 Perform Levenberg-Marquardt least-squares minimization, based on MINPACK-1.
 
-								   AUTHORS
-  The original version of this software, called LMFIT, was written in FORTRAN
-  as part of the MINPACK-1 package by XXX.
+AUTHORS
+-------
+The original version of this software, called LMFIT, was written in FORTRAN
+as part of the MINPACK-1 package by XXX.
 
-  Craig Markwardt converted the FORTRAN code to IDL.  The information for the
-  IDL version is:
-	 Craig B. Markwardt, NASA/GSFC Code 662, Greenbelt, MD 20770
-	 craigm@lheamail.gsfc.nasa.gov
-	 UPDATED VERSIONs can be found on my WEB PAGE:
-		http://cow.physics.wisc.edu/~craigm/idl/idl.html
+Craig Markwardt converted the FORTRAN code to IDL.
+The information for the IDL version is:
+    Craig B. Markwardt, NASA/GSFC Code 662, Greenbelt, MD 20770
+    craigm@lheamail.gsfc.nasa.gov
+    UPDATED VERSIONs can be found on my WEB PAGE:
+	    http://cow.physics.wisc.edu/~craigm/idl/idl.html
 
-  Mark Rivers created this Python version from Craig's IDL version.
-	Mark Rivers, University of Chicago
-	Building 434A, Argonne National Laboratory
-	9700 South Cass Avenue, Argonne, IL 60439
-	rivers@cars.uchicago.edu
-	Updated versions can be found at http://cars.uchicago.edu/software
+Mark Rivers created this Python version from Craig's IDL version.
+    Mark Rivers, University of Chicago
+    Building 434A, Argonne National Laboratory
+    9700 South Cass Avenue, Argonne, IL 60439
+    rivers@cars.uchicago.edu
+    Updated versions can be found at:
+        http://cars.uchicago.edu/software
 
- Sergey Koposov converted the Mark's Python version from Numeric to numpy
-	Sergey Koposov, University of Cambridge, Institute of Astronomy,
-	Madingley road, CB3 0HA, Cambridge, UK
-	koposov@ast.cam.ac.uk
-	Updated versions can be found at http://code.google.com/p/astrolibpy/source/browse/trunk/
+Sergey Koposov converted the Mark's Python version from Numeric to numpy
+    Sergey Koposov, University of Cambridge, Institute of Astronomy,
+    Madingley road, CB3 0HA, Cambridge, UK
+    koposov@ast.cam.ac.uk
+    Updated versions can be found at:
+        https://github.com/segasai/astrolibpy
 
-								 DESCRIPTION
+DESCRIPTION
+-----------
 
- MPFIT uses the Levenberg-Marquardt technique to solve the
- least-squares problem.  In its typical use, MPFIT will be used to
- fit a user-supplied function (the "model") to user-supplied data
- points (the "data") by adjusting a set of parameters.  MPFIT is
- based upon MINPACK-1 (LMDIF.F) by More' and collaborators.
+MPFIT uses the Levenberg-Marquardt technique to solve the least-squares
+problem. In its typical use, MPFIT will be used to fit a user-supplied
+function (the "model") to user-supplied data points (the "data") by
+adjusting a set of parameters. MPFIT is based upon MINPACK-1 (LMDIF.F)
+by More' and collaborators.
 
- For example, a researcher may think that a set of observed data
- points is best modelled with a Gaussian curve.  A Gaussian curve is
- parameterized by its mean, standard deviation and normalization.
- MPFIT will, within certain constraints, find the set of parameters
- which best fits the data.  The fit is "best" in the least-squares
- sense; that is, the sum of the weighted squared differences between
- the model and data is minimized.
+For example, a researcher may think that a set of observed data points
+is best modelled with a Gaussian curve. A Gaussian curve is parameterized
+by its mean, standard deviation and normalization. MPFIT will, within
+certain constraints, find the set of parameters which best fits the data.
+The fit is "best" in the least-squares sense; that is, the sum of the
+weighted squared differences between the model and data is minimized.
 
- The Levenberg-Marquardt technique is a particular strategy for
- iteratively searching for the best fit.  This particular
- implementation is drawn from MINPACK-1 (see NETLIB), and is much faster
- and more accurate than the version provided in the Scientific Python package
- in Scientific.Functions.LeastSquares.
- This version allows upper and lower bounding constraints to be placed on each
- parameter, or the parameter can be held fixed.
+The Levenberg-Marquardt technique is a particular strategy for iteratively
+searching for the best fit. This particular implementation is drawn from
+MINPACK-1 (see NETLIB), and is much faster and more accurate than the
+version provided in the Scientific Python package in
+Scientific.Functions.LeastSquares. This version allows upper and lower
+bounding constraints to be placed on each parameter, or the parameter can
+be held fixed.
 
- The user-supplied Python function should return an array of weighted
- deviations between model and data.  In a typical scientific problem
- the residuals should be weighted so that each deviate has a
- gaussian sigma of 1.0.  If X represents values of the independent
- variable, Y represents a measurement for each value of X, and ERR
- represents the error in the measurements, then the deviates could
- be calculated as follows:
+The user-supplied Python function should return an array of weighted
+deviations between model and data. In a typical scientific problem the
+residuals should be weighted so that each deviate has a gaussian sigma
+of 1.0. If X represents values of the independent variable, Y represents
+a measurement for each value of X, and ERR represents the error in the
+measurements, then the deviates could be calculated as follows:
 
-   DEVIATES = (Y - F(X)) / ERR
+    DEVIATES = (Y - F(X)) / ERR
 
- where F is the analytical function representing the model.  You are
- recommended to use the convenience functions MPFITFUN and
- MPFITEXPR, which are driver functions that calculate the deviates
- for you.  If ERR are the 1-sigma uncertainties in Y, then
+where F is the analytical function representing the model. You are
+recommended to use the convenience functions MPFITFUN and MPFITEXPR,
+which are driver functions that calculate the deviates for you.
+If ERR are the 1-sigma uncertainties in Y, then
 
-   TOTAL( DEVIATES^2 )
+    TOTAL( DEVIATES^2 )
 
- will be the total chi-squared value.  MPFIT will minimize the
- chi-square value.  The values of X, Y and ERR are passed through
- MPFIT to the user-supplied function via the FUNCTKW keyword.
+will be the total chi-squared value. MPFIT will minimize the chi-square
+value. The values of X, Y and ERR are passed through MPFIT to the
+user-supplied function via the FUNCTKW keyword.
 
- Simple constraints can be placed on parameter values by using the
- PARINFO keyword to MPFIT.  See below for a description of this
- keyword.
+Simple constraints can be placed on parameter values by using the
+PARINFO keyword to MPFIT. See below for a description of this keyword.
 
- MPFIT does not perform more general optimization tasks.  See TNMIN
- instead.  MPFIT is customized, based on MINPACK-1, to the
- least-squares minimization problem.
-
-
-							   USER FUNCTION
-
- The user must define a function which returns the appropriate
- values as specified above.  The function should return the weighted
- deviations between the model and the data.  It should also return a status
- flag and an optional partial derivative array.  For applications which
- use finite-difference derivatives -- the default -- the user
- function should be declared in the following way:
-
-   def myfunct(p, fjac=None, x=None, y=None, err=None)
-	# Parameter values are passed in "p"
-	# If fjac==None then partial derivatives should not be
-	# computed.  It will always be None if MPFIT is called with default
-	# flag.
-	model = F(x, p)
-	# Non-negative status value means MPFIT should continue, negative means
-	# stop the calculation.
-	status = 0
-	return([status, (y-model)/err]
-
- See below for applications with analytical derivatives.
-
- The keyword parameters X, Y, and ERR in the example above are
- suggestive but not required.  Any parameters can be passed to
- MYFUNCT by using the functkw keyword to MPFIT.  Use MPFITFUN and
- MPFITEXPR if you need ideas on how to do that.  The function *must*
- accept a parameter list, P.
-
- In general there are no restrictions on the number of dimensions in
- X, Y or ERR.  However the deviates *must* be returned in a
- one-dimensional Numeric array of type Float.
-
- User functions may also indicate a fatal error condition using the
- status return described above. If status is set to a number between
- -15 and -1 then MPFIT will stop the calculation and return to the caller.
+MPFIT does not perform more general optimization tasks. See TNMIN
+instead. MPFIT is customized, based on MINPACK-1, to the least-squares
+minimization problem.
 
 
-							ANALYTIC DERIVATIVES
+USER FUNCTION
+-------------
 
- In the search for the best-fit solution, MPFIT by default
- calculates derivatives numerically via a finite difference
- approximation.  The user-supplied function need not calculate the
- derivatives explicitly.  However, if you desire to compute them
- analytically, then the AUTODERIVATIVE=0 keyword must be passed to MPFIT.
- As a practical matter, it is often sufficient and even faster to allow
- MPFIT to calculate the derivatives numerically, and so
- AUTODERIVATIVE=0 is not necessary.
+The user must define a function which returns the appropriate values
+as specified above. The function should return the weighted deviations
+between the model and the data. It should also return a status flag
+and an optional partial derivative array. For applications which use
+finite-difference derivatives -- the default -- the user function should
+be declared in the following way:
 
- If AUTODERIVATIVE=0 is used then the user function must check the parameter
- FJAC, and if FJAC!=None then return the partial derivative array in the
- return list.
-   def myfunct(p, fjac=None, x=None, y=None, err=None)
-	# Parameter values are passed in "p"
-	# If FJAC!=None then partial derivatives must be comptuer.
-	# FJAC contains an array of len(p), where each entry
-	# is 1 if that parameter is free and 0 if it is fixed.
-	model = F(x, p)
-	Non-negative status value means MPFIT should continue, negative means
-	# stop the calculation.
-	status = 0
-	if (dojac):
-	   pderiv = zeros([len(x), len(p)], Float)
-	   for j in range(len(p)):
-		 pderiv[:,j] = FGRAD(x, p, j)
-	else:
-	   pderiv = None
-	return([status, (y-model)/err, pderiv]
+    def myfunct(p, fjac=None, x=None, y=None, err=None)
+	    # Parameter values are passed in "p"
+	    # If fjac==None then partial derivatives should not be
+	    # computed.  It will always be None if MPFIT is called with
+	    # default flag.
+	    model = F(x, p)
+	    # Non-negative status value means MPFIT should continue,
+        # negative means stop the calculation.
+	    status = 0
+	    return([status, (y-model)/err]
 
- where FGRAD(x, p, i) is a user function which must compute the
- derivative of the model with respect to parameter P[i] at X.  When
- finite differencing is used for computing derivatives (ie, when
- AUTODERIVATIVE=1), or when MPFIT needs only the errors but not the
- derivatives the parameter FJAC=None.
+See below for applications with analytical derivatives.
 
- Derivatives should be returned in the PDERIV array. PDERIV should be an m x
- n array, where m is the number of data points and n is the number
- of parameters.  dp[i,j] is the derivative at the ith point with
- respect to the jth parameter.
+The keyword parameters X, Y, and ERR in the example above are suggestive
+but not required. Any parameters can be passed to MYFUNCT by using the
+functkw keyword to MPFIT. Use MPFITFUN and MPFITEXPR if you need ideas
+on how to do that. The function *must* accept a parameter list, P.
 
- The derivatives with respect to fixed parameters are ignored; zero
- is an appropriate value to insert for those derivatives.  Upon
- input to the user function, FJAC is set to a vector with the same
- length as P, with a value of 1 for a parameter which is free, and a
- value of zero for a parameter which is fixed (and hence no
- derivative needs to be calculated).
+In general there are no restrictions on the number of dimensions in X, Y,
+or ERR. However the deviates *must* be returned in a one-dimensional
+Numeric array of type Float.
 
- If the data is higher than one dimensional, then the *last*
- dimension should be the parameter dimension.  Example: fitting a
- 50x50 image, "dp" should be 50x50xNPAR.
+User functions may also indicate a fatal error condition using the status
+return described above. If status is set to a number between -15 and -1
+then MPFIT will stop the calculation and return to the caller.
 
 
-		   CONSTRAINING PARAMETER VALUES WITH THE PARINFO KEYWORD
+ANALYTIC DERIVATIVES
+--------------------
 
- The behavior of MPFIT can be modified with respect to each
- parameter to be fitted.  A parameter value can be fixed; simple
- boundary constraints can be imposed; limitations on the parameter
- changes can be imposed; properties of the automatic derivative can
- be modified; and parameters can be tied to one another.
+In the search for the best-fit solution, MPFIT by default calculates
+derivatives numerically via a finite difference approximation. The
+user-supplied function need not calculate the derivatives explicitly.
+However, if you desire to compute them analytically, then the
+AUTODERIVATIVE=0 keyword must be passed to MPFIT. As a practical matter,
+it is often sufficient and even faster to allow MPFIT to calculate the
+derivatives numerically, and so AUTODERIVATIVE=0 is not necessary.
 
- These properties are governed by the PARINFO structure, which is
- passed as a keyword parameter to MPFIT.
+If AUTODERIVATIVE=0 is used then the user function must check the parameter
+FJAC, and if FJAC!=None then return the partial derivative array in the
+return list.
 
- PARINFO should be a list of dictionaries, one list entry for each parameter.
- Each parameter is associated with one element of the array, in
- numerical order.  The dictionary can have the following keys
- (none are required, keys are case insensitive):
+    def myfunct(p, fjac=None, x=None, y=None, err=None)
+	    # Parameter values are passed in "p"
+	    # If FJAC!=None then partial derivatives must be comptuer.
+	    # FJAC contains an array of len(p), where each entry
+	    # is 1 if that parameter is free and 0 if it is fixed.
+	    model = F(x, p)
+	    # Non-negative status value means MPFIT should continue,
+        # negative means stop the calculation.
+	    status = 0
+	    if (dojac):
+	        pderiv = zeros([len(x), len(p)], Float)
+	        for j in range(len(p)):
+		        pderiv[:,j] = FGRAD(x, p, j)
+	    else:
+	        pderiv = None
+	    return([status, (y-model)/err, pderiv]
+
+where FGRAD(x, p, i) is a user function which must compute the derivative
+of the model with respect to parameter P[i] at X. When finite differencing
+is used for computing derivatives (i.e., when AUTODERIVATIVE=1), or when
+MPFIT needs only the errors but not the derivatives the parameter
+FJAC=None.
+
+Derivatives should be returned in the PDERIV array. PDERIV should be an
+MxN array, where M is the number of data points and N is the number of
+parameters. dp[i,j] is the derivative at the ith point with respect to
+the jth parameter.
+
+The derivatives with respect to fixed parameters are ignored; zero is an
+appropriate value to insert for those derivatives. Upon input to the user
+function, FJAC is set to a vector with the same length as P, with a value
+of 1 for a parameter which is free, and a value of zero for a parameter
+which is fixed (and hence no derivative needs to be calculated).
+
+If the data is higher than one dimensional, then the *last* dimension
+should be the parameter dimension.
+    Example: fitting a 50x50 image, "dp" should be 50x50xNPAR.
+
+
+CONSTRAINING PARAMETER VALUES WITH THE PARINFO KEYWORD
+------------------------------------------------------
+
+The behavior of MPFIT can be modified with respect to each parameter to
+be fitted. A parameter value can be fixed; simple boundary constraints
+can be imposed; limitations on the parameter changes can be imposed;
+properties of the automatic derivative can be modified; and parameters
+can be tied to one another.
+
+These properties are governed by the PARINFO structure, which is passed
+as a keyword parameter to MPFIT.
+
+PARINFO should be a list of dictionaries, one list entry for each
+parameter. Each parameter is associated with one element of the array,
+in numerical order. The dictionary can have the following keys (none
+are required, keys are case insensitive):
 
 	'value' - the starting parameter value (but see the START_PARAMS
-			 parameter for more information).
+		parameter for more information).
 
 	'fixed' - a boolean value, whether the parameter is to be held
-			 fixed or not.  Fixed parameters are not varied by
-			 MPFIT, but are passed on to MYFUNCT for evaluation.
+		fixed or not. Fixed parameters are not varied by MPFIT, but are
+        passed on to MYFUNCT for evaluation.
 
-	'limited' - a two-element boolean array.  If the first/second
-			   element is set, then the parameter is bounded on the
-			   lower/upper side.  A parameter can be bounded on both
-			   sides.  Both LIMITED and LIMITS must be given
-			   together.
+	'limited' - a two-element boolean array. If the first/second element
+        is set, then the parameter is bounded on the lower/upper side.
+        A parameter can be bounded on both sides. Both LIMITED and LIMITS
+        must be given together.
 
-	'limits' - a two-element float array.  Gives the
-			  parameter limits on the lower and upper sides,
-			  respectively.  Zero, one or two of these values can be
-			  set, depending on the values of LIMITED.  Both LIMITED
-			  and LIMITS must be given together.
+	'limits' - a two-element float array. Gives the parameter limits
+        on the lower and upper sides, respectively. Zero, one or two of
+        these values can be set, depending on the values of LIMITED.
+        Both LIMITED and LIMITS must be given together.
 
-	'parname' - a string, giving the name of the parameter.  The
-			   fitting code of MPFIT does not use this tag in any
-			   way.  However, the default iterfunct will print the
-			   parameter name if available.
+	'parname' - a string, giving the name of the parameter. The fitting
+        code of MPFIT does not use this tag in any way. However, the
+        default iterfunct will print the parameter name if available.
 
 	'step' - the step size to be used in calculating the numerical
-			derivatives.  If set to zero, then the step size is
-			computed automatically.  Ignored when AUTODERIVATIVE=0.
+	    derivatives. If set to zero, then the step size is computed
+        automatically. Ignored when AUTODERIVATIVE=0.
 
 	'mpside' - the sidedness of the finite difference when computing
-			  numerical derivatives.  This field can take four
-			  values:
+		numerical derivatives. This field can take four values:
 
-				 0 - one-sided derivative computed automatically
-				 1 - one-sided derivative (f(x+h) - f(x)  )/h
-				-1 - one-sided derivative (f(x)   - f(x-h))/h
-				 2 - two-sided derivative (f(x+h) - f(x-h))/(2*h)
+			0 - one-sided derivative computed automatically
+			1 - one-sided derivative (f(x+h) - f(x))/h
+			-1 - one-sided derivative (f(x) - f(x-h))/h
+			2 - two-sided derivative (f(x+h) - f(x-h))/(2*h)
 
-			 Where H is the STEP parameter described above.  The
-			 "automatic" one-sided derivative method will chose a
-			 direction for the finite difference which does not
-			 violate any constraints.  The other methods do not
-			 perform this check.  The two-sided method is in
-			 principle more precise, but requires twice as many
-			 function evaluations.  Default: 0.
+		Where H is the STEP parameter described above. The "automatic"
+        one-sided derivative method will chose a direction for the
+        finite difference which does not violate any constraints. The
+        other methods do not perform this check. The two-sided method
+        is in principle more precise, but requires twice as many
+        function evaluations. Default: 0.
 
-	'mpmaxstep' - the maximum change to be made in the parameter
-				 value.  During the fitting process, the parameter
-				 will never be changed by more than this value in
-				 one iteration.
-
-				 A value of 0 indicates no maximum.  Default: 0.
+	'mpmaxstep' - the maximum change to be made in the parameter value.
+        During the fitting process, the parameter will never be changed
+        by more than this value in one iteration. A value of 0 indicates
+        no maximum. Default: 0.
 
 	'tied' - a string expression which "ties" the parameter to other
-			free or fixed parameters.  Any expression involving
-			constants and the parameter array P are permitted.
-			Example: if parameter 2 is always to be twice parameter
-			1 then use the following: parinfo(2).tied = '2 * p(1)'.
-			Since they are totally constrained, tied parameters are
-			considered to be fixed; no errors are computed for them.
-			[ NOTE: the PARNAME can't be used in expressions. ]
+        free or fixed parameters. Any expression involving constants and
+        the parameter array P are permitted. Example: if parameter 2 is
+        always to be twice parameter 1 then use the following:
+            parinfo(2).tied = '2 * p(1)'.
+		Since they are totally constrained, tied parameters are considered
+        to be fixed; no errors are computed for them. NOTE: the PARNAME
+        can't be used in expressions.
 
 	'mpprint' - if set to 1, then the default iterfunct will print the
-			   parameter value.  If set to 0, the parameter value
-			   will not be printed.  This tag can be used to
-			   selectively print only a few parameter values out of
-			   many.  Default: 1 (all parameters printed)
+	    parameter value. If set to 0, the parameter value will not be
+        printed. This tag can be used to selectively print only a few
+        parameter values out of many. Default: 1 (all parameters printed)
 
+Future modifications to the PARINFO structure, if any, will involve
+adding dictionary tags beginning with the two letters "MP". Therefore
+programmers are urged to avoid using tags starting with the same letters;
+otherwise they are free to include their own fields within the PARINFO
+structure, and they will be ignored.
 
- Future modifications to the PARINFO structure, if any, will involve
- adding dictionary tags beginning with the two letters "MP".
- Therefore programmers are urged to avoid using tags starting with
- the same letters; otherwise they are free to include their own
- fields within the PARINFO structure, and they will be ignored.
+PARINFO Example:
+    parinfo = [{'value':0., 'fixed':0, 'limited':[0,0],
+                'limits':[0.,0.]} for i in range(5)]
+    parinfo[0]['fixed'] = 1
+    parinfo[4]['limited'][0] = 1
+    parinfo[4]['limits'][0]  = 50.
+    values = [5.7, 2.2, 500., 1.5, 2000.]
+    for i in range(5):
+        parinfo[i]['value']=values[i]
 
- PARINFO Example:
- parinfo = [{'value':0., 'fixed':0, 'limited':[0,0], 'limits':[0.,0.]}
- 												for i in range(5)]
- parinfo[0]['fixed'] = 1
- parinfo[4]['limited'][0] = 1
- parinfo[4]['limits'][0]  = 50.
- values = [5.7, 2.2, 500., 1.5, 2000.]
- for i in range(5): parinfo[i]['value']=values[i]
+A total of 5 parameters, with starting values of 5.7, 2.2, 500, 1.5,
+and 2000 are given. The first parameter is fixed at a value of 5.7,
+and the last parameter is constrained to be above 50.
 
- A total of 5 parameters, with starting values of 5.7,
- 2.2, 500, 1.5, and 2000 are given.  The first parameter
- is fixed at a value of 5.7, and the last parameter is
- constrained to be above 50.
+EXAMPLE
+-------
 
-
-								   EXAMPLE
-
-   import mpfit
-   import numpy.oldnumeric as Numeric
-   x = arange(100, float)
-   p0 = [5.7, 2.2, 500., 1.5, 2000.]
-   y = ( p[0] + p[1]*[x] + p[2]*[x**2] + p[3]*sqrt(x) +
+    import mpfit
+    import numpy.oldnumeric as Numeric
+    x = arange(100, float)
+    p0 = [5.7, 2.2, 500., 1.5, 2000.]
+    y = (p[0] + p[1]*[x] + p[2]*[x**2] + p[3]*sqrt(x) +
 		 p[4]*log(x))
-   fa = {'x':x, 'y':y, 'err':err}
-   m = mpfit('myfunct', p0, functkw=fa)
-   print 'status = ', m.status
-   if (m.status <= 0): print 'error message = ', m.errmsg
-   print 'parameters = ', m.params
+    fa = {'x':x, 'y':y, 'err':err}
+    m = mpfit('myfunct', p0, functkw=fa)
+    print 'status = ', m.status
+    if (m.status <= 0):
+        print 'error message = ', m.errmsg
+    print 'parameters = ', m.params
 
-   Minimizes sum of squares of MYFUNCT.  MYFUNCT is called with the X,
-   Y, and ERR keyword parameters that are given by FUNCTKW.  The
-   results can be obtained from the returned object m.
+Minimizes sum of squares of MYFUNCT.  MYFUNCT is called with the X, Y,
+and ERR keyword parameters that are given by FUNCTKW. The results can
+be obtained from the returned object m.
 
+THEORY OF OPERATION
+-------------------
 
-							THEORY OF OPERATION
+There are many specific strategies for function minimization. One very
+popular technique is to use function gradient information to realize the
+local structure of the function. Near a local minimum the function value
+can be taylor expanded about x0 as follows:
 
-   There are many specific strategies for function minimization.  One
-   very popular technique is to use function gradient information to
-   realize the local structure of the function.  Near a local minimum
-   the function value can be taylor expanded about x0 as follows:
+	f(x) = f(x0) + f'(x0) . (x-x0) + (1/2) (x-x0) . f''(x0) . (x-x0)
+           -----   ---------------   ------------------------------- (1)
+	 Order	0th		     1st                       2nd
 
-	  f(x) = f(x0) + f'(x0) . (x-x0) + (1/2) (x-x0) . f''(x0) . (x-x0)
-			 -----   ---------------   -------------------------------  (1)
-	 Order	0th		  1st					  2nd
+Here f'(x) is the gradient vector of f at x, and f''(x) is the Hessian
+matrix of second derivatives of f at x. The vector x is the set of
+function parameters, not the measured data vector. One can find the
+minimum of f, f(xm) using Newton's method, and arrives at the following
+linear equation:
 
-   Here f'(x) is the gradient vector of f at x, and f''(x) is the
-   Hessian matrix of second derivatives of f at x.  The vector x is
-   the set of function parameters, not the measured data vector.  One
-   can find the minimum of f, f(xm) using Newton's method, and
-   arrives at the following linear equation:
+    f''(x0) . (xm-x0) = - f'(x0)                                     (2)
 
-	  f''(x0) . (xm-x0) = - f'(x0)							(2)
+If an inverse can be found for f''(x0) then one can solve for (xm-x0),
+the step vector from the current position x0 to the new projected minimum.
+Here the problem has been linearized (ie, the gradient information is known
+to first order). f''(x0) is symmetric n x n matrix, and should be positive
+definite.
 
-   If an inverse can be found for f''(x0) then one can solve for
-   (xm-x0), the step vector from the current position x0 to the new
-   projected minimum.  Here the problem has been linearized (ie, the
-   gradient information is known to first order).  f''(x0) is
-   symmetric n x n matrix, and should be positive definite.
+The Levenberg-Marquardt technique is a variation on this theme. It adds an
+additional diagonal term to the equation which may aid the convergence
+properties:
 
-   The Levenberg - Marquardt technique is a variation on this theme.
-   It adds an additional diagonal term to the equation which may aid the
-   convergence properties:
+    (f''(x0) + nu I) . (xm-x0) = -f'(x0)                             (2a)
 
-	  (f''(x0) + nu I) . (xm-x0) = -f'(x0)				  (2a)
+where I is the identity matrix. When nu is large, the overall matrix is
+diagonally dominant, and the iterations follow steepest descent. When nu
+is small, the iterations are quadratically convergent.
 
-   where I is the identity matrix.  When nu is large, the overall
-   matrix is diagonally dominant, and the iterations follow steepest
-   descent.  When nu is small, the iterations are quadratically
-   convergent.
+In principle, if f''(x0) and f'(x0) are known then xm-x0 can be determined.
+However the Hessian matrix is often difficult or impossible to compute.
+The gradient f'(x0) may be easier to compute, if even by finite difference
+techniques. So-called quasi-Newton techniques attempt to successively
+estimate f''(x0) by building up gradient information as the iterations
+proceed.
 
-   In principle, if f''(x0) and f'(x0) are known then xm-x0 can be
-   determined.  However the Hessian matrix is often difficult or
-   impossible to compute.  The gradient f'(x0) may be easier to
-   compute, if even by finite difference techniques.  So-called
-   quasi-Newton techniques attempt to successively estimate f''(x0)
-   by building up gradient information as the iterations proceed.
+In the least squares problem there are further simplifications which assist
+in solving eqn (2). The function to be minimized is a sum of squares:
 
-   In the least squares problem there are further simplifications
-   which assist in solving eqn (2).  The function to be minimized is
-   a sum of squares:
+    f = Sum(hi^2)                                                    (3)
 
-	   f = Sum(hi^2)										 (3)
+where hi is the ith residual out of m residuals as described above.
+This can be substituted back into eqn (2) after computing the derivatives:
 
-   where hi is the ith residual out of m residuals as described
-   above.  This can be substituted back into eqn (2) after computing
-   the derivatives:
+    f'  = 2 Sum(hi  hi')
+    f'' = 2 Sum(hi' hj') + 2 Sum(hi hi'')                            (4)
 
-	   f'  = 2 Sum(hi  hi')
-	   f'' = 2 Sum(hi' hj') + 2 Sum(hi hi'')				(4)
+If one assumes that the parameters are already close enough to a minimum,
+then one typically finds that the second term in f'' is negligible (or,
+in any case, is too difficult to compute). Thus, equation (2) can be solved,
+at least approximately, using only gradient information.
 
-   If one assumes that the parameters are already close enough to a
-   minimum, then one typically finds that the second term in f'' is
-   negligible [or, in any case, is too difficult to compute].  Thus,
-   equation (2) can be solved, at least approximately, using only
-   gradient information.
+In matrix notation, the combination of eqns (2) and (4) becomes:
 
-   In matrix notation, the combination of eqns (2) and (4) becomes:
+    hT' . h' . dx = - hT' . h                                        (5)
 
-		hT' . h' . dx = - hT' . h						  (5)
+Where h is the residual vector (length m), hT is its transpose, h' is the
+Jacobian matrix (dimensions n x m), and dx is (xm-x0). The user function
+supplies the residual vector h, and in some cases h' when it is not found
+by finite differences (see MPFIT_FDJAC2, which finds h and hT'). Even if
+dx is not the best absolute step to take, it does provide a good estimate
+of the best *direction*, so often a line minimization will occur along the
+dx vector direction.
 
-   Where h is the residual vector (length m), hT is its transpose, h'
-   is the Jacobian matrix (dimensions n x m), and dx is (xm-x0).  The
-   user function supplies the residual vector h, and in some cases h'
-   when it is not found by finite differences (see MPFIT_FDJAC2,
-   which finds h and hT').  Even if dx is not the best absolute step
-   to take, it does provide a good estimate of the best *direction*,
-   so often a line minimization will occur along the dx vector
-   direction.
+The method of solution employed by MINPACK is to form the Q . R
+factorization of h', where Q is an orthogonal matrix such that QT . Q = I,
+and R is upper right triangular. Using h' = Q . R and the ortogonality of
+Q, eqn (5) becomes
 
-   The method of solution employed by MINPACK is to form the Q . R
-   factorization of h', where Q is an orthogonal matrix such that QT .
-   Q = I, and R is upper right triangular.  Using h' = Q . R and the
-   ortogonality of Q, eqn (5) becomes
+	(RT . QT) . (Q . R) . dx = - (RT . QT) . h
+                 RT . R . dx = - RT . QT . h                         (6)
+                      R . dx = - QT . h
 
-		(RT . QT) . (Q . R) . dx = - (RT . QT) . h
-					 RT . R . dx = - RT . QT . h		 (6)
-						  R . dx = - QT . h
+where the last statement follows because R is upper triangular. Here, R,
+QT, and h are known so this is a matter of solving for dx. The routine
+MPFIT_QRFAC provides the QR factorization of h, with pivoting, and
+MPFIT_QRSOLV provides the solution for dx.
 
-   where the last statement follows because R is upper triangular.
-   Here, R, QT and h are known so this is a matter of solving for dx.
-   The routine MPFIT_QRFAC provides the QR factorization of h, with
-   pivoting, and MPFIT_QRSOLV provides the solution for dx.
+REFERENCES
+----------
 
+MINPACK-1, Jorge More', available from netlib (www.netlib.org).
+"Optimization Software Guide," Jorge More' and Stephen Wright,
+	SIAM, *Frontiers in Applied Mathematics*, Number 14.
+More', Jorge J., "The Levenberg-Marquardt Algorithm: Implementation
+    and Theory," in *Numerical Analysis*, ed. Watson, G. A., Lecture
+    Notes in Mathematics 630, Springer-Verlag, 1977.
 
-								 REFERENCES
+MODIFICATION HISTORY
+--------------------
 
-   MINPACK-1, Jorge More', available from netlib (www.netlib.org).
-   "Optimization Software Guide," Jorge More' and Stephen Wright,
-	 SIAM, *Frontiers in Applied Mathematics*, Number 14.
-   More', Jorge J., "The Levenberg-Marquardt Algorithm:
-	 Implementation and Theory," in *Numerical Analysis*, ed. Watson,
-	 G. A., Lecture Notes in Mathematics 630, Springer-Verlag, 1977.
+Translated from MINPACK-1 in FORTRAN, Apr-Jul 1998, CM
+Copyright (C) 1997-2002, Craig Markwardt
+This software is provided as is without any warranty whatsoever.
+Permission to use, copy, modify, and distribute modified or unmodified
+copies is granted, provided this copyright and disclaimer are included
+unchanged.
 
-
-						   MODIFICATION HISTORY
-
-   Translated from MINPACK-1 in FORTRAN, Apr-Jul 1998, CM
- Copyright (C) 1997-2002, Craig Markwardt
- This software is provided as is without any warranty whatsoever.
- Permission to use, copy, modify, and distribute modified or
- unmodified copies is granted, provided this copyright and disclaimer
- are included unchanged.
-
-   Translated from MPFIT (Craig Markwardt's IDL package) to Python,
-   August, 2002.  Mark Rivers
-   Converted from Numeric to numpy (Sergey Koposov, July 2008)
+Translated from MPFIT (Craig Markwardt's IDL package) to Python,
+    August, 2002.  Mark Rivers
+Converted from Numeric to numpy (Sergey Koposov, July 2008)
+Added full Python 3 compatibility (Sergey Koposov, Feb 2017)
 """
 
 __all__ = ['mpfit']
@@ -597,169 +587,218 @@ import scipy.linalg.blas
 #	 **********
 
 class mpfit:
+	"""
+    Perform Levenberg-Marquardt least-squares minimization, based on MINPACK-1.
 
-	blas_enorm32, = scipy.linalg.blas.get_blas_funcs(['nrm2'],numpy.array([0],dtype=numpy.float32))
-	blas_enorm64, = scipy.linalg.blas.get_blas_funcs(['nrm2'],numpy.array([0],dtype=numpy.float64))
-
-
-	def __init__(self, fcn, xall=None, functkw={}, parinfo=None,
-				 ftol=1.e-10, xtol=1.e-10, gtol=1.e-10,
-				 damp=0., maxiter=200, factor=100., nprint=1,
-				 iterfunct='default', iterkw={}, nocovar=0,
-				 rescale=0, autoderivative=1, quiet=0,
-				 diag=None, epsfcn=None, debug=0):
-		"""
-  Inputs:
-	fcn:
-	   The function to be minimized.  The function should return the weighted
+    Parameters
+    ----------
+	fcn : function
+	   The function to be minimized. The function should return the weighted
 	   deviations between the model and the data, as described above.
 
-	xall:
+	xall : array-like
 	   An array of starting values for each of the parameters of the model.
 	   The number of parameters should be fewer than the number of measurements.
-
 	   This parameter is optional if the parinfo keyword is used (but see
-	   parinfo).  The parinfo keyword provides a mechanism to fix or constrain
+	   parinfo). The parinfo keyword provides a mechanism to fix or constrain
 	   individual parameters.
 
-  Keywords:
+	autoderivative : {1, 0}
+        If this is set (1), derivatives of the function will be computed
+		automatically via a finite differencing procedure. If not set (0),
+        then fcn must provide the (analytical) derivatives. To supply your
+        own analytical derivatives, explicitly pass autoderivative=0.
+            Default: set (=1)
 
-	 autoderivative:
-		If this is set, derivatives of the function will be computed
-		automatically via a finite differencing procedure.  If not set, then
-		fcn must provide the (analytical) derivatives.
-		   Default: set (=1)
-		   NOTE: to supply your own analytical derivatives,
-				 explicitly pass autoderivative=0
-
-	 ftol:
+	ftol : float, optional
 		A nonnegative input variable. Termination occurs when both the actual
 		and predicted relative reductions in the sum of squares are at most
-		ftol (and status is accordingly set to 1 or 3).  Therefore, ftol
+		ftol (and status is accordingly set to 1 or 3). Therefore, ftol
 		measures the relative error desired in the sum of squares.
-		   Default: 1E-10
+		    Default: 1E-10
 
-	 functkw:
+	functkw : dict, optional
 		A dictionary which contains the parameters to be passed to the
 		user-supplied function specified by fcn via the standard Python
-		keyword dictionary mechanism.  This is the way you can pass additional
+		keyword dictionary mechanism. This is the way you can pass additional
 		data to your user-supplied function without using global variables.
 
-		Consider the following example:
-		   if functkw = {'xval':[1.,2.,3.], 'yval':[1.,4.,9.],
-						 'errval':[1.,1.,1.] }
-		then the user supplied function should be declared like this:
-		   def myfunct(p, fjac=None, xval=None, yval=None, errval=None):
+		Consider the following example, if functkw =
+		    {'xval':[1.,2.,3.], 'yval':[1.,4.,9.], 'errval':[1.,1.,1.]}
+		then the user-supplied function should be declared like this:
+		    def myfunct(p, fjac=None, xval=None, yval=None, errval=None):
 
-		Default: {}   No extra parameters are passed to the user-supplied
-					  function.
+		Default: {}, No extra parameters are passed to the function
 
-	 gtol:
+	gtol : float, optional
 		A nonnegative input variable. Termination occurs when the cosine of
 		the angle between fvec and any column of the jacobian is at most gtol
 		in absolute value (and status is accordingly set to 4). Therefore,
 		gtol measures the orthogonality desired between the function vector
 		and the columns of the jacobian.
-		   Default: 1e-10
+		    Default: 1e-10
 
-	 iterkw:
+	iterkw : dict, optional
 		The keyword arguments to be passed to iterfunct via the dictionary
-		keyword mechanism.  This should be a dictionary and is similar in
+		keyword mechanism. This should be a dictionary and is similar in
 		operation to FUNCTKW.
-		   Default: {}  No arguments are passed.
+		    Default: {}, No arguments are passed.
 
-	 iterfunct:
+	iterfunct : function
 		The name of a function to be called upon each NPRINT iteration of the
-		MPFIT routine.  It should be declared in the following way:
-		   def iterfunct(myfunct, p, iter, fnorm, functkw=None,
-						 parinfo=None, quiet=0, dof=None, [iterkw keywords here])
-		   # perform custom iteration update
+		MPFIT routine. It should be declared in the following way:
+		    def iterfunct(myfunct, p, iter, fnorm, functkw=None, parinfo=None,
+                          quiet=0, dof=None, [iterkw keywords here])
+		    # perform custom iteration update
 
 		iterfunct must accept all three keyword parameters (FUNCTKW, PARINFO
 		and QUIET).
 
-		myfunct:  The user-supplied function to be minimized,
-		p:		The current set of model parameters
-		iter:	 The iteration number
-		functkw:  The arguments to be passed to myfunct.
-		fnorm:	The chi-squared value.
-		quiet:	Set when no textual output should be printed.
-		dof:	  The number of degrees of freedom, normally the number of points
-				  less the number of free parameters.
+		myfunct - The user-supplied function to be minimized,
+		p       - The current set of model parameters
+		iter    - The iteration number
+		functkw - The arguments to be passed to myfunct.
+		fnorm   - The chi-squared value.
+		quiet   - Set when no textual output should be printed.
+		dof     - The number of degrees of freedom, normally the number of
+                  points less the number of free parameters.
 		See below for documentation of parinfo.
 
 		In implementation, iterfunct can perform updates to the terminal or
 		graphical user interface, to provide feedback while the fit proceeds.
-		If the fit is to be stopped for any reason, then iterfunct should return a
-		a status value between -15 and -1.  Otherwise it should return None
-		(e.g. no return statement) or 0.
-		In principle, iterfunct should probably not modify the parameter values,
-		because it may interfere with the algorithm's stability.  In practice it
-		is allowed.
+		If the fit is to be stopped for any reason, then iterfunct should return
+        a status value between -15 and -1. Otherwise it should return None
+		(e.g. no return statement) or 0. In principle, iterfunct should probably
+        not modify the parameter values, because it may interfere with the
+        algorithm's stability. In practice it is allowed. Set iterfunct=None
+        if there is no user-defined routine and you don't want the internal
+        default routine be called.
 
 		Default: an internal routine is used to print the parameter values.
 
-		Set iterfunct=None if there is no user-defined routine and you don't
-		want the internal default routine be called.
-
-	 maxiter:
-		The maximum number of iterations to perform.  If the number is exceeded,
+	maxiter : int, optional
+		The maximum number of iterations to perform. If the number is exceeded,
 		then the status value is set to 5 and MPFIT returns.
 		Default: 200 iterations
 
-	 nocovar:
+	nocovar : {0, 1}
 		Set this keyword to prevent the calculation of the covariance matrix
 		before returning (see COVAR)
-		Default: clear (=0)  The covariance matrix is returned
+		Default: clear (=0), The covariance matrix is returned
 
-	 nprint:
-		The frequency with which iterfunct is called.  A value of 1 indicates
+	nprint : int, optional
+		The frequency with which iterfunct is called. A value of 1 indicates
 		that iterfunct is called with every iteration, while 2 indicates every
-		other iteration, etc.  Note that several Levenberg-Marquardt attempts
+		other iteration, etc. Note that several Levenberg-Marquardt attempts
 		can be made in a single iteration.
-		Default value: 1
+		Default: 1
 
-	 parinfo
-		Provides a mechanism for more sophisticated constraints to be placed on
-		parameter values.  When parinfo is not passed, then it is assumed that
-		all parameters are free and unconstrained.  Values in parinfo are never
-		modified during a call to MPFIT.
+	parinfo : list of dicts, optional
+	    Provides a mechanism for more sophisticated constraints to be placed on
+		parameter values. When parinfo is not passed, then it is assumed that
+		all parameters are free and unconstrained. Values in parinfo are never
+		modified during a call to MPFIT. PARINFO should be a list of
+        dictionaries, one list entry for each parameter. The dictionary can
+        have the following keys (all keys are optional and case insensitive):
 
-		See description above for the structure of PARINFO.
+        	'value' : float
+                the starting parameter value (see also the XALL parameter).
 
-		Default value: None  All parameters are free and unconstrained.
+        	'fixed' : {0, 1}
+                If set (1), the parameter value will be held fixed. Fixed
+                parameters are not varied by MPFIT, but are passed on to
+                MYFUNCT for evaluation.
 
-	 quiet:
-		Set this keyword when no textual output should be printed by MPFIT
+        	'limited' : two-element int array.
+                If the first/second element is set (1), then the parameter is
+                bounded on the lower/upper side. A parameter can be bounded
+                on both sides. Both LIMITED and LIMITS must be given together.
 
-	 damp:
+        	'limits' : two-element float array.
+                Gives the parameter limits on the lower and upper sides,
+                respectively. A value will only be used as a limit if the
+                corresponding value of LIMITED is set (=1). Both LIMITED
+                and LIMITS must be given together.
+
+        	'parname' : str
+                Name of the parameter. The fitting code of MPFIT does not
+                use this tag in any way. However, the default iterfunct will
+                print the parameter name, if available.
+
+        	'step' : float
+                Step size to be used in calculating the numerical derivatives.
+                If set to zero, then the step size is computed automatically.
+                Ignored when AUTODERIVATIVE=0.
+
+        	'mpside' : {0, 1, -1, 2}
+                The sidedness of the finite difference when computing
+        		numerical derivatives. This field can take four values:
+
+        			0 - one-sided derivative computed automatically
+        			1 - one-sided derivative (f(x+h) - f(x))/h
+        			-1 - one-sided derivative (f(x) - f(x-h))/h
+        			2 - two-sided derivative (f(x+h) - f(x-h))/(2*h)
+
+        		Where H is the STEP parameter described above. The "automatic"
+                one-sided derivative method will chose a direction for the
+                finite difference which does not violate any constraints. The
+                other methods do not perform this check. The two-sided method
+                is in principle more precise, but requires twice as many
+                function evaluations. Default: 0.
+
+        	'mpmaxstep' : float
+                The maximum change to be made in the parameter value.
+                During the fitting process, the parameter will never be changed
+                by more than this value in one iteration. A value of 0 indicates
+                no maximum. Default: 0.
+
+        	'tied' : str
+                String expression which "ties" the parameter to other free or
+                fixed parameters. Any expression involving constants and the
+                parameter array "P" are permitted. Example: if parameter 2 is
+                always to be twice parameter 1 then use the following:
+                    parinfo[2].tied = '2 * p[1]'.
+        		Since they are totally constrained, tied parameters are
+                considered to be fixed; no errors are computed for them.
+                NOTE: the PARNAME can't be used in expressions.
+
+        	'mpprint' : {1, 0}
+                If set to 1, then the default iterfunct will print the
+        	    parameter value. If set to 0, the parameter value will not
+                be printed. This tag can be used to selectively print only
+                a few parameter values out of many. Default: 1 (all
+                parameters printed)
+
+		Default value: None, All parameters are free and unconstrained.
+
+	quiet : {0, 1}
+	    Set this keyword = 1 when no textual output should be printed by MPFIT
+
+	damp : float, optional
 		A scalar number, indicating the cut-off value of residuals where
-		"damping" will occur.  Residuals with magnitudes greater than this
-		number will be replaced by their hyperbolic tangent.  This partially
+		"damping" will occur. Residuals with magnitudes greater than this
+		number will be replaced by their hyperbolic tangent. This partially
 		mitigates the so-called large residual problem inherent in
 		least-squares solvers (as for the test problem CURVI,
-		http://www.maxthis.com/curviex.htm).
-		A value of 0 indicates no damping.
-		   Default: 0
+		http://www.maxthis.com/curviex.htm). A value of 0 indicates no damping.
+        Note: DAMP doesn't work with autoderivative=0. Default: 0
 
-		Note: DAMP doesn't work with autoderivative=0
-
-	 xtol:
-		A nonnegative input variable. Termination occurs when the relative error
+	xtol : float, optional
+	    A nonnegative input variable. Termination occurs when the relative error
 		between two consecutive iterates is at most xtol (and status is
-		accordingly set to 2 or 3).  Therefore, xtol measures the relative error
-		desired in the approximate solution.
-		Default: 1E-10
+		accordingly set to 2 or 3). Therefore, xtol measures the relative error
+		desired in the approximate solution. Default: 1E-10
 
-   Outputs:
+    Returns
+    -------
+    mpfit class object
+	    The results are attributes of this class, e.g. mpfit.status,
+        mpfit.errmsg, mpfit.params, npfit.niter, mpfit.covar.
 
-	 Returns an object of type mpfit.  The results are attributes of this class,
-	 e.g. mpfit.status, mpfit.errmsg, mpfit.params, npfit.niter, mpfit.covar.
-
-	 .status
-		An integer status code is returned.  All values greater than zero can
-		represent success (however .status == 5 may indicate failure to
-		converge). It can have one of the following values:
+	.status : int
+	    An integer status code is returned. All values greater than zero
+        can represent success (however .status == 5 may indicate failure to
+	    converge). It can have one of the following values:
 
 		-16
 		   A parameter or function value has become infinite or an undefined
@@ -794,37 +833,37 @@ class mpfit:
 		8  gtol is too small. fvec is orthogonal to the columns of the jacobian
 		   to machine precision.
 
-	 .fnorm
+	.fnorm : float
 		The value of the summed squared residuals for the returned parameter
 		values.
 
-	 .covar
+	.covar : array-like
 		The covariance matrix for the set of parameters returned by MPFIT.
-		The matrix is NxN where N is the number of  parameters.  The square root
+		The matrix is NxN where N is the number of parameters. The square root
 		of the diagonal elements gives the formal 1-sigma statistical errors on
 		the parameters if errors were treated "properly" in fcn.
 		Parameter errors are also returned in .perror.
 
 		To compute the correlation matrix, pcor, use this example:
-		   cov = mpfit.covar
-		   pcor = cov * 0.
-		   for i in range(n):
-			  for j in range(n):
-				 pcor[i,j] = cov[i,j]/sqrt(cov[i,i]*cov[j,j])
+		    cov = mpfit.covar
+		    pcor = cov * 0.
+		    for i in range(n):
+			    for j in range(n):
+				    pcor[i,j] = cov[i,j]/sqrt(cov[i,i]*cov[j,j])
 
 		If nocovar is set or MPFIT terminated abnormally, then .covar is set to
 		a scalar with value None.
 
-	 .errmsg
+	.errmsg : str
 		A string error or warning message is returned.
 
-	 .nfev
+	.nfev : int
 		The number of calls to MYFUNCT performed.
 
-	 .niter
+	.niter : int
 		The number of iterations completed.
 
-	 .perror
+	.perror : array-like
 		The formal 1-sigma errors in each parameter, computed from the
 		covariance matrix.  If a parameter is held fixed, or if it touches a
 		boundary, then the error is reported as zero.
@@ -838,11 +877,21 @@ class mpfit:
 		then the estimated parameter uncertainties can be computed by scaling
 		.perror by the measured chi-squared value.
 
-		   dof = len(x) - len(mpfit.params) # deg of freedom
-		   # scaled uncertainties
-		   pcerror = mpfit.perror * sqrt(mpfit.fnorm / dof)
+		    dof = len(x) - len(mpfit.params) # deg of freedom
+		    # scaled uncertainties
+		    pcerror = mpfit.perror * sqrt(mpfit.fnorm / dof)
+	"""
+	blas_enorm32, = scipy.linalg.blas.get_blas_funcs(['nrm2'],numpy.array([0],dtype=numpy.float32))
+	blas_enorm64, = scipy.linalg.blas.get_blas_funcs(['nrm2'],numpy.array([0],dtype=numpy.float64))
 
-		"""
+
+	def __init__(self, fcn, xall=None, functkw={}, parinfo=None,
+				 ftol=1.e-10, xtol=1.e-10, gtol=1.e-10,
+				 damp=0., maxiter=200, factor=100., nprint=1,
+				 iterfunct='default', iterkw={}, nocovar=0,
+				 rescale=0, autoderivative=1, quiet=0,
+				 diag=None, epsfcn=None, debug=0):
+
 		self.niter = 0
 		self.params = None
 		self.covar = None

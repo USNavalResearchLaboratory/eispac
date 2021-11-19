@@ -10,6 +10,57 @@ from ndcube import __version__ as ndcube_ver
 from ndcube import NDCube
 
 class EISCube(NDCube):
+    """EIS Level-1 Data Cube
+
+    Subclass of NDCube. Accepts all of the standard arguments and keywords
+    of `ndcube.NDCube`, as well as a few EIS specific parameters.
+
+    Parameters
+    ----------
+    data : `numpy.ndarray`
+        The array holding the actual data in this object.
+
+    wcs : `astropy.wcs.WCS`, optional
+        The WCS object containing the axes' information, optional only if
+        ``data`` is an `astropy.nddata.NDData` object.
+
+    uncertainty : any type, optional
+        Uncertainty in the dataset. Should have an attribute uncertainty_type
+        that defines what kind of uncertainty is stored, for example "std"
+        for standard deviation or "var" for variance. A metaclass defining
+        such an interface is NDUncertainty - but isn’t mandatory. If the uncertainty
+        has no such attribute the uncertainty is stored as UnknownUncertainty.
+        Defaults to None.
+
+    mask : any type, optional
+        Mask for the dataset. Masks should follow the numpy convention
+        that valid data points are marked by False and invalid ones with True.
+        Defaults to None.
+
+    meta : dict-like object, optional
+        Additional meta information about the dataset. If no meta is provided
+        an empty collections.OrderedDict is created. Default is None.
+
+    unit : Unit-like or str, optional
+        Unit for the dataset. Strings that can be converted to a Unit are allowed.
+        Default is None.
+
+    copy : bool, optional
+        Indicates whether to save the arguments as copy. True copies every attribute
+        before saving it while False tries to save every parameter as reference.
+        Note however that it is not always possible to save the input as reference.
+        Default is False.
+
+    wavelength : array-like, optional
+        Numpy array with the corrected wavelength values for each location
+        within the EIS raster. Must have the same dimensionality as the input
+        data. If not given, will initialize the .wavelength property with
+        an array of zeros.
+    radcal : array-like, optional
+        Array of the radiometric calibration curve currently applied to the
+        input data cube. Required if you wish to use the .apply_radcal() and
+        .remove_radcal() methods
+    """
     # NOTE: this is based on the example given at
     # https://docs.astropy.org/en/stable/nddata/subclassing.html#slicing-an-additional-property
     def __init__(self, *args, **kwargs):
@@ -25,6 +76,7 @@ class EISCube(NDCube):
 
     @property
     def wavelength(self):
+        """Corrected wavelength values observed by EIS"""
         return self._wavelength
 
     @wavelength.setter
@@ -33,6 +85,7 @@ class EISCube(NDCube):
 
     @property
     def radcal(self):
+        """Current radiometric calibration curve"""
         return self._current_radcal
 
     @radcal.setter
@@ -127,7 +180,7 @@ class EISCube(NDCube):
         return kwargs # these must be returned
 
     def crop_by_coords(self, *args, **kwargs):
-        """REMOVED IN NDCube 2.0"""
+        """REMOVED in NDCube 2.0"""
         print('Error: crop_by_coords() was removed in NDCube 2.0. Please use'
              +' the .crop() or .crop_by_values() methods instead. See the'
              +' NDCube documentation for more information.', file=sys.stderr)
