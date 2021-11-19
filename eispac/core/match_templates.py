@@ -28,7 +28,7 @@ def match_templates(eis_obs):
         filepath was input, a list of lists will be returned instead. Each
         sublist contains the matched templates for the corresponding window
         (e.g. matched_templates[0] would contain the list of templates matching
-        thevfirst window in the data file).
+        the first window in the data file).
     """
     # Validate input
     if isinstance(eis_obs, (str, pathlib.Path)):

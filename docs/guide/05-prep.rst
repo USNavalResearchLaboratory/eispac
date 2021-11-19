@@ -1,14 +1,14 @@
 .. _sec-prep:
 
-Level-1 HDF5 Files
-==================
+Level-1 HDF5 File Processing
+============================
 
 This chapter describes in more detail how the EIS level-1 HDF5 files
 were processed and saved. These HDF5 files can be downloaded from
 https://eis.nrl.navy.mil/ or by using the search & download
 functionality of EISPAC (see the section on :ref:`sec-download`).
 
-Prepping the data in IDL
+Prepping the Data in IDL
 ------------------------
 
 The level-0 fits files were prepped using the IDL routine ``eis_prep``
@@ -44,13 +44,14 @@ standard fits files in the usual way. Some important points:
 
 * *refill* - The warm pixel problem complicates the fitting of EIS line
   profiles. As discussed in the EIS software note #13 (found in SSW or on the
-  eiswiki), interpolating the values of missing pixels appears to best
-  reproduce the original data. This option is left off during
-  ``eis_prep`` so that the level-1 fits file preserves the information
-  on the missing pixels. As discussed below, the interpolation (via the
-  refill option) is done during the read and this data is ultimately
-  written to the HDF5 file. A mask indicating which pixels have been
-  interpolated will be added to the HDF5 files in a future revision.
+  `MSSL EIS Wiki <http://solarb.mssl.ucl.ac.uk:8080/eiswiki/Wiki.jsp?page=EISAnalysisGuide#section-EISAnalysisGuide-EISSoftwareNotes>`_),
+  interpolating the values of missing pixels appears to best reproduce
+  the original data. This option is left off during ``eis_prep`` so that
+  the level-1 fits file preserves the information on the missing pixels.
+  As discussed below, the interpolation (via the refill option) is done
+  during the read and this data is ultimately written to the HDF5 file.
+  A mask indicating which pixels have been interpolated will be added to
+  the HDF5 files in a future revision.
 
 Here is an IDL code snippet related to reading the data by looping over
 the spectral windows.
@@ -62,7 +63,7 @@ the spectral windows.
      eis_level1_data[iwin] = ptr_new(d)
    endfor
 
-Writing the HDF5 files
+Writing the HDF5 Files
 ----------------------
 
 Each processed level-1 fits file was bundled up with the associated
@@ -85,7 +86,8 @@ the data and apply the calibration and pointing corrections.
 Nevertheless, the contents and data structure of the HDF5 files are
 summarized below.
 
-**.data.h5**
+Data Files (*.data.h5)
+~~~~~~~~~~~~~~~~~~~~~~
 
 - **level1** (group)
 
@@ -99,14 +101,77 @@ summarized below.
      numbers are numbered sequentially from 00; a given wavelength
      range may be assigned a different window number in each EIS study.
 
-**.head.h5**
+Header Files (*.head.h5)
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-- *Details to be added soon*
+- **ccd_offsets** (group)
 
-Additionally, the contents of the HDF5 files can be displayed using
-``h5dump`` command line tool, which is provided along with the Anaconda
-Python distribution platform or can be installed on its own. Example
-usage,
+   - **win##** (dataset) - array of CCD pointing offsets (in units of [arcsec]
+     along the Solar-Y axis) for each wavelength value observed in a given
+     spectral window. Computed in IDL using the function ``eis_ccd_offset``.
+     While the offset technically varies with wavelength, the difference
+     within a single window is on the order of 0.05 arcsec. Therefore, the
+     mean CCD offset within a window is commonly used.
+
+- **exposure_times** (group)
+
+   - **duration** (dataset) - array of exposure times for each raster
+     position within the EIS observation
+
+   - **duration_units** (string) - units of exposure times (usually "seconds").
+
+- **index** (group) - complete FITS header from the original level-0
+  EIS data file.
+
+- **instrumental_broadening** (group)
+
+   - **slit_width** (dataset) - array of widths along the EIS slit, as
+     computed by the IDL function ``eis_slit_width``.
+
+   - **slit_width_units** (string) - units of slit width (usually "Angstroms").
+
+- **pointing** (group) - various arrays and reference values needed for
+  correcting and updating the pointing values. Subarrays and values included:
+  fovx, fovy, offset_x, offset_y, ref_time, solar_x, solar_y, x_scale, xcen,
+  y_scale, & ycen.
+
+- **radcal** (group)
+
+   - **win##_pre** (dataset) - Pre-flight radiometric calibration curve for
+     each spectral window in the observation.
+
+- **times** (group)
+
+   - **date_obs** (dataset) - array of starting timestamps for each
+     raster position in the EIS observation.
+
+   - **time_format** (string) - format code for the timestamps ("iso_8601").
+
+- **wavelength** (group)
+
+   - **wave_corr** (dataset) - combined array of wave correction factors
+     due to all orbital and instrumental effects (see below).
+
+   - **wave_corr_t** (dataset) - array of wave correction factors due to
+     the orbital motion and instrument temperature. This is computed using
+     the ``hkwavecorr`` method in IDL.
+
+   - **wave_corr_tilt** (dataset) - array of wave correction factors due to
+     the tilt EIS slit relative to the orientation of the CCD.
+
+   - **win##** (dataset) - *uncorrected* wavelength arrays for each spectral
+     window in the observation (in units of [Angstrom]).
+
+- **wininfo** (group)
+
+   - **nwin** (integer) - number of spectral windows in the EIS observation
+
+   - **win##** (group) - dictionary of window information for a given spectral
+     window. Values included: iwin, line_id, nl, wvl_max, wvl_min, xs.
+
+The contents of the HDF5 files can be displayed using the ``h5dump`` command
+line tool, which is provided along with the Anaconda Python distribution
+platform or can be installed on its own. Example usage,
 
 ::
 
