@@ -135,7 +135,7 @@ def eis_plot_fit():
         exit()
 
     if input_path.is_file():
-        out = EISFitPlot(str(p))
+        out = EISFitPlot(str(input_path))
 
     if input_path.is_dir():
         for file in input_path.glob('*.fit.h5'):
