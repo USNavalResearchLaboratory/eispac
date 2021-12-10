@@ -357,6 +357,8 @@ class EISFitResult:
                 fit_inten = np.zeros((self.n_pxls, self.n_steps, self.n_wave))
             else:
                 fit_wave = np.linspace(use_range[0], use_range[-1], num_wavelengths)
+                fit_wave = np.tile(fit_wave[np.newaxis, np.newaxis, :],
+                                   (self.n_pxls, self.n_steps, 1))
                 fit_inten = np.zeros((self.n_pxls, self.n_steps, num_wavelengths))
             # Loop over locations and calculate each fit profile
             for ii in range(self.n_pxls):
