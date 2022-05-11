@@ -392,14 +392,13 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
             print(f' + running mpfit on {ncpu:d} cores (of {mp.cpu_count():d})')
 
             # initialize pool of workers
-            pool = mp.Pool(processes=ncpu)
-
-            # Split out the data for each single slit and run the pool
-            args = [(wave_cube[:,jj:jj+1,:], inten_cube[:,jj:jj+1,:], errs_cube[:,jj:jj+1,:],
-                     template_copy, parinfo_copy, min_points, jj+1, data_units)
-                     for jj in range(n_steps)]
-            pool_out = pool.starmap(fit_with_mpfit, args)
-            pool.close()
+            with mp.Pool(processes=ncpu) as pool:
+                
+                # Split out the data for each single slit and run the pool
+                args = [(wave_cube[:,jj:jj+1,:], inten_cube[:,jj:jj+1,:], errs_cube[:,jj:jj+1,:],
+                        template_copy, parinfo_copy, min_points, jj+1, data_units)
+                        for jj in range(n_steps)]
+                pool_out = pool.starmap(fit_with_mpfit, args)
 
             # Now, loop over each slit and copy fit results values to full output object
             for jj in range(n_steps):
