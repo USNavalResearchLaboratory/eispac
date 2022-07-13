@@ -26,7 +26,25 @@ for future improvements, please email the development team
 
 ## Installation and Requirements
 
-### Installing using pip
+### Using PIP
+
+EISPAC is now available on PyPI. To install, just use the following command,
+```
+	> python -m pip install eispac
+```
+
+To upgrade the package, please use:
+```
+	> python -m pip install --upgrade eispac
+```
+
+pip should automatically install all package dependencies. If it does not, please
+see the list of required packages below. Note: if you are using conda to manage your
+Python packages, you may wish to install or update the dependencies manually first,
+before installing eispac using pip (this is by no means required, but it can help
+simplify updating packages).
+
+### Manual Install
 
 1.  Download or clone "eispac" to a convenient location on your computer (it does not matter where).
 ```
@@ -43,16 +61,10 @@ for future improvements, please email the development team
 ```
 
 The package should then be installed to the correct location for your current Python
-environment. You can now import the package using `import eispac`. Since the package is not
-publically available or registered on PyPi,org, the only way to "update" the package is by
-repeating the process above (you do not need to uninstall the old version first, pip will
-automatically take care of that). A conda install script will be added in a future update
+environment. You can now import the package using `import eispac`.
 
 ### Required Packages
-pip should automatically install the package dependencies. If it does not, here is
-a list of the required packages (older package versions might still work). Note: if
-you are using conda to manage your Python packages, you may wish to install or update
-the dependencies manually first, before installing eispac using pip.
+
 * python >= 3.7
 * numpy >= 1.18
 * scipy >= 1.4
@@ -87,7 +99,8 @@ There are currently three core directories:
    * `../eispac/core/`:  Main code directory. All functions here are loaded into the
      top-level namespace (i.e. eispac.{function name})
    * `../eispac/data/`: Contains fitting templates for specific spectral lines. These HDF5
-     files are direct conversions of the ".genx" files used by some IDL users. Also included is an example EIS raster from 2021-03-06 at 06:44:44.
+     files are direct conversions of the ".genx" files used by some IDL users. Also included
+     is an example EIS raster from 2021-03-06 at 06:44:44.
 
 2. **scripts**: GUI and command line tools
 
