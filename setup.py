@@ -16,9 +16,10 @@ def get_version(rel_path):
                 return line.split(delim)[1]
     raise RuntimeError("Unable to find version string.")
 
-# setup_dir = os.path.abspath(os.path.dirname(__file__))
-# with open(os.path.join(setup_dir, 'README.md', encoding='utf-8')) as f:
-#     readme_text = f.read()
+# Read the contents of the README file
+setup_dir = os.path.abspath(os.path.dirname(__file__))
+with open(os.path.join(setup_dir, 'README.md'), encoding='utf-8') as f:
+    readme_text = f.read()
 
 ####################################################
 # Programmatically generate combinations of "extras"
@@ -36,6 +37,8 @@ extras['all'] = list(chain.from_iterable(ex_extras.values()))
 
 setuptools.setup(
     version = get_version("eispac/__init__.py"),
+    long_description = readme_text,
+    long_description_content_type = 'text/markdown',
     extras_require = extras,
     project_urls = {
         "Data": "https://eis.nrl.navy.mil/",
