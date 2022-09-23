@@ -31,7 +31,7 @@ affiliations:
   - name: Department of Physics, American University, USA
     index: 3
   - name: NASA Goddard Space Flight Center, USA
-    index, 4
+    index: 4
 date: 19 August 2022
 bibliography: eispac_paper.bib
 ---
