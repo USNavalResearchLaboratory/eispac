@@ -1,5 +1,5 @@
 ---
-title: `EISPAC - The EIS Python Analysis Code`
+title: 'EISPAC - The EIS Python Analysis Code'
 tags:
   - Python
   - solar physics
