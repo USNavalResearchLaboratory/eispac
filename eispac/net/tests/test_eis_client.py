@@ -48,10 +48,11 @@ def test_search_individual_filetypes(eis_query, file_type, file_url):
 def test_combined_hdf5_search(eis_query):
     q = Fido.search(*eis_query,
                     a.eispac.FileType('HDF5 data') | a.eispac.FileType('HDF5 header'))
-    assert len(q) == 1
-    assert len(q[0]) == 2
+    assert len(q) == 2
+    assert len(q[0]) == 1
+    assert len(q[1]) == 1
     assert q[0,0]['FileType'] == 'HDF5 data'
-    assert q[0,1]['FileType'] == 'HDF5 header'
+    assert q[1,0]['FileType'] == 'HDF5 header'
 
 
 def test_registered_attrs():
