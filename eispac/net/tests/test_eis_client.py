@@ -44,6 +44,16 @@ def test_search_individual_filetypes(eis_query, file_type, file_url):
     assert q[0,0]['FileType'] == file_type
 
 
+@pytest.mark.remote_data
+def test_combined_hdf5_search(eis_query):
+    q = Fido.search(*eis_query,
+                    a.eispac.FileType('HDF5 data') | a.eispac.FileType('HDF5 header'))
+    assert len(q) == 1
+    assert len(q[0]) == 2
+    assert q[0,0]['FileType'] == 'HDF5 data'
+    assert q[0,1]['FileType'] == 'HDF5 header'
+
+
 def test_registered_attrs():
     attr_names = ['fits', 'data_h5', 'head_h5']
     for an in attr_names:
