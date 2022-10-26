@@ -7,12 +7,10 @@ from textwrap import dedent
 import numpy as np
 import pytest
 from astropy.io import fits
-import astropy.time
 import astropy.units as u
 from astropy.visualization import ImageNormalize, AsinhStretch
 import sunpy
 import sunpy.map
-from sunpy.time import parse_time
 
 # This registers the EISMap map class
 import eispac  # NOQA
@@ -77,11 +75,59 @@ def test_wavelength(test_eis_map):
 
 
 def test_measurement(test_eis_map):
-    assert test_eis_map.measurement == 'Fe XII 195.119 intensity'
+    assert test_eis_map.measurement == 'intensity'
+
+
+def test_nickname(test_eis_map):
+    assert test_eis_map.nickname == 'Hinode EIS Fe XII 195.119'
 
 
 def test_processing_level(test_eis_map):
     assert test_eis_map.processing_level == 3
+
+
+def test_spatial_units(test_eis_map):
+    assert test_eis_map.spatial_units[0] == u.arcsec
+    assert test_eis_map.spatial_units[1] == u.arcsec
+
+
+def test_waveunit(test_eis_map):
+    assert test_eis_map.waveunit == u.Angstrom
+
+
+@pytest.mark.parametrize('attr,key', [
+    ('date_start', 'date_beg'),
+    ('date_end', 'date_end'),
+    ('date_average', 'date_avg'),
+])
+def test_date_props(test_eis_map, attr, key):
+    assert getattr(test_eis_map, attr).isot == test_eis_map.meta[key]
+
+
+def test_date(test_eis_map, test_header):
+    # Case 1: date-average exists
+    assert test_eis_map.date.isot == test_eis_map.meta['date_avg']
+    # Case 2: date-average is None so default to date_obs
+    header = copy.deepcopy(test_header)
+    del header['date_beg']
+    del header['date_end']
+    del header['date_avg']
+    new_map = sunpy.map.Map(test_eis_map.data, header)
+    assert new_map.date.isot == new_map.meta['date_obs']
+    # Case 3: date_avg is None so default to date_start
+    header = copy.deepcopy(test_header)
+    del header['date_avg']
+    del header['date_end']
+    del header['date_obs']
+    new_map = sunpy.map.Map(test_eis_map.data, header)
+    assert new_map.date.isot == new_map.meta['date_beg']
+    # Case 4: date_end and date_avg do not exist
+    header = copy.deepcopy(test_header)
+    del header['date_avg']
+    del header['date_beg']
+    del header['date_obs']
+    new_map = sunpy.map.Map(test_eis_map.data, header)
+    assert new_map.date.isot == new_map.meta['date_end']
 
 
 def test_plot_settings(test_eis_map):
@@ -90,54 +136,3 @@ def test_plot_settings(test_eis_map):
     assert isinstance(test_eis_map.plot_settings['norm'].stretch, AsinhStretch)
     scale = test_eis_map.scale.axis2 / test_eis_map.scale.axis1
     assert test_eis_map.plot_settings['aspect'] == scale.decompose().value
-
-
-def test_date(test_eis_map, test_header):
-    # NOTE: these tests will change slightly with sunpy 3.1 decause of the existence of
-    # date-beg, date-end, and date-avg keys
-    # Case 1: date_obs and date_end exist
-    assert test_eis_map.meta['date-beg'] == test_eis_map.meta['date_beg']
-    assert test_eis_map.meta['date-end'] == test_eis_map.meta['date_end']
-    assert test_eis_map.meta['date-obs'] == test_eis_map.meta['date_obs']
-    assert test_eis_map.meta['date-avg'] == test_eis_map.meta['date_avg']
-    assert test_eis_map.date.isot == test_eis_map.meta['date-avg']
-    # Case 2: date_beg does not exist
-    header = copy.deepcopy(test_header)
-    del header['date_beg']
-    new_map = sunpy.map.Map(test_eis_map.data, header)
-    assert new_map.meta['date-beg'] == new_map.meta['date_obs']
-    # Case 3: date_avg does not exist
-    header = copy.deepcopy(test_header)
-    del header['date_avg']
-    new_map = sunpy.map.Map(test_eis_map.data, header)
-    start = parse_time(new_map.meta['date-beg'], scale='utc')
-    end = parse_time(new_map.meta['date-end'], scale='utc')
-    avg = start + (end - start)/2
-    assert new_map.meta['date-avg'] == avg.isot
-    assert new_map.date == avg
-    # Case 4: date_end and date_avg do not exist
-    header = copy.deepcopy(test_header)
-    del header['date_avg']
-    del header['date_end']
-    new_map = sunpy.map.Map(test_eis_map.data, header)
-    assert new_map.date.isot == new_map.meta['date-obs']
-
-
-def test_missing_date_raises_warning(test_eis_map, test_header):
-    header = copy.deepcopy(test_header)
-    del header['date_end']
-    del header['date_obs']
-    del header['date_beg']
-    del header['date_avg']
-    now = astropy.time.Time.now()
-    new_map = sunpy.map.Map(test_eis_map.data, header)
-    # This raises a slightly different warning in in sunpy>=3.1
-    version = float('.'.join(sunpy.__version__.split('.')[:-1]))
-    if version >= 3.1:
-        from sunpy.util.exceptions import SunpyMetadataWarning
-        expected_warning = SunpyMetadataWarning
-    else:
-        from sunpy.util.exceptions import SunpyUserWarning
-        expected_warning = SunpyUserWarning
-    with pytest.warns(expected_warning, match='Missing metadata for observation time'):
-        assert new_map.date - now < 1*u.s
