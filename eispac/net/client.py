@@ -69,6 +69,8 @@ class EISClient(GenericClient):
         return 'https://eis.nrl.navy.mil/'
 
     def search(self, *args, **kwargs):
+        # NOTE: Search is overridden because URL and pattern depending on the filetype.
+        # This enables multiple filetypes to be returned in the same query.
         metalist = []
         matchdict = self._get_match_dict(*args, **kwargs)
         all_filetypes = matchdict.get('FileType')
