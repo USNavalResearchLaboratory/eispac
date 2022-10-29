@@ -1,4 +1,8 @@
-on: [push]
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   paper:
@@ -16,8 +20,8 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v1
         with:
-          name: paper
+          name: eispac_paper.pdf
           # This is the output path where Pandoc will write the compiled
           # PDF. Note, this should be the same directory as the input
           # paper.md
-          path: docs/joss/eispac_paper.pdf
+          path: docs/joss/
