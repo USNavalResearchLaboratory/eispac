@@ -16,7 +16,6 @@ authors:
     equal-contrib: true
     affiliation: 2
   - name: Nicholas Crump
-    orcid: 0000-0000-0000-0000
     equal-contrib: false
     affiliation: 2
   - name: Will Barnes
