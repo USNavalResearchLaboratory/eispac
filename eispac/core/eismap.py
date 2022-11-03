@@ -136,16 +136,7 @@ class EISMap(sunpy.map.GenericMap):
         # We do this because we want to make sure we are constructing our 
         # coordinate frames from DATE_AVG (the midpoint of the raster) and 
         # not DATE-OBS which is the beginning of the raster.
-        time = self.date_average
-        time = time or self._date_obs
-        time = time or self.date_start
-        time = time or self.date_end
-
-        # This will fall back to the dafault behavior in GenericMap if the 
-        # date property is still None, i.e. all other keys are still missing.
-        time = time or super().date
-
-        return time
+        return self.date_average or super().date
 
     @classmethod
     def is_datasource_for(cls, data, header, **kwargs):
