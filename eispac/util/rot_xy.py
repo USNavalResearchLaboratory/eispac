@@ -33,7 +33,7 @@ def rot_xy(xcen, ycen, start_time, end_time):
 
     Examples
     --------
-    >>> new = rot_xy(0, 0, start_time='01-JAN-2021 00:00', end_time='01-JAN-2021 01:00')
+    >>> new = rot_xy(0, 0, start_time='2021-JAN-01 00:00', end_time='2021-JAN-01 01:00')
     >>> print(new.Tx, new.Ty)
     9.47188arcsec 0.0809565arcsec
     """

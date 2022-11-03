@@ -27,7 +27,7 @@ jobs:
         run: |
           pip install -e .[test,docs]
       - name: Test
-        run: pytest
+        run: pytest --remote-data=any
       - name: Build docs
         run: |
           cd docs
