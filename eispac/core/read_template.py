@@ -13,11 +13,11 @@ class EISFitTemplate:
 
     Parameters
     ----------
-    filename : `str`, `pathlib.Path`
+    filename : str or `pathlib.Path`
         Path to fitting template file
-    template : `dict`
+    template : dict
         Dictionary of template parameters
-    parilnfo : `list`
+    parinfo : list
         List of fitting parameters where each
         entry is a `dict`
     """
@@ -40,10 +40,12 @@ class EISFitTemplate:
 
     @property
     def funcinfo(self):
+        """List of dicts specifying each subcomponent function used in the template"""
         return self.get_funcinfo(self.template)
 
     @property
     def central_wave(self):
+        """Wavelength value in the center of the template wavelength range"""
         return self.template['wmin'] + (self.template['wmax'] - self.template['wmin']) * 0.5
 
     @staticmethod
@@ -54,11 +56,11 @@ class EISFitTemplate:
 
         Parameters
         ----------
-        template : `list`
+        template : list
 
         Returns
         -------
-        funcinfo : `list`
+        funcinfo : list
         """
         funcinfo = []
         for g in range(template['n_gauss']):
@@ -78,8 +80,13 @@ class EISFitTemplate:
 
         Parameters
         ----------
-        filename : `str`, `pathlib.Path`
+        filename : str or `pathlib.Path`
             Path to template file
+
+        Returns
+        -------
+        cls : `EISFitTemplate` class instance
+            Object containing the fit template
         """
         # NOTE: return None here rather than allow h5py to handle
         # exception so that spectral fitting pipeline can error

@@ -208,15 +208,15 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
         code will use the maximum number of cores available. Default is 'max'.
         Important: due to the specifics of how the multiprocessing library works,
         any statements that call fit_spectra() using ncpu > 1 MUST be wrapped in
-        a "if __name__ == __main__:" statement in the top-level program. If such
+        a "if __name__ == '__main__':" statement in the top-level program. If such
         a "name guard" statement is not detected, this function will fall back to
         using a single process.
     unsafe_mp : bool, optional
-        If set to True, will use multiprocessing even if there is no name guard
-        no name guard (if ncpu > 0). Used by the console script "eit_fit_files".
-        Default is False (name guard enforced). Disabling the name guard runs the
-        risk of spawning infinite processes if run incorrectly. USE AT YOUR OWN
-        RISK!
+        If set to True (and ncpu > 0), will use multiprocessing even if there is
+        no "name guard" in use (see above). Used by the console script
+        "eit_fit_files". Default is False (name guard enforced). Disabling the
+        name guard runs the risk of spawning infinite processes if run incorrectly.
+        USE AT YOUR OWN RISK!
     ignore_warnings : bool, optional
         If set to True, will silence the warning about a missing or disabled name
         guard (we are serious at it, be careful). Default is False.
@@ -393,7 +393,7 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
 
             # initialize pool of workers
             with mp.Pool(processes=ncpu) as pool:
-                
+
                 # Split out the data for each single slit and run the pool
                 args = [(wave_cube[:,jj:jj+1,:], inten_cube[:,jj:jj+1,:], errs_cube[:,jj:jj+1,:],
                         template_copy, parinfo_copy, min_points, jj+1, data_units)

@@ -10,12 +10,12 @@ def read_wininfo(filename):
 
     Parameters
     ----------
-    filename : str or pathlib.Path object
+    filename : str or `pathlib.Path` object
         Name of either the data or head HDF5 file for a single EIS observation
 
     Returns
     -------
-    wininfo : numpy recarray
+    wininfo : `numpy.recarray`
         A record array with the information for all spectral windows in the
         EIS observation
     """

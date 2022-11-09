@@ -4,6 +4,22 @@ from pathlib import Path
 import parfive
 
 def download_db(download_dir=None):
+    """Download the offical EIS as-run SQLite database
+
+    Parameters
+    ----------
+    download_dir : str or `pathlib.Path` object, optional
+        Local directory where the database should be saved. If there is already
+        an EIS as-run database in the target directory, it will be overwritten.
+        Defaults to the same directory as this function (e.g. ../eispac/download/).
+
+    Returns
+    -------
+    local_filepath : str
+        Full filepath to the downloaded database. If the download failed, for
+        any reason, the filename will end with .part (any exisiting database
+        will NOT be overwirtten with a partial or failed download).
+    """
 
     if download_dir is None:
         local_dir = Path(__file__).parent.absolute()

@@ -1,2 +1,2 @@
-from .search import search
-from .eis_find_templates import eis_find_templates
+from .run_eis_browse_templates import run_eis_browse_templates
+from .eistemplatelocator import EISTemplateLocator

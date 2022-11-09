@@ -8,12 +8,12 @@ def calc_read_noise(input_wave):
 
     Parameters
     ----------
-    input_wave : list, tuple, or numpy array
+    input_wave : float, list, tuple, or `~numpy.ndarray`
         Wavelength values to compute the read noise at
 
     Returns
     -------
-    read_noise_counts : numpy array
+    read_noise_counts : float or `~numpy.ndarray`
         read noise in units of [photon counts]. Will have the same dimensions as
         the input_wave array.
     """

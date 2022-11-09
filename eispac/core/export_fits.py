@@ -18,9 +18,9 @@ def export_fits(fit_result, save_dir=None, verbose=False):
 
     Parameters
     ----------
-    fit_result : EISFitResult object
+    fit_result : `~eispac.core.EISFitResult` object
         Fit parameter results from eispac.fit_spectra()
-    save_dir : str or pathlib.Path object, optional
+    save_dir : str or `pathlib.Path` object, optional
         Directory where the fit results should be saved. If set to None, the
         results will be saved in the same folder as the source data. If set to,
         'cwd', the results will be saved to the current working directory.
@@ -31,7 +31,7 @@ def export_fits(fit_result, save_dir=None, verbose=False):
 
     Returns
     -------
-    output_filepath : list of pathlib.Path objects
+    output_filepath : list of `pathlib.Path` objects
         Path object pointing to the output files. Each parameter is saved in a
         seperate file and, if there are more than one spectral lines fit, in the
         template, each line will be saved to its own set of files.
