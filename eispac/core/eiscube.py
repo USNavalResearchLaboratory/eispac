@@ -24,17 +24,18 @@ class EISCube(NDCube):
         The WCS object containing the axes' information, optional only if
         ``data`` is an `astropy.nddata.NDData` object.
 
-    uncertainty : any type, optional
-        Uncertainty in the dataset. Should have an attribute uncertainty_type
-        that defines what kind of uncertainty is stored, for example "std"
-        for standard deviation or "var" for variance. A metaclass defining
-        such an interface is NDUncertainty - but isn’t mandatory. If the uncertainty
-        has no such attribute the uncertainty is stored as UnknownUncertainty.
+    uncertainty : array_like, optional
+        Uncertainty in the dataset. Ideally, it should have an attribute
+        "uncertainty_type" that defines what kind of uncertainty is stored, for
+        example "std" for standard deviation or "var" for variance. A metaclass
+        defining such an interface is `~astropy.nddata.NDUncertainty`,
+        however it's use in not mandatory. If the uncertainty has no type
+        attribute, the uncertainty is stored as UnknownUncertainty.
         Defaults to None.
 
-    mask : any type, optional
-        Mask for the dataset. Masks should follow the numpy convention
-        that valid data points are marked by False and invalid ones with True.
+    mask : array_like, optional
+        Mask for the dataset. Masks should follow the numpy convention that
+        valid data points are marked by False and invalid ones with True.
         Defaults to None.
 
     meta : dict-like object, optional
@@ -51,12 +52,12 @@ class EISCube(NDCube):
         Note however that it is not always possible to save the input as reference.
         Default is False.
 
-    wavelength : array-like, optional
+    wavelength : `numpy.ndarray`, optional
         Numpy array with the corrected wavelength values for each location
         within the EIS raster. Must have the same dimensionality as the input
         data. If not given, will initialize the .wavelength property with
         an array of zeros.
-    radcal : array-like, optional
+    radcal : `numpy.ndarray`, optional
         Array of the radiometric calibration curve currently applied to the
         input data cube. Required if you wish to use the .apply_radcal() and
         .remove_radcal() methods
@@ -197,7 +198,7 @@ class EISCube(NDCube):
 
         Returns
         -------
-        output_cube : EISCube class instance
+        output_cube : `EISCube` class instance
             A new EISCube class instance containing the calibrated data
         """
         if input_radcal is None:
@@ -246,7 +247,7 @@ class EISCube(NDCube):
 
         Returns
         -------
-        output_cube : EISCube class instance
+        output_cube : `EISCube` class instance
             A new EISCube class instance containing the photon count data
         """
         if self.unit == u.photon:
@@ -278,21 +279,22 @@ class EISCube(NDCube):
 
         Parameters
         ----------
-        wave_range : list of ints, floats, or Quantity instances
+        wave_range : list of ints, floats, or `~astropy.units.Quantity`
             Wavelength range to sum over. Values can be input as either
             [min, max] or [center, half width]. Units can be specified using
             either Astropy units instances or by inputting a pair of ints or
             floats and then also using the "units" keyword. If wave_range is set
             to None, then entire spectra will be summed over. Default is None.
-        units : str or Quantity instance
+        units : str or `~astropy.units.Quantity`
             Units to be used for the wavelength range if wave_range is given a
             list of ints or floats. Will be ignored if either wave_range is None
             or is given a list with Astropy units. Default is 'Angstrom'.
 
         Returns
         -------
-        output_cube : NDCube class instance
-            A new NDCube class instance containing the summed data
+        output_cube : `NDCube` class instance
+            A new 2D `NDCube` class instance containing the summed data (NB: not
+            a full EISCube!)
         """
         if wave_range is None:
             # Sum over entire wavelength axis and return an NDCube
@@ -395,7 +397,7 @@ class EISCube(NDCube):
 
         Parameters
         ----------
-        width : list or single value of ints, floats, or Quantity instances
+        width : list or single value of ints, floats, or `~astropy.units.Quantity`
             Number of pixels or angular distance to smooth over. If given a
             single value, only the y-axis will be smoothed. Floats and angular
             distances will be converted to the nearest whole pixel value.
@@ -407,7 +409,7 @@ class EISCube(NDCube):
 
         Returns
         -------
-        output_cube : EISCube class instance
+        output_cube : `EISCube` class instance
             A new EISCube class instance containing the smoothed data
         """
         # Validate input width

@@ -71,7 +71,7 @@ def read_fit(filename, verbose=False):
 
     Parameters
     ----------
-    filename : str or pathlib.Path object
+    filename : str or `pathlib.Path` object
         String or path to the fit result file that should be loaded.
     verbose : bool, optional
         If set to True, will print the name of each data variable read in.
@@ -79,7 +79,7 @@ def read_fit(filename, verbose=False):
 
     Returns
     -------
-    fit_result : EISFitResult object
+    fit_result : `~eispac.core.EISFitResult` object
         Copy of the fit results loaded from the file.
     """
 

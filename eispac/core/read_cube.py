@@ -19,7 +19,7 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
 
     Parameters
     ----------
-    filename : str or pathlib.Path object
+    filename : str or `pathlib.Path` object
         Name of either the data or head HDF5 file for a single EIS observation
     window : int, float, or str, optional
         Requested spectral window number or the value of any wavelength within
@@ -47,8 +47,8 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
 
     Returns
     -------
-    output_cube : EISCube class instance
-        An EISCube class instance containing the requested window
+    output_cube : `~eispac.core.EISCube` class instance
+        An EISCube class instance containing the requested spectral data window
     """
     ############################################################################
     ### Read data and header information from hdf5 files

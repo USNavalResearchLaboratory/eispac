@@ -15,11 +15,11 @@ def match_templates(eis_obs):
 
     Parameters
     ----------
-    eis_obs : EISCube object or filepath
+    eis_obs : `~eispac.core.EISCube` object, str, or `pathlib.Path`
         EIS data to use for searching. If given an EISCube, will only find
         templates that match the selected spectral window. If given the filepath
-        to EIS level-1 HDF5 file, will find all templates that match each window
-        in the observation.
+        to an EIS level-1 HDF5 file, will find all templates that match each
+        window in the observation.
 
     Returns
     -------

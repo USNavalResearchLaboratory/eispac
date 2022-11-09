@@ -7,16 +7,19 @@ import numpy as np
 import h5py
 from eispac.core.eisfitresult import EISFitResult
 
-# try:
-#     # Import local versions of submodules
-#     from eisfitresult import EISFitResult
-#     print('Notice: Loading local version of eispac submodules')
-# except:
-#     # Import from installed package
-#     from eispac.eisfitresult import EISFitResult
+def lineid_to_name(lineid):
+    """Convert line IDs to filesystem-friendly strings
 
-# function to convert line ids to string name
-def lineid_to_name(lineid, component=None):
+    Parameters
+    ----------
+    lineid : str
+        Line ID string (e.g. Fe XII 195.119)
+
+    Returns
+    -------
+    name : str
+        Line name as a strong suitable for filenames (e.g. fe_12_195_119)
+    """
 
     # Decode byte strings (if needed)
     if not isinstance(lineid, str):
@@ -44,7 +47,7 @@ def lineid_to_name(lineid, component=None):
     wave2_s = str(wave[1])
     if len(wave2_s) == 2: wave2_s += '0'
     name = element+'_'+numbr_s+'_'+wave1_s+'_'+wave2_s
-    # if component is not None: name += '_c'+str(component)
+
     return name
 
 def walk_and_save(hdf5_group, data_obj, data_key, print_str, verbose=False):

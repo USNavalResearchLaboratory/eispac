@@ -9,7 +9,7 @@ from PyQt5 import Qt, QtCore, QtGui, QtWidgets
 from PyQt5.QtGui import QIcon, QPixmap, QImage
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
-from eispac.templates import eis_find_templates
+from eispac.templates import EISTemplateLocator
 
 class Top(QWidget):
 
@@ -156,7 +156,7 @@ class Top(QWidget):
                                                       filter='*.head.h5',
                                                       options=options)
         if os.path.isfile(eis_filename):
-            self.eis = eis_find_templates(eis_filename, ignore_local=True)
+            self.eis = EISTemplateLocator(eis_filename, ignore_local=True)
             self.setup_list()
             self.setup_file_label()
             self.set_blank_image()
@@ -219,7 +219,7 @@ def eis_browse_templates():
         eis_filename = None
 
     # create the object that actually finds the templates
-    eis = eis_find_templates(eis_filename, ignore_local=True)
+    eis = EISTemplateLocator(eis_filename, ignore_local=True)
 
     app = QApplication(sys.argv)
     ex = Top(eis)

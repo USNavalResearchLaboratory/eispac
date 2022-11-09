@@ -20,18 +20,18 @@ class EISFitResult:
     Parameters
     ----------
     wave : array_like
-        Wavelength values of the data being fit. Used mostly to
+        Wavelength values of the data being fit. Used only to
         determine the correct dimensions for the output arrays.
     template : dict
-        Fit template parameters and metadata contained in the 'template' attribute
-        of an EISFitTemplate object.
+        Fit template parameters and metadata contained in the "template"
+        attribute of an `~eispac.core.EISFitTemplate` object.
     parinfo : dict
         Fit parameter initial values and constraints in the format expectd by
         mpfit. Normally found in the 'parinfo' attribute of an EISFitTemplate object
     func_name : str, optional
         String name of function that will be fit to the data. Must be one of the
-        functions defined in the eispac.fitting_functions submodule. Default is
-        'multigaussian'.
+        functions defined in the `~eispac.core.fitting_functions` submodule.
+        Default is "multigaussian".
 
     Attributes
     ----------
@@ -120,6 +120,7 @@ class EISFitResult:
 
     @property
     def radcal(self):
+        """Current radiometric calibration curve"""
         return self._current_radcal
 
     @radcal.setter
@@ -206,7 +207,7 @@ class EISFitResult:
         param_name : str, optional
             String name of the requested parameter. If set to None, will not
             filter based on paramater name. Default is None
-        coords : list or tupple, optional
+        coords : list or tuple, optional
             Array (Y, X) coordinates of the requested datapoint. If set to None,
             will instead return the parameters at all locations. Default is None
         casefold : bool, optional
@@ -215,9 +216,9 @@ class EISFitResult:
 
         Returns
         -------
-        param_vals : numpy array
+        param_vals : `numpy.ndarray`
             Parameter values
-        param_errs : numpy array
+        param_errs : `numpy.ndarray`
             Estimated parameter errors
         """
         # Validate input values
@@ -269,7 +270,7 @@ class EISFitResult:
             Integer number (or list of ints) of the functional component(s).
             If set to None, will return the total combined fit profile.
             Default is None.
-        coords : list or tupple, optional
+        coords : list or tuple, optional
             Array (Y, X) coordinates of the requested datapoint. If set to None,
             will instead return the profile at all locations. Default is None
         num_wavelengths : int, optional
@@ -287,9 +288,9 @@ class EISFitResult:
 
         Returns
         -------
-        fit_wave : numpy array
+        fit_wave : `numpy.ndarray`
             Wavelength values
-        fit_inten : numpy array
+        fit_inten : `numpy.ndarray`
             Fit intensity values
         """
         # Validate input values
@@ -404,9 +405,9 @@ class EISFitResult:
 
         Returns
         -------
-        velocity : array
+        velocity : `numpy.ndarray`
             Array of calculated Doppler velocities
-        rel_error : array
+        rel_error : `numpy.ndarray`
             Array of relative error values for the velocities
         """
         # Validate input values
@@ -448,7 +449,7 @@ class EISFitResult:
 
         Returns
         -------
-        output_map : EISMap class instance
+        output_map : `~eispac.core.EISMap` class instance
             EISMap of the requested measurement.
         """
         # Validate input values
@@ -517,7 +518,7 @@ class EISFitResult:
 
         Returns
         -------
-        output_fit : EISFitResult class instance
+        output_fit : `EISFitResult` class instance
             A new EISFitResult class instance containing the calibrated params
         """
         if input_radcal is None:
@@ -590,8 +591,8 @@ class EISFitResult:
 
         Returns
         -------
-        output_cube : EISCube class instance
-            A new EISCube class instance containing the photon count data
+        output_cube : `EISFitResult` class instance
+            A new EISFitResult class instance containing the photon count data
         """
         if self.data_units in ['ph', 'photon']:
             print('Error: Data is already in units of photon counts.'
@@ -640,7 +641,20 @@ class EISFitResult:
         return output_res
 
     def rot_fov(self, end_time):
-        """ Return pointing information for the raster rotated to the input time.
+        """Return pointing information for the raster rotated to the input time.
+
+        Parameters
+        ----------
+        end_time : any time format that can be parsed by `~sunpy.time.parse_time`
+            Time at which the rotated EIS pointing is desired. Usually should
+            be after the first observation in the EIS raster.
+
+        Returns
+        -------
+        fov : dict
+            Dictionary with the estimated EIS raster center coords and FOV.
+            This is calculated using the SunPy function
+            `~sunpy.physics.differential_rotation.solar_rotate_coordinate`
         """
         if self.meta is None or 'pointing' not in self.meta.keys():
             print("Error: missing pointing information.")
@@ -655,6 +669,24 @@ class EISFitResult:
 
     def plot_fov(self, end_time, color='red', lw=1, ls='-'):
         """ Return a patch of the raster FOV for plotting on an image.
+
+        Parameters
+        ----------
+        end_time : any time format that can be parsed by `~sunpy.time.parse_time`
+            Time at which the rotated EIS pointing is desired. Usually should
+            be after the first observation in the EIS raster.
+        color : str, optional
+            Color of the output rectangle. Default is "red".
+        lw : int, optional
+            Linewidth of the output rectangle. Default is 1.
+        ls : str, optional
+            Line style of the output rectangle. Default is "-" (solid line).
+
+        Returns
+        -------
+        rect : `~matplotlib.patches.Rectangle`
+            Matplotlib Rectangle patch. Useful for plotting the EIS FOV on
+            a context image taken with a different instrument.
         """
         fov = self.rot_fov(end_time)
         x1 = fov['xcen'] - fov['fovx']/2
@@ -664,7 +696,7 @@ class EISFitResult:
         return rect
 
     def get_aspect_ratio(self):
-        """ Return the data aspect Ratio
+        """Return the data aspect ratio (y-scale/x-scale) as a float
         """
         # NB: Aspect_ratio is given as y_scale/x_scale (NB: y_scale is 1 arcsec)
         if self.meta is None or 'aspect_ratio' not in self.meta.keys():
@@ -673,7 +705,7 @@ class EISFitResult:
         return self.meta['aspect_ratio']
 
     def shift2wave(self, array, wave=195.119):
-        """ Shift an array from this fit to the desired wavelength
+        """Shift an array from this fit to the desired wavelength
         """
         this_wave = self.fit['wave_range'].mean()
         disp = np.zeros(len(array.shape))
@@ -692,10 +724,13 @@ def create_fit_dict(n_pxls, n_steps, n_wave, n_gauss, n_poly, data_units='unknow
         Number of steps in the raster or sit-and-stare observation set
     n_wave : int
         number of wavelength points
-    n_gauss :
+    n_gauss : int
         Number of Gaussian functions in the combinted fit profile
-    n_poly :
+    n_poly : int
         Degree of background polynomial
+    data_units : str, optional
+        String name of the data units (e.g. "counts", "erg / (cm2 s sr)", etc.)
+        Default is "unknown"
 
     Returns
     -------

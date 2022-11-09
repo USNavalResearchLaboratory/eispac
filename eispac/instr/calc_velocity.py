@@ -9,7 +9,7 @@ def calc_velocity(observed_wave, rest_wave, corr_method='column'):
 
     Parameters
     ----------
-    observed_wave : list, tuple, or numpy array
+    observed_wave : list, tuple, or `~numpy.ndarray`
         Observed centroid wavelength values for a given spectral line in units
         of [Angstrom]
     rest_wave : float or str
@@ -22,7 +22,7 @@ def calc_velocity(observed_wave, rest_wave, corr_method='column'):
 
     Returns
     -------
-    velocity : numpy array
+    velocity : `~numpy.ndarray`
         Doppler velocity in units of [km/s]. Computed using the equation,
             vel = c*(obs_wave - rest_wave)/rest_wave
     """

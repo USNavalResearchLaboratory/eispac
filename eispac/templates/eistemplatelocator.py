@@ -8,8 +8,32 @@ import pathlib
 import eispac
 from eispac.core.read_wininfo import read_wininfo as eis_read_wininfo
 
-class eis_find_templates:
-    def __init__(self, filename_head=None, verbose=False, ignore_local=False):
+class EISTemplateLocator:
+    """Helper class used by the "eis_browse_templates" GUI
+
+    Finds fit templates matching all data windows in a given EIS observation
+    and generates lists of the filepaths. Not intended for direct use.
+    For a more user-friendly function with similar capabilities, see
+    `~eispac.core.match_templates`
+
+    Parameters
+    ----------
+    filename_head : str, optional
+        Filepath to a EIS Level-1 HDF5 file. Both data and header filepaths are
+        accepted.
+
+    verbose :bool, optional
+        If set to True, will automatically print a list of all found templates.
+        Default is False.
+
+    ignore_local : bool, optional
+        If set to True, will look for templates in either SSW or those
+        distributed with EISPAC. If set to False, will instead ONLY look for
+        templates in a local directory named either "eis_template_dir" or
+        "eis_fit_templates". Default is True.
+    """
+
+    def __init__(self, filename_head=None, verbose=False, ignore_local=True):
         self.filename_head = None
         self.template_list = None
         self.n_template_files = 0
@@ -30,17 +54,18 @@ class eis_find_templates:
                 self.print_text_list()
 
     def parse_input_filename(self, input_filename):
+        """Read an EIS level-1 filename and determine the header filepath"""
         path = os.path.dirname(input_filename)
         base = os.path.basename(input_filename).replace('.data.h5','.head.h5')
         return os.path.join(path, base)
 
     def find_templates(self):
-        # find the templates
+        """Find all fit template files available"""
         if os.path.isdir('eis_template_dir') and (not self.ignore_local):
             # look for local templates (old default, before 2021-10-14)
             self.EIS_TEMPLATE_DIR = 'eis_template_dir'
         elif os.path.isdir('eis_fit_templates') and (not self.ignore_local):
-            # look for local templates (current default, after 2021-1014)
+            # look for local templates (current default, after 2021-10-14)
             self.EIS_TEMPLATE_DIR = 'eis_fit_templates'
         elif os.getenv('EIS_TEMPLATE_DIR') is not None:
             # look for an environment variable
@@ -63,7 +88,7 @@ class eis_find_templates:
             print(' ! no template files found')
 
     def read_wininfo(self):
-        # read the window information from the file
+        """"Read the window information from the header file"""
         if os.path.isfile(self.filename_head):
             self.wininfo = eis_read_wininfo(self.filename_head)
             for iwin in range(len(self.wininfo)):
@@ -75,7 +100,7 @@ class eis_find_templates:
             print(' ! EIS head file not read')
 
     def match_templates(self):
-        # match windows and templates
+        """Match each observation window and with all relevant fit templates"""
         if (self.n_template_files == 0) or (self.wininfo is None):
             return
 
@@ -94,6 +119,7 @@ class eis_find_templates:
         self.template_list = template_list
 
     def make_text_list(self):
+        """Generate a text list of all templates found"""
         if (self.n_template_files == 0) or (self.wininfo is None):
             return
 
@@ -106,5 +132,6 @@ class eis_find_templates:
         self.text_list = txt
 
     def print_text_list(self):
+        """Print the list of found templates"""
         for t in self.text_list:
             print(t)
