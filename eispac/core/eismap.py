@@ -7,8 +7,8 @@ import numpy as np
 import astropy.units as u
 from astropy.visualization import ImageNormalize, AsinhStretch, LinearStretch
 import sunpy.map
+from sunpy.map.mapbase import SpatialPair
 from sunpy.time import parse_time
-
 
 __all__ = ['EISMap']
 
@@ -23,7 +23,7 @@ class EISMap(sunpy.map.GenericMap):
     contributions from ESA and Norway. Hinode was launched on September 22, 2006
     at 21:36 UTC from the Uchinoura Space Center in Japan and continues to
     operate. EIS observes two wavelength ranges in the extreme ultraviolet,
-    171—212Å and 245—291Å with a spectral resolution of about 22mÅ and a plate
+    171—212 Å and 245—291 Å with a spectral resolution of about 22 mÅ and a plate
     scale of 100 per pixel.
 
     This data structure is designed to hold the fit parameters derived from multi-gaussian
@@ -61,29 +61,10 @@ class EISMap(sunpy.map.GenericMap):
 
         super().__init__(data, header, **kwargs)
 
-        # Validate important keywords and add them in, if missing
-        self.meta['ctype1'] = self.meta.get('ctype1', 'HPLN-TAN')
-        self.meta['ctype2'] = self.meta.get('ctype2', 'HPLT-TAN')
-        self.meta['cunit1'] = self.meta.get('cunit1', 'arcsec')
-        self.meta['cunit2'] = self.meta.get('cunit2', 'arcsec')
-        self.meta['waveunit'] = self.meta.get('waveunit', 'angstrom')
-        self.meta['date-beg'] = self.meta.get('date_beg', self.meta.get('date_obs'))
-        self.meta['date-end'] = self.meta.get('date_end')
-        self.meta['date-obs'] = self.meta.get('date_obs')
-        self.meta['date-avg'] = self.meta.get('date_avg')
-        # NOTE: this block can be removed once sunpy>=3.1 is only supported as
-        # the .date_average property will always be constructed in this way if
-        # date_start and date_end are present
-        if self.meta['date-avg'] is None:
-            if self.meta['date-beg'] is not None and self.meta['date-end'] is not None:
-                timesys = self.meta.get('timesys', 'UTC').lower()
-                start = parse_time(self.meta['date-beg'], scale=timesys)
-                end = parse_time(self.meta['date-end'], scale=timesys)
-                self.meta['date-avg'] = (start + (end - start)/2).isot
-
         # Setup plot settings
         self.plot_settings['aspect'] = self.meta['cdelt2'] / self.meta['cdelt1']
-        # self.plot_settings['interpolation'] = 'kaiser' # KEEP FOR REFERENCE
+        # Adjust colormap and normalization depending on whether the map contains
+        # intensity, velocity, or line width data
         if self.meta['measrmnt'].lower().startswith('int'):
             self.plot_settings['cmap'] = 'Blues_r'
             self.plot_settings['norm'] = ImageNormalize(stretch=AsinhStretch())
@@ -95,6 +76,68 @@ class EISMap(sunpy.map.GenericMap):
         elif self.meta['measrmnt'].lower().startswith('wid'):
             self.plot_settings['cmap'] = 'viridis'
 
+    @property
+    def spatial_units(self):
+        units = self.meta.get('cunit1', 'arcsec'), self.meta.get('cunit2', 'arcsec')
+        return SpatialPair(u.Unit(units[0]), u.Unit(units[1]))
+
+    @property
+    def processing_level(self):
+        return self.meta.get('lvl_num', 3)
+
+    @property
+    def waveunit(self):
+        return u.Unit(self.meta.get('waveunit', 'angstrom'))
+
+    @property
+    def wavelength(self):
+        line_id = self.meta.get('line_id')
+        if line_id is not None:
+            wave = float(line_id.split()[-1])
+            return u.Quantity(wave, self.waveunit)
+
+    @property
+    def measurement(self):
+        return self.meta.get('measrmnt', '')
+
+    @property
+    def observatory(self):
+        return 'Hinode'
+
+    @property
+    def nickname(self):
+        line_id = self.meta.get('line_id', '')
+        return f'{self.observatory} {self.instrument} {line_id}'
+
+    @property
+    def date_start(self):
+        # Try default key DATE-BEG. This is to future proof against
+        # switching to DATE-BEG when constructing the L1 headers
+        # NOTE: the DATE_OBS key is the beginning of the observation
+        # so we can use this in case DATE_BEG is missing
+        date_beg = self._get_date('date_beg') or super().date_start
+        date_beg = date_beg or self._date_obs
+        return date_beg
+
+    @property
+    def date_end(self):
+        # Try default key DATE-END. This is to future proof against
+        # switching to DATE-END when constructing the L1 headers
+        return self._get_date('date_end') or super().date_end
+
+    @property
+    def date_average(self):
+        return self._get_date('date_avg') or super().date_average
+
+    @property
+    def date(self):
+        # NOTE: we override this property to prioritize date_average 
+        # over DATE-OBS (or DATE_OBS). In GenericMap, this is reversed.
+        # We do this because we want to make sure we are constructing our 
+        # coordinate frames from DATE_AVG (the midpoint of the raster) and 
+        # not DATE-OBS which is the beginning of the raster.
+        return self.date_average or super().date
+
     @classmethod
     def is_datasource_for(cls, data, header, **kwargs):
         """
@@ -102,38 +145,3 @@ class EISMap(sunpy.map.GenericMap):
         EISMap with the sunpy.map.Map factory.
         """
         return str(header.get('instrume', '')).startswith('EIS')
-
-    @property
-    def observatory(self):
-        return 'Hinode'
-
-    @property
-    def measurement(self):
-        line_id = self.meta.get('line_id', '')
-        quantity = self.meta.get('measrmnt', '')
-        return  f'{line_id} {quantity}'
-
-    @property
-    def wavelength(self):
-        line_id = self.meta.get('line_id')
-        if line_id is not None:
-            wave = float(line_id.split()[-1])
-            return u.Quantity(wave, self.meta['waveunit'])
-
-    @property
-    def date(self):
-        # Want to make sure we are constructing our coordinate frames
-        # from DATE_AVG and not the DATE-OBS which is the beginning of
-        # the observation
-        # In sunpy 3.1, this may not be needed as we could just remove
-        # date-obs and then .date will default to .date_average
-        t = self.meta.get('date-avg')
-        timesys = self.meta.get('timesys', 'UTC')
-        if t is None:
-            return super().date
-        else:
-            return parse_time(t, scale=timesys.lower())
-
-    @property
-    def processing_level(self):
-        return self.meta.get('lvl_num', 3)

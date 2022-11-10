@@ -13,9 +13,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        - python-version: 3.7
         - python-version: 3.8
         - python-version: 3.9
+        - python-version: '3.10'
     steps:
       - name: Checkout
         uses: actions/checkout@v2.3.1
