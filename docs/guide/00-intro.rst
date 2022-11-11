@@ -50,7 +50,7 @@ automatically check and install missing dependencies, assuming your
 environment is configured appropriately. If it does not, you may wish to
 try installing the required packages individually first.
 
--  python >= 3.7
+-  python >= 3.8
 
 -  numpy >= 1.18
 
@@ -60,9 +60,9 @@ try installing the required packages individually first.
 
 -  h5py >= 2.9
 
--  astropy >= 3.1
+-  astropy >= 4.2.1
 
--  sunpy >= 2.1
+-  sunpy >= 4.0
 
 -  ndcube >= 2.0
 
@@ -72,28 +72,51 @@ try installing the required packages individually first.
 
 -  python-dateutil >= 2.8
 
-Installation
-------------
+Standard Installation
+---------------------
 
-The current release of EISPAC is not yet available on the usual Python
-web repositories (PyPi or Conda). As such, the installation process is a
-little bit more involved than other packages.
+EISPAC is now available on PyPI. To install, just use the following command,
 
-#. Download the entire ``eispac`` repository and extract it to
-   a convenient directory on your computer (it does not matter where).
+::
 
-#. Open a terminal and navigate to the directory chosen above
+   >>> python -m pip install eispac
 
-#. Run the install script using your preferred package manager,
+To upgrade the package, please use:
 
-   #. **PIP**: type ``python -m pip install .``
+::
 
-   #. **conda**: The conda install script is currently a work-in-progress
-      For now, please use update your dependencies with conda, then
-      install EISPAC using PIP
+   >>> python -m pip install --upgrade eispac
 
-If you later wish to update EISPAC you will need to repeat steps 1 & 2
-above and then issue the command ``python -m pip install --upgrade .``
+pip should automatically install all package dependencies. If it does not, please
+see the list of required packages above. Note: if you are using conda to manage your
+Python packages, you may wish to install or update the dependencies manually first,
+before installing eispac using pip (this is by no means required, but it can help
+simplify updating packages).
+
+Manual Installation
+-------------------
+
+1.  Download or clone "eispac" to a convenient location on your computer (it does not matter where).
+
+::
+
+   >>> git clone https://github.com/USNavalResearchLaboratory/eispac.git
+
+2.  Open a terminal and navigate to the directory
+3.  To install:
+
+::
+
+   >>> python -m pip install .
+
+4.  To upgrade:
+
+::
+   >>> python -m pip install --upgrade .
+
+
+The package should then be installed to the correct location for your current Python
+environment. You can now import the package using `import eispac`.
 
 Now, you should be all set to do some science!
 
