@@ -65,13 +65,13 @@ environment. You can now import the package using `import eispac`.
 
 ### Required Packages
 
-* python >= 3.7
+* python >= 3.8
 * numpy >= 1.18
 * scipy >= 1.4
 * matplotlib >= 3.1
 * h5py >= 2.9
-* astropy >= 3.1
-* sunpy >= 2.1
+* astropy >= 4.2.11
+* sunpy >= 4.0
 * ndcube >= 2.0.0
 * parfive >= 1.5
 * python-dateutil>=2.8

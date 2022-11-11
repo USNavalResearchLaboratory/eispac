@@ -1,4 +1,4 @@
-__version__ = '0.93.4'
+__version__ = '0.94.0'
 
 from . import download
 from . import templates
