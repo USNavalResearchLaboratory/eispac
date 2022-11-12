@@ -25,14 +25,14 @@ class EISClient(GenericClient):
     ...                       a.Source('Hinode'),
     ...                       a.Provider('NRL'),
     ...                       a.Level('1'))  #doctest: +REMOTE_DATA
-    >>> results  #doctest: +REMOTE_DATA
+    >>> results  #doctest: +SKIP
     <sunpy.net.fido_factory.UnifiedResponse object at ...>
     Results from 1 Provider:
     <BLANKLINE>
     3 Results from the EISClient:
     Source: https://eis.nrl.navy.mil/
     <BLANKLINE>
-           Start Time               End Time        ... Level   FileType 
+           Start Time               End Time        ... Level   FileType
     ----------------------- ----------------------- ... ----- -----------
     2020-11-09 00:10:12.000 2020-11-09 00:10:12.999 ...     1   HDF5 data
     2020-11-09 00:10:12.000 2020-11-09 00:10:12.999 ...     1 HDF5 header
@@ -46,14 +46,14 @@ class EISClient(GenericClient):
     ...                       a.Provider('NRL'),
     ...                       a.Level('1'),
     ...                       FileType('HDF5 header'))  #doctest: +REMOTE_DATA
-    >>> results  #doctest: +REMOTE_DATA
+    >>> results  #doctest: +SKIP
     <sunpy.net.fido_factory.UnifiedResponse object at ...>
     Results from 1 Provider:
     <BLANKLINE>
     1 Results from the EISClient:
     Source: https://eis.nrl.navy.mil/
     <BLANKLINE>
-           Start Time               End Time        ... Level   FileType 
+           Start Time               End Time        ... Level   FileType
     ----------------------- ----------------------- ... ----- -----------
     2020-11-09 00:10:12.000 2020-11-09 00:10:12.999 ...     1 HDF5 header
     <BLANKLINE>
@@ -63,7 +63,7 @@ class EISClient(GenericClient):
     pattern_hdf5 = '{}/{year:4d}/{month:2d}/{day:2d}/eis_{:8d}_{hour:2d}{minute:2d}{second:2d}.{FileType}'
     baseurl_fits = r'https://eis.nrl.navy.mil/level1/fits/%Y/%m/%d/eis_er_%Y%m%d_%H%M%S.fits'
     pattern_fits = '{}/{year:4d}/{month:2d}/{day:2d}/eis_er_{:8d}_{hour:2d}{minute:2d}{second:2d}.{FileType}'
-    
+
     @property
     def info_url(self):
         return 'https://eis.nrl.navy.mil/'
@@ -102,7 +102,7 @@ class EISClient(GenericClient):
         rd = super().post_search_hook(i, matchdict)
         rd['FileType'] = filetype_mapping[rd['FileType']]
         return rd
-    
+
     @classmethod
     def register_values(cls):
         return {
