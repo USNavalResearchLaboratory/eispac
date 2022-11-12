@@ -110,11 +110,10 @@ There are currently three core directories:
 
 2. **docs**: Source reStructuredText files used to build the online documentation
 
-The `QUICK_GUIDE.md` text document also give a very brief overview of some key functions.
 It should also be noted that `mpfit.py` was written by Mark Rivers and Sergey Kopsov and
-is direct Python port of the `mpfit.pro` IDL procedure written by Craig Markwardt. As such,
+is a direct Python port of the `mpfit.pro` IDL procedure written by Craig Markwardt. As such,
 much of the documentation online for the IDL version of the code is still applicable to the
-Python version (please see the Python doc for more information).
+Python version (see also the [mpfit](https://eispac.readthedocs.io/en/latest/guide/07-mpfit_docs.html) section of our docs for more information).
 
 ## TODO list
 Here, in no particular order, is a list of some things that may be added in future releases.
