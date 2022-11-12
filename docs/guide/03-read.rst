@@ -4,23 +4,6 @@ Exploring EIS data
 Once installed, EISPAC can be imported into any Python script or
 interactive session with a simple ``import eispac`` statement.
 
-.. _sec-download:
-
-Downloading EIS Data
---------------------
-
-The easiest way to search for and download the processed HDF5 files is to
-use the  ``eis_catalog`` GUI tool included with EISPAC. This tool provides
-an easy interface to the official EIS as-run database (see the
-:ref:`sec-catalog` section for details). Alternatively, you can browse and
-download files directly from the archive via your web browser or use the
-`~eispac.download.download_hdf5_data()` function (assuming you know the
-exact name of the file you want).
-
-**Coming** **Soon**: a handy client for Sunpy's Fido data interface will be
-added to EISPAC very soon. Initially, this client will be limited to
-time-based searches only.
-
 .. _sec-read:
 
 Reading Data into Python
@@ -179,6 +162,17 @@ explore the contents with the usual Python commands,
           7.959224 , 7.9542727, 7.949487 , 7.9448686, 7.9404206, 7.9361415],
          dtype=float32)
 
+
+.. sidebar:: Assorted metadata
+
+   For completeness and transparency, we have bundled all of the commonly used
+   instrumental and processing metadata provided in IDL. EISPAC attempts to
+   correct for most instrumental effects, so you will not need to
+   reference the ``ccd_offset`` or ``wave_corr_tilt``, for example, but that
+   information is there if you want it. As a reminder, the ``slit_width`` array
+   gives the empirically-determined instrumental broadening along the EIS slit,
+   and not the physical width of the slit itself.
+
 Here ``x_scale`` is the number of arcsec between step positions in the raster.
 Most EIS rasters take more than 1 arcsec per step, which degrades the spatial
 resolution but increases the cadence. The variable ``radcal`` is the
@@ -193,14 +187,14 @@ corrections. Additionally, the ``mod_index`` values are updated by EISPAC
 whenever the `~eispac.core.EISCube` is sliced while the original index is
 not updated.
 
-wininfo
--------
+Spectral Windows
+----------------
 
 We usually don’t care about the numbering of the data windows. It’s more
 natural to want to read the data corresponding to a particular
 wavelength. The `~eispac.core.read_wininfo` function can be used help
 identify the spectral contents of each data window. The function takes
-an input header file and returns a record array containing the window
+an input header file and returns a `numpy.recarray` containing the window
 numbers, min and max wavelengths and primary spectral line for each data
 window. Note: for your convenience, a copy of the ``wininfo`` array is
 also stored in the ``EISCube.meta`` dictionary.
@@ -209,7 +203,7 @@ also stored in the ``EISCube.meta`` dictionary.
 
    >>> import eispac
    >>> header_filename = 'eis_20190404_131513.head.h5'
-   >>> wininfo = eispac.read_wininfo(header_filename, 195.12)
+   >>> wininfo = eispac.read_wininfo(header_filename)
    >>> wininfo.dtype.names
    ('iwin', 'line_id', 'wvl_min', 'wvl_max', 'nl', 'xs')
    >>> wininfo[0:4]
@@ -225,9 +219,9 @@ also stored in the ``EISCube.meta`` dictionary.
 
 We can then use a `numpy.where` call on the ``wininfo`` array to map
 wavelength to window number. Users familiar with IDL may be interested
-to note that numpy record arrays can be accessed similarly to an IDL
-array of structures (e.g. instead of ``wininfo['wvl_min']`` below, you
-could also use ``wininfo.wvl_min``).
+to note that numpy record arrays can be accessed like an IDL array of
+structures (e.g. instead of ``wininfo['wvl_min']`` below, you could also use
+``wininfo.wvl_min``).
 
 .. code:: python
 

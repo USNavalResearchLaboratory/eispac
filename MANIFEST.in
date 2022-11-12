@@ -1,7 +1,6 @@
 include README.md
 include LICENSE.txt
-include QUICK_GUIDE.md
-include QUICK_GUIDE-cli.md
+include MPFIT-LICENSE.txt
 
 
 recursive-include convert *

@@ -24,101 +24,50 @@ Subcomponents of EISPAC
 
 There are three main subcomponents of EISPAC,
 
-# An archive of Level-1 data files. These files are saved in the HDF5 file
-  format and come in pairs of header and data files. The archive is updated
-  regularly and can be found at https://eis.nrl.navy.mil/
+1. **An archive of Level-1 data files**
 
-# A set of GUI and command line tools. Can be used to quickly search and
-  and download EIS data, view available fit templates, and batch process
-  multiple files at once using parallel processing.
+   These files are saved in the HDF5 file format and come in pairs of header
+   and data files. The archive is updated regularly and can be found at
+   https://eis.nrl.navy.mil/
 
-# The Python package itself. Provides classes and functions that can read the
-  Level-1 HDF5 files, perform all of the necessary calibration and pointing
-  adjustments, and create user-friendly Python objects that can be manipulated
-  as needed. Also included are functions for fitting the intensity profiles
-  with multi-Gaussian functions using template files and a Python port of
-  the venerable ``MPFIT`` library [#]_. Installing the Python package also
-  automatically installs and registers the GUI and command line tools with
-  your Python environment.
+2. **A set of GUI and command line tools**
 
-Requirements
-------------
+   Can be used to quickly search and and download EIS data, view available fit
+   templates, and batch process multiple files at once using parallel processing.
 
-EISPAC depends on a number of Python packages that are commonly used in
-scientific and solar research. Normally, the installation process should
-automatically check and install missing dependencies, assuming your
-environment is configured appropriately. If it does not, you may wish to
-try installing the required packages individually first.
+3. **The Python package itself**
 
--  python >= 3.8
-
--  numpy >= 1.18
-
--  scipy >= 1.4
-
--  matplotlib >= 3.1
-
--  h5py >= 2.9
-
--  astropy >= 4.2.1
-
--  sunpy >= 4.0
-
--  ndcube >= 2.0
-
--  pyqt >= 5.9
-
--  parfive >= 1.5
-
--  python-dateutil >= 2.8
-
-Standard Installation
----------------------
-
-EISPAC is now available on PyPI. To install, just use the following command,
-
-::
-
-   >>> python -m pip install eispac
-
-To upgrade the package, please use:
-
-::
-
-   >>> python -m pip install --upgrade eispac
-
-pip should automatically install all package dependencies. If it does not, please
-see the list of required packages above. Note: if you are using conda to manage your
-Python packages, you may wish to install or update the dependencies manually first,
-before installing eispac using pip (this is by no means required, but it can help
-simplify updating packages).
-
-Manual Installation
--------------------
-
-1.  Download or clone "eispac" to a convenient location on your computer (it does not matter where).
-
-::
-
-   >>> git clone https://github.com/USNavalResearchLaboratory/eispac.git
-
-2.  Open a terminal and navigate to the directory
-3.  To install:
-
-::
-
-   >>> python -m pip install .
-
-4.  To upgrade:
-
-::
-   >>> python -m pip install --upgrade .
+   Provides classes and functions that can read the Level-1 HDF5 files, perform
+   all of the necessary calibration and pointing adjustments, and create
+   user-friendly Python objects that can be manipulated as needed. Also included
+   are functions for fitting the intensity profiles with multi-Gaussian functions
+   using template files and a Python port of the venerable ``MPFIT`` library [#]_.
+   Installing the Python package also automatically installs and registers the
+   GUI and command line tools with your Python environment.
 
 
-The package should then be installed to the correct location for your current Python
-environment. You can now import the package using `import eispac`.
+Simple Example
+--------------
+Reading and fitting EIS data requires minimal time and effort. Below is a basic,
+but complete, example:
 
-Now, you should be all set to do some science!
+.. code:: python
+
+   import eispac
+
+   if __name__ == '__main__':
+       # input data and template files
+       data_filepath = './eis_20190404_131513.data.h5'
+       template_filepath = './fe_12_195_119.2c.template.h5'
+
+       # read fit template
+       tmplt = eispac.read_template(template_filepath)
+
+       # Read spectral window into an EISCube
+       data_cube = eispac.read_cube(data_filepath, tmplt.central_wave)
+
+       # Fit the data using parallel processing
+       fit_res = eispac.fit_spectra(data_cube, tmplt, ncpu='max')
 
 .. rubric:: Citations
 

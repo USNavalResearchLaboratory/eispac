@@ -160,11 +160,14 @@ values ``.template['n_gauss']`` and ``.template['n_poly']`` indicate,
 respectively, the number of Gaussian functions and background polynomial
 terms in a given template.
 
+.. Note:: The multigaussian function is composed of generalized Gaussian functions
+   of the form :math:`f(x) = A exp(-(x-b)^2/2c^2)`, where A is the amplitude (peak value),
+   b is the position of the center of the peak (centroid), and c is the standard
+   deviation (width). This is consistent with the fit parameters used for EIS data
+   in the IDL SolarSoftWare (SSW) analysis suite.
+
 Fitting Spectra
 ---------------
-
-.. Note:: The command line script ``eis_fit_files`` can be used to quickly
-   fit a directory of files using one or more templates in another directory.
 
 Once you’ve read in a template file, you can use the central wavelength
 to find the desired spectral window in the data using `~eispac.core.read_cube`.
@@ -222,8 +225,6 @@ Here is a minimal example program that just loads and fits the data.
 
 .. code:: python
 
-   import matplotlib.pyplot as plt
-   import astropy.units as u
    import eispac
 
    if __name__ == '__main__':
@@ -240,7 +241,11 @@ Here is a minimal example program that just loads and fits the data.
        # Fit the data, then save it to disk and test loading it back in
        fit_res = eispac.fit_spectra(data_cube, tmplt, ncpu='max')
        save_filepaths = eispac.save_fit(fit_res, save_dir='cwd')
+       FITS_file = eispac.export_fits(fit_res, save_dir='cwd')
        load_fit = eispac.read_fit(save_filepaths[0])
+
+.. Note:: The command line script ``eis_fit_files`` can be used to quickly
+   fit a directory of files using one or more templates in another directory.
 
 EISFitResult Objects
 --------------------
@@ -372,7 +377,7 @@ performing field extrapolations (see the Map sections of the SunPy
 `Example Gallery <https://docs.sunpy.org/en/stable/generated/gallery/index.html#map>`_
 for some demonstrations). You can get an `~eispac.core.EISMap` by either
 using the `~eispac.core.EISFitResult.get_map` method or saving the
-measurements to FITS files using ``~eispac.core.export_fits` and then
+measurements to FITS files using `~eispac.core.export_fits` and then
 loading them in with either ``eispac.EISMap(FILENAME)`` or even
 ``sunpy.map.Map(FILENAME)`` (assuming EISPAC is also imported in your
 program).
