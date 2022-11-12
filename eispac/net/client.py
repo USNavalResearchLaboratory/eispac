@@ -24,7 +24,7 @@ class EISClient(GenericClient):
     ...                       a.Physobs.intensity,
     ...                       a.Source('Hinode'),
     ...                       a.Provider('NRL'),
-    ...                       a.Level('1'))  #doctest: +REMOTE_DATA
+    ...                       a.Level('1'))  #doctest: +SKIP
     >>> results  #doctest: +SKIP
     <sunpy.net.fido_factory.UnifiedResponse object at ...>
     Results from 1 Provider:
@@ -45,7 +45,7 @@ class EISClient(GenericClient):
     ...                       a.Source('Hinode'),
     ...                       a.Provider('NRL'),
     ...                       a.Level('1'),
-    ...                       FileType('HDF5 header'))  #doctest: +REMOTE_DATA
+    ...                       FileType('HDF5 header'))  #doctest: +SKIP
     >>> results  #doctest: +SKIP
     <sunpy.net.fido_factory.UnifiedResponse object at ...>
     Results from 1 Provider:
