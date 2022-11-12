@@ -6,25 +6,41 @@
 
 
 This software provides a set of tools for analyzing Hinode/EIS data within a
-python environment. The general approach is as follows:
+Python environment. The general approach is as follows:
 
-1. Sets of level 1 HDF5 files are processed from the latest EIS level 0 fits files
+1. Sets of level 1 HDF5 files are processed from the latest EIS level-0 fits files
    and made available online by the NRL EIS team at <https://eis.nrl.navy.mil/>.
    The HDF5 files come in pairs of "data" and "header" files which contain corrected
    count rates, the calibration curve needed to convert counts into intensity,
    and all of the associated metadata and pointing information.
 
-2. This package provides python classes and functions that can read these hdf5
+2. This package provides Python classes and functions that can read these hdf5
    files, perform all of the necessary calibration and pointing adjustments, and
    create user-friendly python objects that can be manipulated as needed. Also
    included are functions for fitting the intensity profiles using the same
    template files and underlying methodology that is used in the IDL SolarSoft
    environment.
 
-Please note that this package is under active development. If you have any questions or suggestions
-for future improvements, please email the development team
+## Getting Started
 
-## Installation and Requirements
+* Install using PIP (recommended) or by manually downloading this repo.
+
+* Read through the [Online User's Guide](https://eispac.readthedocs.io/en/latest/guide/index.html)
+  ([PDF download](https://eispac.readthedocs.io/_/downloads/en/latest/pdf/))
+
+  * [Quick Guide](https://eispac.readthedocs.io/en/latest/guide/00-quick.html):
+  A brief overview of the core EISPAC functions and objects.
+
+  * [Command Line Tools](https://eispac.readthedocs.io/en/latest/guide/02-scripts.html):
+  Description of some command line tools available for searching, downloading, and fitting
+  EIS observations.
+
+* Need help? If you have any questions, bug reports, or feature requests; please open
+an issue or email the development team.
+
+* Want to contribute code? Please see the [Community Guidelines](https://eispac.readthedocs.io/en/latest/guidelines.html) section of the online documentation.
+
+## Installation
 
 ### Using PIP
 
@@ -76,18 +92,6 @@ environment. You can now import the package using `import eispac`.
 * parfive >= 1.5
 * python-dateutil>=2.8
 
-### Getting Started
-
-* **Online user's guide**: <https://eispac.readthedocs.io/en/latest/index.html>:
-
-* `QUICK_GUIDE-cli.md`: A very brief description of some command line tools for searching,
-  downloading, and fitting the EIS observations
-
-* `QUICK_GUIDE.md`: A very brief description of EISPAC functions and objects.
-
-* `examples`: Tutorials using Juypter notebooks. In particular, `eispac_tutorial.ipynb` contains
-  complete overview and introduction to using EISPAC
-
 ## Code Organization
 
 There are currently three core directories:
@@ -106,11 +110,10 @@ There are currently three core directories:
 
 2. **docs**: Source reStructuredText files used to build the online documentation
 
-The `QUICK_GUIDE.md` text document also give a very brief overview of some key functions.
 It should also be noted that `mpfit.py` was written by Mark Rivers and Sergey Kopsov and
-is direct Python port of the `mpfit.pro` IDL procedure written by Craig Markwardt. As such,
+is a direct Python port of the `mpfit.pro` IDL procedure written by Craig Markwardt. As such,
 much of the documentation online for the IDL version of the code is still applicable to the
-Python version (please see the Python doc for more information).
+Python version (see also the [mpfit](https://eispac.readthedocs.io/en/latest/guide/07-mpfit_docs.html) section of our docs for more information).
 
 ## TODO list
 Here, in no particular order, is a list of some things that may be added in future releases.

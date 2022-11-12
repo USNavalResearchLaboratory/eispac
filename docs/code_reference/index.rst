@@ -1,3 +1,5 @@
+.. _sec-api:
+
 API Reference
 =============
 
@@ -5,6 +7,7 @@ API Reference
    :maxdepth: 1
 
    eispac_core
+   eispac_net
    eispac_download
    eispac_instr
    eispac_templates

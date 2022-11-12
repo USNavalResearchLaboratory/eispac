@@ -146,14 +146,3 @@ def read_fit(filename, verbose=False):
         fit_result.meta['wininfo'] = wininfo_rec
 
     return fit_result
-
-if __name__ == '__main__':
-
-    filename = './data/test/eis_20190404_131513_fe_12_195_119_1c.fit.h5'
-    fit_res = read_fit(filename)
-
-    for key in fit_res.fit.keys():
-        if np.size(fit[key]) > 1:
-            print('{:12} {:12} {:12}'.format(key,str(fit[key].dtype),str(np.shape(fit[key]))))
-        else:
-            print('{:12} {:12} {:12}'.format(key,str(fit[key].dtype),str(np.size(fit[key]))))

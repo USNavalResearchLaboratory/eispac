@@ -130,24 +130,3 @@ class EISFitTemplate:
 # This is an alias to make the interface to reading template files a bit more
 # user-friendly.
 read_template = EISFitTemplate.read_template
-
-
-if __name__ == '__main__':
-
-    import pathlib
-
-    filename = './templates/eis_template_dir/fe_12_195_119.2c.template.h5'
-    filename = pathlib.Path(filename).resolve()
-    Fe_XII_195_119 = EISFitTemplate.read_template(filename)
-
-    print('\ntemplate')
-    print('---------')
-    t = Fe_XII_195_119.template
-    for key in t.keys():
-        print('{:12} {:12} {:4d}'.format(key,str(t[key].dtype),np.size(t[key])))
-
-    print('\nparinfo['+str(len(Fe_XII_195_119.parinfo))+']')
-    print('---------')
-    t = Fe_XII_195_119.parinfo[0]
-    for key in t.keys():
-        print('{:12} {:12} {:4d}'.format(key,str(t[key].dtype),np.size(t[key])))
