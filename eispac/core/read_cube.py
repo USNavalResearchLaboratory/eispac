@@ -367,13 +367,3 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
         return None
 
     return output_cube
-
-if __name__ == '__main__':
-
-    filename = '../data/eis_20190404_131513.data.h5'
-    wave = 195.119
-    eis = read_cube(filename, wave)
-
-    print(f'date_obs = ' + eis.meta['index']['date_obs'])
-    shape = eis.data.shape
-    print(f'data shape = {shape}')

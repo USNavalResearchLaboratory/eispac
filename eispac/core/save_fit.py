@@ -208,13 +208,3 @@ def save_fit(fit_result, save_dir=None, verbose=False):
     else:
         # If only one line, just return the filepath directly (no list)
         return output_filepath
-
-if __name__ == '__main__':
-
-    fake_fit = EISFitResult(empty=True)
-    fake_meta = {'filename_head':'eis_fake_fit.h5'}
-    fake_fit.meta = fake_meta
-    fake_fit.fit['line_ids'] = np.array(['Fe XII 195.119', 'Fe XII 195.179'])
-
-    fit_filepath = save_fit(fake_fit, save_dir='cwd')
-    print(fit_filepath)

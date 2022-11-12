@@ -100,13 +100,3 @@ def generate_astropy_model(template):
             combined_model.__dict__[param_names[p]].tied = tied_func
 
     return combined_model
-
-if __name__ == '__main__':
-
-    import pathlib
-
-    filename = './templates/eis_template_dir/fe_12_195_119.2c.template.h5'
-    filename = str(pathlib.Path(filename).resolve())
-    Fe_XII_195_119 = read_template(filename)
-
-    model = generate_astropy_model(Fe_XII_195_119)
