@@ -14,7 +14,7 @@ from eispac.core.read_template import EISFitTemplate
 from eispac.core.eisfitresult import EISFitResult
 from eispac.core.eisfitresult import create_fit_dict
 from eispac.core.scale_guess import scale_guess
-from eispac.core.mpfit import mpfit
+from eispac.extern.mpfit import mpfit
 from eispac.instr import calc_velocity
 
 # i'm sure that there is a better way to do this!

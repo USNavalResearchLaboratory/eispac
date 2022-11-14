@@ -7,8 +7,9 @@ API Reference
    :maxdepth: 1
 
    eispac_core
-   eispac_net
    eispac_download
+   eispac_extern
    eispac_instr
+   eispac_net
    eispac_templates
    eispac_util

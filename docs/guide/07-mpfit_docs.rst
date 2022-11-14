@@ -4,7 +4,7 @@ MPFIT Documentation
 The text below is adapted from the ``mpfit.py`` documentation and gives
 a high-level overview of the theory and math behind how the code works.
 More details concerning input parameters and keywords can be found in
-the `~eispac.core.mpfit` doc string.
+the `~eispac.extern.mpfit` doc string.
 
 Description
 -----------
@@ -388,25 +388,25 @@ as part of the MINPACK-1 package by XXX.
 
 Craig Markwardt converted the FORTRAN code to IDL.
 The information for the IDL version is:
+
     Craig B. Markwardt, NASA/GSFC Code 662, Greenbelt, MD 20770
     craigm@lheamail.gsfc.nasa.gov
-    UPDATED VERSIONs can be found on my WEB PAGE:
-        http://cow.physics.wisc.edu/~craigm/idl/idl.html
+    UPDATED VERSIONs can be found on my WEB PAGE: http://cow.physics.wisc.edu/~craigm/idl/idl.html
 
 Mark Rivers created this Python version from Craig's IDL version.
+
     Mark Rivers, University of Chicago
     Building 434A, Argonne National Laboratory
     9700 South Cass Avenue, Argonne, IL 60439
     rivers@cars.uchicago.edu
-    Updated versions can be found at:
-        http://cars.uchicago.edu/software
+    Updated versions can be found at: http://cars.uchicago.edu/software
 
 Sergey Koposov converted the Mark's Python version from Numeric to numpy
+
     Sergey Koposov, University of Cambridge, Institute of Astronomy,
     Madingley road, CB3 0HA, Cambridge, UK
     koposov@ast.cam.ac.uk
-    Updated versions can be found at:
-        https://github.com/segasai/astrolibpy
+    Updated versions can be found at: https://github.com/segasai/astrolibpy
 
 Modification History
 --------------------
