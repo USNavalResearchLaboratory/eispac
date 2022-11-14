@@ -82,9 +82,3 @@ The package should then be installed to the correct location for your current Py
 environment. You can now import the package using `import eispac`.
 
 Now, you should be all set to do some science!
-
-.. rubric:: Citations
-
-.. [#] Markwardt, C. B. 2009, in Astronomical Society of the Pacific Conference
-   Series, Vol. 411, Astronomical Data Analysis Software and
-   Systems XVIII, ed. D. A. Bohlender, D. Durand, & P. Dowler, 251

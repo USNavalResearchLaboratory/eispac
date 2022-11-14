@@ -88,7 +88,7 @@ Loading Fit Templates
 An ``h5dump`` [#]_ on one of the template files shows that it contains a
 ``/template`` group for the initial guess on the fit parameters and a
 ``/parinfo`` group containing constraints on the parameters for use by
-`~eispac.core.mpfit`.
+`~eispac.extern.mpfit`.
 
 ::
 

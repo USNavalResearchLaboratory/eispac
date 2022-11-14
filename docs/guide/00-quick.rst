@@ -7,7 +7,7 @@ Once installed, EISPAC can be imported into any Python script or
 interactive session with a simple ``import eispac`` statement.
 
 The three most important functions are `~eispac.core.read_cube`,
-`~eispac.core.read_template`, and `eispac.core.fit_spectra`.
+`~eispac.core.read_template`, and `~eispac.core.fit_spectra`.
 Details concerning their usage can be found below. Please also see :ref:`ex-advanced`
 program for a more complete demonstration.
 
