@@ -1,5 +1,8 @@
 import eispac
 
+"""
+ A trivial change
+"""
 
 def test_invalid_save_dir():
     saved_files = eispac.save_fit('no result')
