@@ -1,5 +1,6 @@
-__version__ = '0.94.1'
+# __version__ = '0.94.1'
 
+from .version import version as __version__
 from . import download
 from . import templates
 from .core import *
