@@ -36,10 +36,11 @@ ex_extras = dict(filter(lambda i: i[0] not in exclude_keys, extras.items()))
 extras['all'] = list(chain.from_iterable(ex_extras.values()))
 
 setuptools.setup(
-    version = get_version("eispac/__init__.py"),
+    # version = get_version("eispac/__init__.py"),
     long_description = readme_text,
     long_description_content_type = 'text/markdown',
     extras_require = extras,
+    use_scm_version={'write_to': os.path.join('eispac', '_version.py')},
     project_urls = {
         "Data": "https://eis.nrl.navy.mil/",
         "Documentation": "https://eispac.readthedocs.io/"},
