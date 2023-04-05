@@ -12,11 +12,16 @@ except Exception:
     import warnings
 
     warnings.warn(
-        f'could not determine {__name__.split(".")[0]} package version; this indicates a broken installation'
-    )
+        f'could not determine {__name__.split(".")[0]} package version; '
+        f'this may indicate a broken installation. Defaulting to package '
+        f'metadata (if available).')
     del warnings
 
-    version = '0.0.0'
+    try:
+        from importlib.metadata import version as meta_ver
+        version = meta_ver('eispac')
+    except:
+        version = '0.0.0'
 
 from packaging.version import parse as _parse
 
