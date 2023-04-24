@@ -14,15 +14,17 @@
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
 
+import datetime
+from eispac import __version__
 
 # -- Project information -----------------------------------------------------
 
 project = 'eispac'
-copyright = '2021, NRL EIS Team'
+copyright = f'{datetime.datetime.now().year}, NRL EIS Team'
 author = 'NRL EIS Team'
 
 # The full version, including alpha/beta/rc tags
-release = '2021'
+release = __version__
 
 
 # -- General configuration ---------------------------------------------------
