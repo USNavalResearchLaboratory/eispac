@@ -5,9 +5,9 @@
 # fall back on the generated _version module.
 try:
     try:
-        from ._dev.scm_version import version
+        from ._dev.scm_version import version as full_version
     except ImportError:
-        from ._version import version
+        from ._version import version as full_version
 except Exception:
     import warnings
 
@@ -19,12 +19,13 @@ except Exception:
 
     try:
         from importlib.metadata import version as meta_ver
-        version = meta_ver('eispac')
+        full_version = meta_ver('eispac')
     except:
-        version = '0.0.0'
+        full_version = '0.0.0'
 
 from packaging.version import parse as _parse
 
-_version = _parse(version)
+version = _parse(full_version).base_version # Clean version num for PyPi
+_version = _parse(full_version)
 major, minor, bugfix = [*_version.release, 0][:3]
 release = not _version.is_devrelease
