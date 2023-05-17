@@ -5,9 +5,9 @@
 # fall back on the generated _version module.
 try:
     try:
-        from ._dev.scm_version import version as full_version
+        from ._dev.scm_version import version
     except ImportError:
-        from ._version import version as full_version
+        from ._version import version
 except Exception:
     import warnings
 
@@ -25,7 +25,6 @@ except Exception:
 
 from packaging.version import parse as _parse
 
-version = _parse(full_version).base_version # Clean version num for PyPi
 _version = _parse(full_version)
 major, minor, bugfix = [*_version.release, 0][:3]
 release = not _version.is_devrelease

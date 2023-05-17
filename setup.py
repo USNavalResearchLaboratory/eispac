@@ -6,15 +6,26 @@ import setuptools
 from itertools import chain
 from setuptools.config import read_configuration
 
-def get_version(rel_path):
-    here = os.path.abspath(os.path.dirname(__file__))
-    with open(os.path.join(here, rel_path)) as fp:
-        for line in fp.read().splitlines():
-            if line.startswith('__version__'):
-                # __version__ = "0.9.1"
-                delim = '"' if '"' in line else "'"
-                return line.split(delim)[1]
-    raise RuntimeError("Unable to find version string.")
+# def get_version(rel_path):
+#     here = os.path.abspath(os.path.dirname(__file__))
+#     with open(os.path.join(here, rel_path)) as fp:
+#         for line in fp.read().splitlines():
+#             if line.startswith('__version__'):
+#                 # __version__ = "0.9.1"
+#                 delim = '"' if '"' in line else "'"
+#                 return line.split(delim)[1]
+#     raise RuntimeError("Unable to find version string.")
+
+def no_dist_is_release(version):
+    # Generates proper release version numbers for PyPI
+    # To use, ALWAYS set local_scheme = 'no-local-version'
+    from setuptools_scm import get_version as scm_get_ver
+
+    if version.distance == 0:
+        return str(version.tag)
+    else:
+	    # note: this already includes the local version
+    	return scm_get_ver()
 
 # Read the contents of the README file
 setup_dir = os.path.abspath(os.path.dirname(__file__))
@@ -40,7 +51,9 @@ setuptools.setup(
     long_description = readme_text,
     long_description_content_type = 'text/markdown',
     extras_require = extras,
-    use_scm_version={'write_to': os.path.join('eispac', '_version.py')},
+    use_scm_version={'version_scheme':no_dist_is_release,
+                     'local_scheme':'no-local-version',
+                     'write_to': os.path.join('eispac', '_version.py')},
     project_urls = {
         "Data": "https://eis.nrl.navy.mil/",
         "Documentation": "https://eispac.readthedocs.io/"},

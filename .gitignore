@@ -139,3 +139,4 @@ cython_debug/
 
 # Specific to this package
 docs/api
+eispac/_version.py
