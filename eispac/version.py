@@ -25,6 +25,6 @@ except Exception:
 
 from packaging.version import parse as _parse
 
-_version = _parse(full_version)
+_version = _parse(version)
 major, minor, bugfix = [*_version.release, 0][:3]
 release = not _version.is_devrelease
