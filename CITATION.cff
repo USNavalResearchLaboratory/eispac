@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Weberg"
+  given-names: "Micah J."
+  orcid: "https://orcid.org/0000-0002-4433-4841"
+- family-names: "Warren"
+  given-names: "Harry P."
+  orcid: "https://orcid.org/0000-0001-6102-6851"
+- family-names: "Crump"
+  given-names: "Nicholas"
+- family-names: "Barnes"
+  given-names: "Will"
+  orcid: "https://orcid.org/0000-0001-9642-6089"
+title: "EISPAC - The EIS Python Analysis Code"
+version: 1.0.0
+doi: 10.5281/zenodo.1234
+date-released: 2023-05-18
+url: "https://github.com/USNavalResearchLaboratory/eispac"
