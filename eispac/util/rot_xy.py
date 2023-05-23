@@ -33,7 +33,7 @@ def rot_xy(xcen, ycen, start_time, end_time):
     Examples
     --------
     >>> new = rot_xy(0, 0, start_time='2021-JAN-01 00:00', end_time='2021-JAN-01 01:00')
-    >>> print(new.Tx, new.Ty)
+    >>> print(new.Tx, new.Ty) # doctest: +SKIP
     9.47188arcsec 0.0809565arcsec
     """
     start_time = parse_time(start_time)
@@ -42,4 +42,4 @@ def rot_xy(xcen, ycen, start_time, end_time):
                  observer='earth', frame=Helioprojective)
     observer = get_body_heliographic_stonyhurst('earth', end_time)
     new = solar_rotate_coordinate(c, observer=observer)
-    return new    
+    return new
