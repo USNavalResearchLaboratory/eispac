@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import asyncio
 import parfive
 # import urllib.request, requests, wget
 
@@ -34,10 +35,15 @@ class download_hdf5_data:
 
     """
 
-    def __init__(self, filename=None, local_top='data_eis', datetree=False,
+    def __init__(self, filename=None, source='nrl', local_top='data_eis', datetree=False,
                  nodata=False, nohead=False, overwrite=False, headonly=False,
                  max_conn=2):
-        self.top_url = 'https://eis.nrl.navy.mil/level1/hdf5/'
+        if source.lower().startswith('nasa'):
+            self.top_url = 'https://umbra.nascom.nasa.gov/hinode/eis/level1/hdf5/'
+        elif source.lower().startswith('mssl'):
+            self.top_url = 'https://vsolar.mssl.ucl.ac.uk/eispac/hdf5/'
+        else:
+            self.top_url = 'https://eis.nrl.navy.mil/level1/hdf5/'
         self.local_top = local_top
         self.datetree = datetree
         self.nodata = nodata
@@ -118,6 +124,9 @@ class download_hdf5_data:
         """
         Use parfive to download the file
         """
+        # Quick hack for silencing ignored exceptions on windows due to outdated parfive code
+        if os.name == 'nt':
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         local_filepath = os.path.join(local_dir, local_name)
         # check that local directory exists and create as needed
         self.check_local_dir(local_filepath)

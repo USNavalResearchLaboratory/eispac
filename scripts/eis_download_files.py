@@ -70,6 +70,18 @@ def eis_download_files():
         datetree = True
         arglist.remove('-datetree')
 
+    # look for remote source options
+    data_source = 'nrl'
+    if '-nasa' in arglist:
+        data_source = 'nasa'
+        arglist.remove('-nasa')
+    if '-mssl' in arglist:
+        data_source = 'mssl'
+        arglist.remove('-mssl')
+    if '-nrl' in arglist:
+        data_source = 'nrl'
+        arglist.remove('-nrl')
+
     # loop over inputs
     for file in arglist:
         # parse the input
@@ -85,7 +97,8 @@ def eis_download_files():
         # download the files
         for name in names:
             print(f'+ processing {name}')
-            o = eispac.download.download_hdf5_data(name, datetree=datetree)
+            o = eispac.download.download_hdf5_data(name, source=data_source,
+                                                   datetree=datetree)
 
 if __name__ == '__main__':
     eis_download_files()

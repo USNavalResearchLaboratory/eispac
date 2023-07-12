@@ -47,6 +47,7 @@ class Top(QtWidgets.QWidget):
         self.default_button_width = 165 #130
         self.default_topdir = os.path.join(os.getcwd(), 'data_eis')
         self.dbfile = dbfile
+        self.db_loaded = False
 
         # Font settings
         if have_Qt4:
@@ -74,6 +75,7 @@ class Top(QtWidgets.QWidget):
         # Check for EIS database
         if os.path.isfile(self.dbfile):
             self.d = eis_obs_struct.EIS_DB(self.dbfile)
+            self.db_loaded = True
         else:
             # Ask if the user wants to download a copy of the database
             ask_db = QtWidgets.QMessageBox.question(self, 'Missing database',
@@ -85,11 +87,9 @@ class Top(QtWidgets.QWidget):
                 if not str(self.dbfile).endswith('.part'):
                     self.d = eis_obs_struct.EIS_DB(self.dbfile)
                 else:
-                    print('Failed to download EIS database! Exiting...')
-                    exit()
+                    print('Failed to download EIS database!')
             else:
-                print('ERROR: No EIS as-run database found. Exiting...')
-                exit()
+                print('ERROR: No EIS as-run database found!')
 
         self.init_ui()
 
@@ -140,10 +140,15 @@ class Top(QtWidgets.QWidget):
         self.help.setFont(self.default_font)
         self.help.clicked.connect(self.event_help)
 
-        self.download_db = QtWidgets.QPushButton('Get Latest DB', self)
+        self.download_db = QtWidgets.QPushButton('Update Database', self)
         self.download_db.setFixedWidth(self.default_button_width)
         self.download_db.setFont(self.default_font)
         self.download_db.clicked.connect(self.event_download_db)
+
+        self.db_source_box = QtWidgets.QComboBox()
+        self.db_source_box.addItems(['Hesperia (source)', 'NRL (mirror)'])
+        self.db_source_box.setFixedWidth(self.default_button_width) # or 150
+        self.db_source_box.setFont(self.default_font)
 
         self.db_info = QtWidgets.QLabel(self)
         self.db_info.setFixedWidth(3*self.default_button_width)
@@ -151,12 +156,13 @@ class Top(QtWidgets.QWidget):
         if os.path.isfile(self.dbfile):
             self.update_db_file_label()
         else:
-            self.db_info.setText('Unable to locate file: ' + self.dbfile)
+            self.db_info.setText('Unable to locate DB: ' + self.dbfile)
 
         self.grid.addWidget(self.quit, self.gui_row, 0)
         self.grid.addWidget(self.help, self.gui_row, 1)
         self.grid.addWidget(self.download_db, self.gui_row, 2)
-        self.grid.addWidget(self.db_info, self.gui_row, 3, 1, 3)
+        self.grid.addWidget(self.db_source_box, self.gui_row, 3)
+        self.grid.addWidget(self.db_info, self.gui_row, 4, 1, 3)
 
         self.gui_row += 1
 
@@ -167,20 +173,34 @@ class Top(QtWidgets.QWidget):
 
     def event_download_db(self):
         self.info_detail.clear()
+        self.table_m.clearContents()
+        self.table_m.setRowCount(1)
+        db_source = self.db_source_box.currentText()
+        if db_source.lower().startswith('nrl'):
+            db_remote_text = f'https://eis.nrl.navy.mil/level1/db/eis_cat.sqlite'
+        else:
+            db_remote_text = f'https://hesperia.gsfc.nasa.gov/ssw/hinode/eis' \
+                            +f'/database/catalog/eis_cat.sqlite'
         info = (f'Downloading eis_cat.sqlite.\n'
-                f'   Remote: https://hesperia.gsfc.nasa.gov/ssw/hinode/eis'
-                f'/database/catalog/eis_cat.sqlite\n'
+                f'   Remote: {db_remote_text}\n'
                 f'   Local: {os.path.abspath(self.dbfile)}\n\n'
                 f'Please wait...')
         self.info_detail.append(info)
         QtWidgets.QApplication.processEvents() # update gui while user waits
-        self.d.cur.close()
-        self.d.conn.close()
+        if self.db_loaded:
+            self.d.cur.close()
+            self.d.conn.close()
         self.d = 0
-        self.dbfile = download_db(os.path.dirname(self.dbfile))
-        self.d = eis_obs_struct.EIS_DB(self.dbfile)
-        self.update_db_file_label()
-        self.info_detail.append('\nComplete')
+        self.dbfile = download_db(os.path.dirname(self.dbfile), source=db_source)
+        if self.dbfile.endswith('.part'):
+            self.info_detail.append('\nERROR: Database download failed! '
+                                    +'Please check your internet connection '
+                                    +' or try a different source.')
+        else:
+            self.d = eis_obs_struct.EIS_DB(self.dbfile)
+            self.update_db_file_label()
+            self.info_detail.append('\nComplete')
+            self.db_loaded = True
 
     def event_help(self):
         """Put help info in details window."""
@@ -317,7 +337,7 @@ class Top(QtWidgets.QWidget):
         self.gui_row += 1
 
     def set_filters(self):
-        """Set seawrch result filters"""
+        """Set search result filters"""
         title = QtWidgets.QLabel(self)
         title.setText('Result Filters')
         title.setAlignment(QtCore.Qt.AlignBottom)
@@ -376,7 +396,13 @@ class Top(QtWidgets.QWidget):
         self.search_info.setText('Found ?? search results')
         self.filter_info.setText('Showing ?? filter matches')
         self.info_detail.clear()
-        self.info_detail.append('Searching database. Please wait...')
+        if self.db_loaded == False:
+            self.info_detail.append('No EIS As-Run Catalog found!\n\n'
+                                    +'Please use the "Update Database" '
+                                    +'button above.')
+            return
+        else:
+            self.info_detail.append('Searching database. Please wait...')
         self.table_m.clearContents()
         self.table_m.setRowCount(1)
         QtWidgets.QApplication.processEvents() # update gui while user waits
@@ -624,16 +650,16 @@ class Top(QtWidgets.QWidget):
     def save_options(self):
         """Controls for saving files."""
 
+        data_source_title = QtWidgets.QLabel(self)
+        data_source_title.setText('Data Source')
+        data_source_title.setFont(self.default_font)
+        self.grid.addWidget(data_source_title, self.gui_row, 0)
+
         set_save_dir = QtWidgets.QPushButton('Change Save Dir', self)
         set_save_dir.setFixedWidth(self.default_button_width)
         set_save_dir.setFont(self.default_font)
-        self.grid.addWidget(set_save_dir, self.gui_row, 0)
+        self.grid.addWidget(set_save_dir, self.gui_row, 1)
         set_save_dir.clicked.connect(self.event_set_save_dir)
-
-        self.radio = QtWidgets.QRadioButton("Use Date Tree")
-        self.radio.setFixedWidth(self.default_button_width)
-        self.radio.setFont(self.default_font)
-        self.grid.addWidget(self.radio, self.gui_row, 1)
 
         self.topdir_box = QtWidgets.QLineEdit(self)
         # self.topdir_box.setFixedWidth(self.default_button_width)
@@ -644,29 +670,40 @@ class Top(QtWidgets.QWidget):
 
         self.gui_row += 1
 
+        self.data_source_box = QtWidgets.QComboBox()
+        self.data_source_box.addItems(['NRL (main)', 'NASA (mirror)', 'MSSL (mirror)'])
+        self.data_source_box.setFixedWidth(self.default_button_width) # or 150
+        self.data_source_box.setFont(self.default_font)
+        self.grid.addWidget(self.data_source_box, self.gui_row, 0)
+
         download_selected = QtWidgets.QPushButton('Download Selected', self)
         download_selected.setFixedWidth(self.default_button_width)
         download_selected.setFont(self.default_font)
-        self.grid.addWidget(download_selected, self.gui_row, 0)
+        self.grid.addWidget(download_selected, self.gui_row, 1)
         download_selected.clicked.connect(self.event_download_selected)
 
         download_list = QtWidgets.QPushButton('Download All', self)
         download_list.setFixedWidth(self.default_button_width)
         download_list.setFont(self.default_font)
-        self.grid.addWidget(download_list, self.gui_row, 1)
+        self.grid.addWidget(download_list, self.gui_row, 2)
         download_list.clicked.connect(self.event_download_file_list)
+
+        self.radio = QtWidgets.QRadioButton("Use Date Tree")
+        self.radio.setFixedWidth(self.default_button_width)
+        self.radio.setFont(self.default_font)
+        self.grid.addWidget(self.radio, self.gui_row, 3)
 
         self.save_list = QtWidgets.QPushButton('Save File List', self)
         self.save_list.setFixedWidth(self.default_button_width)
         self.save_list.setFont(self.default_font)
-        self.grid.addWidget(self.save_list, self.gui_row, 2)
+        self.grid.addWidget(self.save_list, self.gui_row, 4)
         self.save_list.clicked.connect(self.event_save_file_list)
 
         self.filename_box = QtWidgets.QLineEdit(self)
         self.filename_box.setFixedWidth(self.default_button_width)
         self.filename_box.setText(self.default_filename)
         self.filename_box.setFont(self.default_font)
-        self.grid.addWidget(self.filename_box, self.gui_row, 3)
+        self.grid.addWidget(self.filename_box, self.gui_row, 5)
 
     def event_set_save_dir(self):
         options = QtWidgets.QFileDialog.Options()
@@ -680,41 +717,46 @@ class Top(QtWidgets.QWidget):
 
     def event_download_selected(self):
         if self.selected_file is not None:
+            data_source = self.data_source_box.currentText()
             datetree = self.radio.isChecked()
             topdir = self.topdir_box.text()
             self.info_detail.clear()
             info = (f'Downloading {self.selected_file}\n'
+                    f'   Data Source: {data_source}\n'
                     f'   Save dir: {topdir}\n\n'
                     f'Please wait...')
             self.info_detail.append(info)
             QtWidgets.QApplication.processEvents() # update gui while user waits
             o = download_hdf5_data(filename=self.selected_file, datetree=datetree,
-                                   local_top=topdir, overwrite=True)
+                                   source=data_source, local_top=topdir, overwrite=True)
             self.info_detail.append('\nComplete')
 
     def event_download_file_list(self):
         if self.file_list is not None:
+            data_source = self.data_source_box.currentText()
             datetree = self.radio.isChecked()
             topdir = self.topdir_box.text()
 #            sys.stdout = OutLog(self.info_detail, sys.stdout)
 #            sys.stderr = OutLog(self.info_detail, sys.stderr)
             self.info_detail.clear()
             info = (f'Downloading all files listed above\n'
+                    f'   Data Source: {data_source}\n'
                     f'   Save dir: {topdir}\n\n'
                     f'Please wait (see console for download progress)...')
             self.info_detail.append(info)
             QtWidgets.QApplication.processEvents() # update gui while user waits
             o = download_hdf5_data(filename=self.file_list, datetree=datetree,
-                                   local_top=topdir, overwrite=True)
+                                   source=data_source, local_top=topdir, overwrite=True)
             self.info_detail.append('\nComplete')
 
 
     def event_save_file_list(self):
         """Save a list of the displayed files, one per line."""
         if self.file_list is not None:
+            topdir = self.topdir_box.text()
             filename = self.filename_box.text()
             if filename != '':
-                with open(filename, 'w') as fp:
+                with open(os.path.join(topdir, filename), 'w') as fp:
                     for item in self.file_list:
                         fp.write("{}\n".format(item))
                         print(item)
