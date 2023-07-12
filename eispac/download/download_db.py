@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import parfive
 
-def download_db(download_dir=None):
+def download_db(download_dir=None, source='nrl'):
     """Download the offical EIS as-run SQLite database
 
     Parameters
@@ -31,7 +31,10 @@ def download_db(download_dir=None):
     # if os.path.isfile(local_filepath):
     #     os.remove(local_filepath)
 
-    remote_filepath = 'https://hesperia.gsfc.nasa.gov/ssw/hinode/eis/database/catalog/eis_cat.sqlite'
+    if source.lower().startswith('nrl'):
+        remote_filepath = 'https://eis.nrl.navy.mil/level1/db/eis_cat.sqlite'
+    else:
+        remote_filepath = 'https://hesperia.gsfc.nasa.gov/ssw/hinode/eis/database/catalog/eis_cat.sqlite'
 
     print(f' + downloading eis_cat.sqlite')
     print(f'   remote: {remote_filepath}')
