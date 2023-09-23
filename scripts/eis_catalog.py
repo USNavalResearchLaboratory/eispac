@@ -9,31 +9,51 @@ features, at least initially. Very much a work in progress.
 (2020-Dec-16) Now tries to find SSW if the 'SSW' environment variable is missing
 (2020-Dec-18) If no database is found, ask the user if they want to download it.
 (2021-Oct-22) Major update adding in more search criteria and faster queries.
+(2023-Jul-11) Added data mirrors for eis_cat.sqlite and HDF5 files
+(2023-Sep-23) Added viewing context images from MSSL 
 """
 __all__ = ['eis_catalog']
 
 import sys
-import os, time
+import time
+import os
 import re
+import urllib
+import ssl
+import certifi
 import sqlite3
 import pkgutil
 from datetime import datetime, timedelta
+import numpy as np
 from eispac.download import eis_obs_struct
 from eispac.download.download_hdf5_data import download_hdf5_data
 from eispac.download.download_db import download_db
 
 if pkgutil.find_loader('PyQt4'):
-    from PyQt4 import QtCore
+    from PyQt4 import QtCore, QtNetwork
     from PyQt4 import QtGui as QtWidgets
     have_Qt4 = True
     have_Qt5 = False
 elif pkgutil.find_loader('PyQt5'):
-    from PyQt5 import QtCore, QtWidgets, QtGui
+    from PyQt5 import QtCore, QtWidgets, QtGui, QtNetwork
     have_Qt4 = False
     have_Qt5 = True
 else:
     print('Either PyQt4 or PyQt5 must be installed.')
     sys.exit()
+
+def get_remote_image_dir(filename):
+    """Parse a Level-0 filename and get the remote image dir"""
+    # Note: level-0 files have the form, eis_l0_YYYYMMDD_hhmmss.fits
+    date_str = filename.split('_')[2]
+    year_str = date_str[0:4]
+    month_str = date_str[4:6]
+    day_str = date_str[6:8]
+    file_dir = year_str+'/'+month_str+'/'+day_str+'/'+filename+'/'
+
+    # Assemble and return the URL
+    base_url = 'https://solarb.mssl.ucl.ac.uk/SolarB/DEV/eis_gifs/'
+    return base_url + file_dir
 
 class Top(QtWidgets.QWidget):
 
@@ -48,6 +68,8 @@ class Top(QtWidgets.QWidget):
         self.default_topdir = os.path.join(os.getcwd(), 'data_eis')
         self.dbfile = dbfile
         self.db_loaded = False
+        self.context_imgNX = 512
+        self.context_imgNY = 512
 
         # Font settings
         if have_Qt4:
@@ -90,6 +112,10 @@ class Top(QtWidgets.QWidget):
                     print('Failed to download EIS database!')
             else:
                 print('ERROR: No EIS as-run database found!')
+
+        # Initialze the network manager for downloading images
+        self.manager = QtNetwork.QNetworkAccessManager()
+        self.manager.finished.connect(self.on_finished)
 
         self.init_ui()
 
@@ -135,10 +161,10 @@ class Top(QtWidgets.QWidget):
         self.quit.setFont(self.default_font)
         self.quit.clicked.connect(self.event_quit)
 
-        self.help = QtWidgets.QPushButton('Help', self)
-        self.help.setFixedWidth(self.default_button_width)
-        self.help.setFont(self.default_font)
-        self.help.clicked.connect(self.event_help)
+        # self.help = QtWidgets.QPushButton('Help', self)
+        # self.help.setFixedWidth(self.default_button_width)
+        # self.help.setFont(self.default_font)
+        # self.help.clicked.connect(self.event_help)
 
         self.download_db = QtWidgets.QPushButton('Update Database', self)
         self.download_db.setFixedWidth(self.default_button_width)
@@ -151,7 +177,7 @@ class Top(QtWidgets.QWidget):
         self.db_source_box.setFont(self.default_font)
 
         self.db_info = QtWidgets.QLabel(self)
-        self.db_info.setFixedWidth(3*self.default_button_width)
+        self.db_info.setFixedWidth(4*self.default_button_width)
         self.db_info.setFont(self.small_font)
         if os.path.isfile(self.dbfile):
             self.update_db_file_label()
@@ -159,10 +185,10 @@ class Top(QtWidgets.QWidget):
             self.db_info.setText('Unable to locate DB: ' + self.dbfile)
 
         self.grid.addWidget(self.quit, self.gui_row, 0)
-        self.grid.addWidget(self.help, self.gui_row, 1)
-        self.grid.addWidget(self.download_db, self.gui_row, 2)
-        self.grid.addWidget(self.db_source_box, self.gui_row, 3)
-        self.grid.addWidget(self.db_info, self.gui_row, 4, 1, 3)
+        # self.grid.addWidget(self.help, self.gui_row, 1)
+        self.grid.addWidget(self.download_db, self.gui_row, 1)
+        self.grid.addWidget(self.db_source_box, self.gui_row, 2)
+        self.grid.addWidget(self.db_info, self.gui_row, 3, 1, 4)
 
         self.gui_row += 1
 
@@ -172,6 +198,7 @@ class Top(QtWidgets.QWidget):
          self.db_info.setText(t)
 
     def event_download_db(self):
+        self.tabs.setCurrentIndex(0) #switch to details tab
         self.info_detail.clear()
         self.table_m.clearContents()
         self.table_m.setRowCount(1)
@@ -204,7 +231,7 @@ class Top(QtWidgets.QWidget):
 
     def event_help(self):
         """Put help info in details window."""
-        self.info_detail.clear()
+        self.info_help.clear()
         help_text = """EIS As-Run Catalog Search Tool
 
 * Please use ISO format dates (e.g., YYYY-MM-DD HH:MM). If only
@@ -244,9 +271,9 @@ class Top(QtWidgets.QWidget):
 * If the "Use Date Tree" box is checked, files will be downloaded
   into subdirectories organized by date (../YYYY/MM/DD/)
 """
-        self.info_detail.append(help_text)
-        self.info_detail.verticalScrollBar().setValue(
-                                self.info_detail.verticalScrollBar().minimum())
+        self.info_help.append(help_text)
+        self.info_help.verticalScrollBar().setValue(
+                                self.info_help.verticalScrollBar().minimum())
 
     def select_dates(self):
         """Set time range and make button for running the search"""
@@ -393,6 +420,7 @@ class Top(QtWidgets.QWidget):
 
     def event_search(self):
         """Validate and process search request."""
+        self.tabs.setCurrentIndex(0) #switch to details tab
         self.search_info.setText('Found ?? search results')
         self.filter_info.setText('Showing ?? filter matches')
         self.info_detail.clear()
@@ -451,11 +479,6 @@ class Top(QtWidgets.QWidget):
 
     def catalog_table(self):
         """Table with summary of search results"""
-        # title = QtWidgets.QLabel(self)
-        # title.setText('Catalog Search Results')
-        # title.setFont(self.default_font)
-        # self.grid.addWidget(title, self.gui_row, 0, 1, 2)
-
         self.search_info = QtWidgets.QLabel(self)
         self.search_info.setText('Found ?? search results')
         self.search_info.setFont(self.default_font)
@@ -467,15 +490,12 @@ class Top(QtWidgets.QWidget):
         self.grid.addWidget(self.filter_info, self.gui_row, 2, 1, 2)
         self.gui_row += 1
 
-        # headers = ['Date Observed', 'Study ID', 'Study Acronym',
-        #            'Obs. Title', 'Xcen', 'Ycen', 'Filename']
-        # widths = [180, 80, 180, 350, 80, 80, 210]
-
         headers = ['Date Observed', 'Study ID', 'Study Acronym',
                    'Obs. Title', 'Xcen', 'Ycen']
         widths = [180, 80, 180, 350, 80, 80]
 
         self.table_m = QtWidgets.QTableWidget(self)
+        # self.table_m = MyTableWidget(self)
         self.table_m.verticalHeader().setVisible(False)
         self.table_m.setRowCount(1)
         self.table_m.setColumnCount(len(headers))
@@ -557,7 +577,9 @@ class Top(QtWidgets.QWidget):
                                     +' filter matches')
 
         # Any cells highlighted?
-        self.table_m.cellClicked.connect(self.get_details)
+        # self.table_m.cellClicked.connect(self.get_details)
+        self.table_m.currentCellChanged.connect(self.get_details)
+
 
     def get_details(self, row, column):
         """Provide details on selected cell."""
@@ -575,6 +597,9 @@ class Top(QtWidgets.QWidget):
                 self.info_detail.append(line)
             self.info_detail.verticalScrollBar().\
                 setValue(self.info_detail.verticalScrollBar().minimum())
+
+            # Update the context image
+            self.event_update_context_image(row_filename)
 
     def fill_info(self, file):
         """Retrieve useful info for a selected file."""
@@ -615,26 +640,142 @@ class Top(QtWidgets.QWidget):
                            +f"{row.wavemin[i]:<9.2f} {row.wavemax[i]:<9.2f} "
                            +f"{row.width[i]:<5}")
             info.append("\n")
+
+            # Add info to context tab
+            self.info_context.clear()
+            self.info_context.append("{0:<20} {1}".format('filename', row.filename))
+            self.info_context.append("{0:<20} {1}".format('date_obs', row.date_obs))
+            self.info_context.append("{0:<20} {1}".format('date_end', row.date_end))
+            self.info_context.append("{0:<20} {1:0.2f}, {2:0.2f}".format('xcen, ycen', row.xcen, row.ycen))
+            self.info_context.append("{0:<20} {1:0.2f}, {2:0.2f}".format('fovx, fovy', row.fovx, row.fovy))
+            self.info_context.append("{0:<20} {1}".format('study_id', row.study_id))
+            self.info_context.append("{0:<20} {1}".format('stud_acr', row.stud_acr))
+            self.info_context.append("{0:<20} {1}".format('obstitle', row.obstitle))
         return info
+
+    @QtCore.pyqtSlot(int)
+    def get_image(self):
+    # def get_image(self, ix):
+        # url = self.widgetList.itemData(ix)
+        url = self.context_url
+        self.start_request(url)
+
+    def start_request(self, url):
+        request = QtNetwork.QNetworkRequest(QtCore.QUrl(url))
+        self.manager.get(request)
+
+    @QtCore.pyqtSlot(QtNetwork.QNetworkReply)
+    def on_finished(self, reply):
+        target = reply.attribute(QtNetwork.QNetworkRequest.RedirectionTargetAttribute)
+        if reply.error():
+            print("error: {}".format(reply.errorString()))
+            return
+        elif target:
+            newUrl = reply.url().resolved(target)
+            self.start_request(newUrl)
+            return
+        # pixmap = QPixmap()
+        # pixmap.loadFromData(reply.readAll())
+        # self.widgetIMG.setPixmap(pixmap.scaledToHeight(380))
+        pixmap = QtGui.QPixmap()
+        pixmap.loadFromData(reply.readAll())
+        pixmap = pixmap.scaled(self.context_imgNX, self.context_imgNY)
+        self.context_img.setPixmap(pixmap)
+
+    def event_update_context_image(self, lv0_filename):
+        """Download context image into memory and update the image tab"""
+        clean_filename = lv0_filename.replace('.gz', '')
+        remote_dir = get_remote_image_dir(clean_filename)
+        context_img_name = 'XRT_'+clean_filename+'.gif'
+        self.context_url = remote_dir+context_img_name
+
+        if self.tabs.currentIndex() == 1:
+            try:
+                self.get_image()
+            except:
+                print('   ERROR: context images or server are unavailable.')
+            # raw_img = urllib.request.urlopen(remote_dir+context_img_name,
+            #                                  context=self.ssl_context).read()
+            # pixmap = QtGui.QPixmap()
+            # pixmap.loadFromData(raw_img)
+            # pixmap = pixmap.scaled(self.context_imgNX, self.context_imgNY)
+            # self.context_img.setPixmap(pixmap)
+        else:
+            self.event_clear_context_image()
+
+    def event_clear_context_image(self):
+        self.info_context.clear()
+        self.info_context.append('Select any item in a row to see a context'
+                                +' image')
+        buff = np.zeros((self.context_imgNX, self.context_imgNX, 3), dtype=np.int16)
+        image = QtGui.QImage(buff, self.context_imgNX, self.context_imgNY, QtGui.QImage.Format_ARGB32)
+        self.context_img.setPixmap(QtGui.QPixmap(image))
 
     def details(self):
         """Display detailed cat info."""
-        title = QtWidgets.QLabel(self)
-        title.setText('Details')
-        title.setFont(self.default_font)
-        # self.grid.addWidget(title, self.gui_row, 0, 1, 6)
-        # self.grid.addWidget(title, self.gui_row, 6, 1, 3)
-        self.grid.addWidget(title, 1, 6, 1, 3)
-        # self.gui_row += 1
+        # Initialize tab panel and add main tabs
+        self.tabs = QtWidgets.QTabWidget()
+        self.detail_tab = QtWidgets.QWidget()
+        self.image_tab = QtWidgets.QWidget()
+        self.help_tab = QtWidgets.QWidget()
+        self.tabs.addTab(self.detail_tab,"Details")
+        self.tabs.addTab(self.image_tab,"Images")
+        self.tabs.addTab(self.help_tab,"Help")
 
+        # Create details tab
+        self.detail_tab.grid = QtWidgets.QGridLayout()
         self.info_detail = QtWidgets.QTextEdit()
         self.info_detail.setFont(self.info_detail_font)
-        # self.grid.addWidget(self.info_detail, self.gui_row, 0, 1, 6)
-        # self.grid.addWidget(self.info_detail, self.gui_row, 6, 1, 3)
-        self.grid.addWidget(self.info_detail, 2, 6, self.gui_row, 3)
-        #self.grid.setRowStretch(self.gui_row, 1)
-        # self.gui_row += 1
         self.info_detail.setReadOnly(True)
+        self.detail_tab.grid.addWidget(self.info_detail)
+        self.detail_tab.setLayout(self.detail_tab.grid)
+
+        # Create the image tab and initialize SSL context for downloading
+        self.image_tab.grid = QtWidgets.QGridLayout()
+        self.info_context = QtWidgets.QTextEdit()
+        self.info_context.setFont(self.info_detail_font)
+        self.info_context.setReadOnly(True)
+        self.image_tab.grid.addWidget(self.info_context, 0, 0)
+        self.context_img = QtWidgets.QLabel()
+        buff = np.zeros((self.context_imgNX, self.context_imgNX, 3), dtype=np.int16)
+        image = QtGui.QImage(buff, self.context_imgNX, self.context_imgNY,
+                             QtGui.QImage.Format_ARGB32)
+        self.context_img.setPixmap(QtGui.QPixmap(image))
+        self.image_tab.grid.addWidget(self.context_img, 1, 0, 4, 1)
+        self.image_tab.setLayout(self.image_tab.grid)
+        # self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS)
+        # self.ssl_context.load_verify_locations(certifi.where())
+
+        # Create help tab
+        self.help_tab.grid = QtWidgets.QGridLayout()
+        self.info_help = QtWidgets.QTextEdit()
+        self.info_help.setFont(self.info_detail_font)
+        self.info_help.setReadOnly(True)
+        self.help_tab.grid.addWidget(self.info_help)
+        self.help_tab.setLayout(self.help_tab.grid)
+
+        # Add tabs to main window
+        self.tabs.setStyleSheet('QTabBar{font-size: 11pt; font-family: Courier New;}')
+        self.grid.addWidget(self.tabs, 1, 6, self.gui_row + 1, 3)
+        self.tabs.setCurrentIndex(2) # switch to help tab
+
+        # ### OLD CODE ###
+        # title = QtWidgets.QLabel(self)
+        # title.setText('Details')
+        # title.setFont(self.default_font)
+        # # self.grid.addWidget(title, self.gui_row, 0, 1, 6)
+        # # self.grid.addWidget(title, self.gui_row, 6, 1, 3)
+        # self.grid.addWidget(title, 1, 6, 1, 3)
+        # # self.gui_row += 1
+        #
+        # self.info_detail = QtWidgets.QTextEdit()
+        # self.info_detail.setFont(self.info_detail_font)
+        # # self.grid.addWidget(self.info_detail, self.gui_row, 0, 1, 6)
+        # # self.grid.addWidget(self.info_detail, self.gui_row, 6, 1, 3)
+        # self.grid.addWidget(self.info_detail, 2, 6, self.gui_row, 3)
+        # #self.grid.setRowStretch(self.gui_row, 1)
+        # # self.gui_row += 1
+        # self.info_detail.setReadOnly(True)
 
     def event_apply_filter(self):
         if self.count_results > 0:
@@ -717,6 +858,7 @@ class Top(QtWidgets.QWidget):
 
     def event_download_selected(self):
         if self.selected_file is not None:
+            self.tabs.setCurrentIndex(0) #switch to details tab
             data_source = self.data_source_box.currentText()
             datetree = self.radio.isChecked()
             topdir = self.topdir_box.text()
@@ -733,6 +875,7 @@ class Top(QtWidgets.QWidget):
 
     def event_download_file_list(self):
         if self.file_list is not None:
+            self.tabs.setCurrentIndex(0) #switch to details tab
             data_source = self.data_source_box.currentText()
             datetree = self.radio.isChecked()
             topdir = self.topdir_box.text()
@@ -748,7 +891,6 @@ class Top(QtWidgets.QWidget):
             o = download_hdf5_data(filename=self.file_list, datetree=datetree,
                                    source=data_source, local_top=topdir, overwrite=True)
             self.info_detail.append('\nComplete')
-
 
     def event_save_file_list(self):
         """Save a list of the displayed files, one per line."""

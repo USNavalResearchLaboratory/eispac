@@ -360,9 +360,9 @@ class EIS_Struct(object):
 
     def add_waves(self):
         """Expand wavelength info."""
-        self.wave = np.array(self.wavelength.split(','), dtype=np.float)
+        self.wave = np.array(self.wavelength.split(','), dtype=np.float64)
         self.wave = self.wave[0:self.n_lines]
-        self.width = np.array(self.data_windows.split(','), dtype=np.int)
+        self.width = np.array(self.data_windows.split(','), dtype=np.int32)
         self.width = self.width[0:self.n_lines]
         self.wavemin = self.wave/100.0 - self.width/2.0*0.0223
         self.wavemax = self.wave/100.0 + self.width/2.0*0.0223
@@ -372,7 +372,7 @@ class EIS_Struct(object):
 
     def add_exptime(self):
         """Clean up exposure time info."""
-        self.exptime = np.array(self.exposures.split(','), dtype=np.float)
+        self.exptime = np.array(self.exposures.split(','), dtype=np.float64)
         self.exptime = self.exptime[0:self.nexp]/1000.0 # convert to seconds
 
 def members(obj):

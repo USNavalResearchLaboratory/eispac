@@ -83,7 +83,7 @@ class Top(QWidget):
         self.savedirBox.setText(self.save_dir)
 
         self.window = QLabel()
-        buff = np.zeros((self.imgNX, self.imgNX, 3), dtype=np.int16)
+        buff = np.zeros((self.imgNX, self.imgNX, 3), dtype=np.int32)
         image = QImage(buff, self.imgNX, self.imgNY, QImage.Format_ARGB32)
         self.window.setPixmap(QPixmap(image))
 
@@ -207,7 +207,7 @@ class Top(QWidget):
             self.textWindow.append(s)
 
     def set_blank_image(self):
-        buff = np.zeros((self.imgNX, self.imgNX, 3), dtype=np.int16)
+        buff = np.zeros((self.imgNX, self.imgNX, 3), dtype=np.int32)
         image = QImage(buff, self.imgNX, self.imgNY, QImage.Format_ARGB32)
         self.window.setPixmap(QPixmap(image))
 
