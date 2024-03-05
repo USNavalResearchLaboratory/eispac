@@ -16,7 +16,8 @@ def multigaussian(param, x, n_gauss=1, n_poly=0):
     param : array_like
         Model fit parameters. There must be 3*n_gauss + n_poly param values.
         For each Gaussian component, the parameters are assumed to have the
-        following order: [peak, centroid, width]
+        order of [peak, centroid, width] for each Gaussian, followed
+        by the polynomial terms (if any) in INCREASING order (e.g. c0, c1, c2)
     x : array_like
         Independent variable values to evaluate the function at. For EIS data,
         this will usually correspond to wavelength values.
@@ -49,8 +50,8 @@ def multigaussian(param, x, n_gauss=1, n_poly=0):
     # compute polynomial background
     if n_poly > 0:
         p = param[3*n_gauss::]
-        # f = f + np.polyval(p,x)
-        f = f + np.polynomial.polynomial.polyval(x, p)
+        # f = f + np.polyval(p,x) #outdated: p starts with HIGHEST order term
+        f = f + np.polynomial.polynomial.polyval(x, p) #LOWEST order first
 
     return f
 
@@ -68,7 +69,9 @@ def multigaussian_deviates(param, x=None, y=None, error=None,
     param : array_like
         Model fit parameters. There must be 3*n_gauss + n_poly param values.
         For each Gaussian component, the parameters are assumed to have the
-        following order: [peak, centroid, width]
+        order of [peak, centroid, width] for each Gaussian, followed
+        by the polynomial terms (if any) in INCREASING order (e.g. c0, c1, c2)
+    x : array_like
     x : array_like
         Independent variable values to evaluate the function at. For EIS data,
         this will usually correspond to wavelength values.

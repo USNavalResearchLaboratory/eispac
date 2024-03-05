@@ -127,21 +127,28 @@ file and examine the contents.
    >>> tmplt_filename = 'fe_12_195_119.2c.template.h5'
    >>> tmplt = eispac.read_template(tmplt_filename)
 
-Use the command ``print(TEMPLATE)`` to view the initial parameter values
-and constraints in a nice format.
+Use the command ``print(TEMPLATE)`` to view a summary of the template, intial
+parameter values, and constraints in a nice format.
 
 .. code:: python
 
    >>> print(tmplt)
-   --- FIT TEMPLATE PARAMETER CONSTRAINTS ---
-    *         Value      Fixed        Limited            Limits               Tied
-   p[0]     57514.6647     0          1    0       0.0000       0.0000
-   p[1]       195.1179     0          1    1     195.0778     195.1581
-   p[2]         0.0289     0          1    1       0.0191       0.0510
-   p[3]      8013.4013     0          1    0       0.0000       0.0000
-   p[4]       195.1779     0          1    1     195.1378     195.2181          p[1]+0.06
-   p[5]         0.0289     0          1    1       0.0191       0.0510          p[2]
-   p[6]       664.3349     0          0    0       0.0000       0.0000
+   --- EISFitTemplate SUMMARY ---
+   filename_temp: ./fe_12_195_119.2c.template.h5
+   n_gauss: 2
+   n_poly: 1
+   line_ids: ['Fe XII 195.119' 'Fe XII 195.179']
+   wmin, wmax: 194.9600067138672, 195.25
+
+   --- PARAMETER CONSTRAINTS ---
+    *            Value   Fixed     Limited              Limits                Tied
+   p[0]     57514.6647       0     1     0       0.0000       0.0000
+   p[1]       195.1179       0     1     1     195.0778     195.1581
+   p[2]         0.0289       0     1     1       0.0191       0.0510
+   p[3]      8013.4013       0     1     0       0.0000       0.0000
+   p[4]       195.1779       0     1     1     195.1378     195.2181          p[1]+0.06
+   p[5]         0.0289       0     1     1       0.0191       0.0510          p[2]
+   p[6]       664.3349       0     0     0       0.0000       0.0000
 
 .. sidebar:: funcinfo dictionary
 
@@ -165,6 +172,89 @@ terms in a given template.
    b is the position of the center of the peak (centroid), and c is the standard
    deviation (width). This is consistent with the fit parameters used for EIS data
    in the IDL SolarSoftWare (SSW) analysis suite.
+
+Custom Fit Templates
+--------------------
+EISPAC comes with a wide selection of templates that cover the most common EIS 
+lines. However, you can also define a custom fitting template for more specific 
+use-cases. There are two initialization methods available. First, you can call 
+the `~eispac.core.EISFitTemplate` class directly and pass in the appropriate 
+values and arrays. Here is an example for initializing a template with a single 
+Gaussian function and constant background. 
+
+.. code:: python
+
+   >>> new_tmplt = eispac.EISFitTemplate(value=[57514.7, 195.1, 0.0289, 664.3], line_ids=['Fe XII 195.119'])
+
+At minimum, you need to provide a ``value`` list or array giving the initial values 
+for each fitting parameter. The order of parameters is assumed to be sets of 
+[PEAK, CENTROID, WIDTH] for each Gaussian component followed, optionally, by the 
+coefficients the background polynomial, starting with the LOWEST (constant) order 
+term first. If only a ``value`` array is provided (as in the example above), the 
+code will estimate the number of Gaussians and polynomial terms based on the total 
+number of parameters. Other valid template keys include,
+
+* **n_gauss** (int) - number of Gaussian components
+* **n_poly** (int) - Number of background polynomial terms. 
+  Common values are: 0 (no background), 1 (constant), and 2 (linear).
+* **line_ids** (array_like) - Strings giving the line identification 
+   for each Gaussian component. For example, "Fe XII 195.119". 
+   If not specified, placeholder values of "unknown I {INITAL CENTROID VALUE}" 
+   will be used.
+* **wmin** and **wmax** (floats) - min and max wavelength value of data to use 
+  for fitting. Any data in the window outside the range delimited by these two 
+  keys will be ignored during fitting.
+
+The following keys are all additional parameter constraints that will be stored 
+in the ``.parinfo`` list of dicts. As such, they must be input as arrays or lists 
+with the same number of elements as the ``value`` array. 
+        
+* **fixed** (0 or 1) - If set to "1", will not fit the parameter and just use initial value instead
+* **limited** (two-element array_like) - If set to "1" in the first/second
+  value, will apply and limit to the parameter on the lower/upper side
+* **limits** (two-element array_like) - Values of the limits on the
+  lower/upper side. Both "limited" and "limits" must be give together.
+* **tied** (str) - String defining a fixed relationship between this
+  parameters one or more others. For example "p[0] / 2" would define
+  a parameter to ALWAYS be exactly half the value of the first parameter.
+
+The second method for initializing a custom template is to write a separate 
+TOML-formatted text file with all of the input parameters and then load the 
+custom template file using the `~eispac.core.read_template`. This allows you to 
+save, reuse, and share your templates without needing to copy/paste Python code. 
+Please note: there is currently no function to export a template from EISPAC and 
+save it to a TOML file; you will need to create the TOML file yourself using your 
+favorite text editor. Below is an example TOML file with a copy of the 
+two-component Fe XII 195.119 template provided with EISPAC.
+
+::
+   [template]
+   n_gauss = 2
+   n_poly = 1
+   line_ids = ['Fe XII 195.119', 'Fe XII 195.179']
+   wmin = 194.96 
+   wmax = 195.25
+
+   [parinfo]
+   value = [
+      57514.6647, 195.1179, 0.0289, 
+      8013.4013, 195.1779, 0.0289, 
+      664.3349
+   ]
+   fixed = [0,0,0,0,0,0,0]
+   limited = [[1,0],[1,1],[1,1],[1,0],[1,1],[1,1],[0,0]]
+   limits = [
+      [1,0],[195.0778,195.1581],[0.0191,0.0510],
+      [1,0],[195.1378,195.2181],[0.0191,0.0510],
+      [1,0]
+   ]
+   tied = ['', '', '', '', 'p[1]+0.06', 'p[2]', '']
+
+Assuming this was saved in a file named “custom_fe_12_195.toml”, you can then 
+easily load it in using the command ``fe_12_tmplt = eispac.read_template(“custom_fe_12_195.toml”``. 
+For more information about TOML files, please see the 
+`official documentation <https://toml.io/en/v1.0.0>`_
+
 
 Fitting Spectra
 ---------------

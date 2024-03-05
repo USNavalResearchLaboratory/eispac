@@ -6,7 +6,7 @@ import numpy as np
 from astropy.modeling import fitting
 import eispac.core.fitting_functions as fit_fns
 from eispac.core.eiscube import EISCube
-from eispac.core.read_template import EISFitTemplate
+from eispac.core.eisfittemplate import EISFitTemplate
 from eispac.core.eisfitresult import EISFitResult
 from eispac.core.scale_guess import scale_guess
 from eispac.extern.mpfit import mpfit

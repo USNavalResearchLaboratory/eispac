@@ -1,7 +1,7 @@
 __all__ = ['generate_astropy_model']
 
 from astropy.modeling import models
-from eispac.core.read_template import EISFitTemplate
+from eispac.core.eisfittemplate import EISFitTemplate
 
 # if __name__ == '__main__':
 #     # Import local versions of submodules
