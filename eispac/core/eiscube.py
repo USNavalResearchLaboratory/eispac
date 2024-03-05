@@ -472,7 +472,7 @@ class EISCube(NDCube):
             sm_errs = np.sqrt(convolve(self.uncertainty.array**2,
                                        sm_kernel, **kwargs))
         else:
-            sm_errs = none
+            sm_errs = None
         sm_data_mask = np.logical_or(np.isnan(sm_data), sm_data < 0)
 
         # Pack everything up in a new EISCube

@@ -10,7 +10,7 @@ import numpy as np
 import eispac.core.fitting_functions as fit_fns
 from eispac.core.eiscube import EISCube
 from eispac.core.read_cube import read_cube
-from eispac.core.read_template import EISFitTemplate
+from eispac.core.eisfittemplate import EISFitTemplate
 from eispac.core.eisfitresult import EISFitResult
 from eispac.core.eisfitresult import create_fit_dict
 from eispac.core.scale_guess import scale_guess
@@ -85,8 +85,8 @@ def fit_with_mpfit(wave_cube, inten_cube, errs_cube, template, parinfo,
     # Extract fit information from template
     n_gauss = template['n_gauss']
     n_poly = template['n_poly']
-    min_wave = template['data_x'][0]
-    max_wave = template['data_x'][-1]
+    min_wave = template['wmin'] #template['data_x'][0]
+    max_wave = template['wmax'] #template['data_x'][-1]
     oldguess = template['fit']
 
     # Create fit dictionary, mask array, and parameter indices
@@ -241,6 +241,8 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
         parinfo_copy = copy.deepcopy(template_obj.parinfo)
         tmplt_filename = template_obj.filename_temp
     elif isinstance(template, EISFitTemplate):
+        template._validate_parinfo_list() #force validation of .parinfo
+        template._validate_template_dict() #force check/update of .template
         template_copy = copy.deepcopy(template.template)
         parinfo_copy = copy.deepcopy(template.parinfo)
         tmplt_filename = template.filename_temp

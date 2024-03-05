@@ -1,4 +1,5 @@
 from .eiscube import *
+from .eisfittemplate import *
 from .eisfitresult import *
 from .eismap import *
 from .read_wininfo import *

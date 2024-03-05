@@ -8,7 +8,7 @@ from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 from eispac import __version__ as eispac_version
 import eispac.core.fitting_functions as fit_fns
-from eispac.core.read_template import EISFitTemplate
+from eispac.core.eisfittemplate import EISFitTemplate
 from eispac.core.eismap import EISMap
 from eispac.util.rot_xy import rot_xy
 from eispac.instr.calc_velocity import calc_velocity
@@ -111,8 +111,8 @@ class EISFitResult:
             #     line_ids = [line_ids.decode('utf-8')] # single entry = byte array
             fit['line_ids'] = line_ids
             fit['main_component'] = template['component']
-            fit['wave_range'][0] = template['data_x'][0]
-            fit['wave_range'][1] = template['data_x'][-1]
+            fit['wave_range'][0] = template['wmin']
+            fit['wave_range'][1] = template['wmax']
             self.fit = fit
         else:
             # Initialize an empty EISFitResult (used by eispac.read_fit)
