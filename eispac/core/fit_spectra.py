@@ -167,6 +167,8 @@ def fit_with_mpfit(wave_cube, inten_cube, errs_cube, template, parinfo,
                 fit_dict['perror'][ii,jj,:] = out.perror
                 fit_dict['int'][ii,jj,:] = l_inten
                 fit_dict['err_int'][ii,jj,:] = e_inten
+                fit_dict['width'][ii,jj,:] = fwdths
+                fit_dict['err_width'][ii,jj,:] = ewdths
             else:
                 print(' ! fit did not converge!')
                 fit_dict['status'][ii,jj] = out.status
@@ -412,6 +414,8 @@ def fit_spectra(inten, template, parinfo=None, wave=None, errs=None, min_points=
                 fit_res.fit['perror'][:,jj,:] = pool_out[jj]['perror'][:,0,:]
                 fit_res.fit['int'][:,jj,:] = pool_out[jj]['int'][:,0,:]
                 fit_res.fit['err_int'][:,jj,:] = pool_out[jj]['err_int'][:,0,:]
+                fit_res.fit['width'][:,jj,:] = pool_out[jj]['width'][:,0,:]
+                fit_res.fit['err_width'][:,jj,:] = pool_out[jj]['err_width'][:,0,:]
 
         # Calculate the Doppler velocity for each line
         # TODO: revisit error estimation

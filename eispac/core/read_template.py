@@ -24,11 +24,10 @@ def read_template(filename):
         Object containing the fit template
     """
     # Note: this is just a convience function to avoid breaking the old API
-    #       Please see the code in the class method
+    #       Please see the code in the class method. 
+    #       (coped below for referencce on 2024-03-05)
     return EISFitTemplate.read_template(filename)
     
-    # # TODO: Add loading custom template from a .toml file
-
     # # NOTE: return None here rather than allow h5py to handle
     # # exception so that spectral fitting pipeline can error
     # # more gracefully
@@ -69,6 +68,14 @@ def read_template(filename):
     #                     val = np.char.decode(val) # convert bytes to unicode
     #                 parameter[key] = val
     #             parinfo.append(parameter)
+
+    #         # Fix the datatypes of important keys
+    #         template['n_gauss'] = int(template.get('n_gauss', 1))
+    #         template['n_poly'] = int(template.get('n_poly', 1))
+    #         template['wmin'] = float(template.get('wmin', 100))
+    #         template['wmax'] = float(template.get('wmax', 1000))
+    #         template['component'] = int(template.get('component', 1))
+    #         template['line_ids'] = template['line_ids'].astype('<U24')
     # elif file_type.lower() == '.toml':
     #     # Load a custom template stored in a TOML file
     #     with open(filename, 'rb') as f_temp:
@@ -80,4 +87,4 @@ def read_template(filename):
     #         parinfo = toml_dict.get('parinfo', None)
     #         # note: this parinfo will be an alternative dict of lists
 
-    # return EISFitTemplate(filename, template, parinfo)
+    # return cls(filename, template, parinfo)
