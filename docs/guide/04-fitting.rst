@@ -253,7 +253,7 @@ two-component Fe XII 195.119 template provided with EISPAC.
 
 
 Assuming this was saved in a file named “custom_fe_12_195.toml”, you can then 
-easily load it in using the command ``fe_12_tmplt = eispac.read_template(“custom_fe_12_195.toml”``. 
+easily load it in using the command ``fe_12_tmplt = eispac.read_template(“custom_fe_12_195.toml”)``. 
 For more information about TOML files, please see the 
 `official documentation <https://toml.io/en/v1.0.0>`_
 
