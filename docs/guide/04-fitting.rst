@@ -228,6 +228,7 @@ favorite text editor. Below is an example TOML file with a copy of the
 two-component Fe XII 195.119 template provided with EISPAC.
 
 ::
+
    [template]
    n_gauss = 2
    n_poly = 1
@@ -249,6 +250,7 @@ two-component Fe XII 195.119 template provided with EISPAC.
       [1,0]
    ]
    tied = ['', '', '', '', 'p[1]+0.06', 'p[2]', '']
+
 
 Assuming this was saved in a file named “custom_fe_12_195.toml”, you can then 
 easily load it in using the command ``fe_12_tmplt = eispac.read_template(“custom_fe_12_195.toml”``. 
