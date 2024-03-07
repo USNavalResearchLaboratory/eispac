@@ -18,9 +18,9 @@ determining an initial guess for each parameter. The next ingredient for
 a fit is the selection of an optimization method. By default, EISPAC
 uses a Python implementation of the well-known IDL method **MPFIT**,
 which solves the non-linear least squares problem using the Levenberg-
-Marquardt algorithm. The Python module, ``mpfit.py``, can be found on
-GitHub [#]_ and is included in EISPAC. Future versions of the code will
-include full support for other fitting packages such as the newer
+Marquardt algorithm. The Python module, ``mpfit.py``, is included in EISPAC 
+and the orginal source code can found on GitHub [#]_. Future versions of 
+of EISPAC may include support for other fitting packages such as the newer
 `astropy.modeling` framework.
 
 Template Files
@@ -197,7 +197,7 @@ number of parameters. Other valid template keys include,
 * **n_gauss** (int) - number of Gaussian components
 * **n_poly** (int) - Number of background polynomial terms. 
   Common values are: 0 (no background), 1 (constant), and 2 (linear).
-* **line_ids** (array_like) - Strings giving the line identification 
+* **line_ids** (array-like) - Strings giving the line identification 
    for each Gaussian component. For example, "Fe XII 195.119". 
    If not specified, placeholder values of "unknown I {INITAL CENTROID VALUE}" 
    will be used.
@@ -210,13 +210,15 @@ in the ``.parinfo`` list of dicts. As such, they must be input as arrays or list
 with the same number of elements as the ``value`` array. 
         
 * **fixed** (0 or 1) - If set to "1", will not fit the parameter and just use initial value instead
-* **limited** (two-element array_like) - If set to "1" in the first/second
+* **limited** (two-element array-like) - If set to "1" in the first/second
   value, will apply and limit to the parameter on the lower/upper side
-* **limits** (two-element array_like) - Values of the limits on the
+* **limits** (two-element array-like) - Values of the limits on the
   lower/upper side. Both "limited" and "limits" must be give together.
 * **tied** (str) - String defining a fixed relationship between this
   parameters one or more others. For example "p[0] / 2" would define
   a parameter to ALWAYS be exactly half the value of the first parameter.
+
+.. _sec-template_toml:
 
 The second method for initializing a custom template is to write a separate 
 TOML-formatted text file with all of the input parameters and then load the 
@@ -366,6 +368,8 @@ of arrays.
    err_int         float64 (128, 32, 2)
    vel             float64 (128, 32, 2)
    err_vel         float64 (128, 32, 2)
+   width           float64 (128, 32, 2)
+   err_width       float64 (128, 32, 2)
    params          float64 (128, 32, 7)
    perror          float64 (128, 32, 7)
    component       int32 (7,)

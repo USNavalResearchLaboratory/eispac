@@ -18,7 +18,7 @@ Example call signature,
 
 ::
 
-   read_cube('eis_20190404_131513.data.h5', 195.119)
+   data_cube = read_cube('eis_20190404_131513.data.h5', 195.119)
 
 `~eispac.core.read_cube` typically requires two arguments:
 
@@ -65,15 +65,17 @@ Example call signature,
 
 ::
 
-   read_template('fe_12_195_119.2c.template.h5')
+   tmplt = read_template('fe_12_195_119.2c.template.h5')
 
 `~eispac.core.read_template` is relatively simple. It takes a single argument
 giving the filename of a template file and returns an `~eispac.core.EISFitTemplate`
-class instance containing the the initial fit parameters. Users may view the parameter
-values by using either the ``print_parinfo()`` method or manually inspecting the
-``.template`` attribute. For convenience, there is also a ``central_wave`` attribute
-that contains the mean wavelength value within the template. This can be useful for
-loading the correct spectral window using `~eispac.core.read_cube`.
+class instance containing the the initial fit parameters. You can also load custom 
+templates by first defining a TOML file with your template parameters (see the
+:ref:`Custom Fit Templates <sec-template_toml>`: section for an example TOML
+file). You may print a summary of the template and parameter contraints by typing
+``print(TEMPLATE)``. For convenience, there is also a ``.central_wave`` attribute 
+that contains the mean wavelength value within the template. This can be useful 
+for loading the correct spectral window using `~eispac.core.read_cube`.
 
 fit_spectra
 -----------
@@ -82,7 +84,7 @@ This is the main fitting routine. Example call signature,
 
 ::
 
-   fit_spectra(data_cube, fit_template)
+   fit_results = fit_spectra(data_cube, fit_template)
 
 The simplest way to use `~eispac.core.fit_spectra()` is to give it two arguments:
 
@@ -101,8 +103,8 @@ Alternatively, you may provide the function with individual data arrays like thi
 
 ::
 
-   fit_spectra(inten_arr, template_dict, parinfo=parinfo_dict,
-               wave=wavelength_arr, errs=error_arr)
+   fit_result = fit_spectra(inten_arr, template_dict, parinfo=parinfo_dict,
+                            wave=wavelength_arr, errs=error_arr)
 
 The function will loop over the data according to its dimensionality. 3D data is
 assumed to be a full EIS raster (or a sub region), 2D data is assumed to be a

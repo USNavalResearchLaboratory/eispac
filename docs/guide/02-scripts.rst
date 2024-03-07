@@ -68,7 +68,7 @@ EISPAC. If you have a working IDL installation of SolarSoft, the tool will
 attempt to locate a copy of the ``eis_cat.sqlite`` database on your computer.
 Otherwise, the program will try to download the database the first time you
 start the GUI. Please be patient, downloading the full catalog can take a
-minute of two.
+minute or two.
 
 .. figure:: figures/eis_catalog_example.png
    :align: center

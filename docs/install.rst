@@ -32,12 +32,14 @@ try installing the required packages individually first.
 
 -  python-dateutil >= 2.8
 
+-  tomli >= 1.1.0 (python < v3.11 only)
+
 .. _sec-install:
 
 Standard Installation
 ---------------------
 
-EISPAC is now available on PyPI. To install, just use the following command,
+EISPAC is available on PyPI. To install, use the following command,
 
 ::
 
