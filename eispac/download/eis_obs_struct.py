@@ -80,6 +80,11 @@ class EIS_DB():
         """
         exp_rows = self.cur.fetchall()
 
+        unknown_main_row = {'stud_acr':'unknown_trigger', 'study_id':0, 'jop_id':0, 
+                            'obstitle':' ', 
+                            'obs_dec':'Triggered raster (see previous obs) ', 
+                            'sci_obj':'AR? ', 'target':'Flare? '}
+
         self.eis_str = []
         for e_row in exp_rows:
             if e_row['rast_id'] <= 0:
@@ -100,11 +105,16 @@ class EIS_DB():
                     ll_row = item
 
             # Get needed row from from main
-            main_string = """stud_acr, study_id, jop_id, obstitle,
-                          obs_dec, sci_obj, target"""
-            self.cur.execute("select " + main_string + """ from eis_main
-                             where tl_id = ?""", (e_row['tl_id'],))
-            m_row, = self.cur.fetchall()
+            if e_row['tl_id'] == 1:
+                # Triggered rasters (NOT IN MAIN!)
+                m_row = unknown_main_row
+                m_row['obstitle'] = f"Triggered {e_row['rast_acr']} (rast_acr) "
+            else:
+                main_string = """stud_acr, study_id, jop_id, obstitle,
+                            obs_dec, sci_obj, target"""
+                self.cur.execute("select " + main_string + """ from eis_main
+                                where tl_id = ?""", (e_row['tl_id'],))
+                m_row, = self.cur.fetchall()
             self.eis_str.append(EIS_Struct(e_row, ll_row, rast_row, m_row))
 
     def mk_list_main(self):
@@ -311,8 +321,8 @@ class EIS_Struct(object):
         """
         # Query results from experiment database
         self.filename = exp_row['filename']
-        self.date_obs = tai2utc(exp_row['date_obs'])
-        self.date_end = tai2utc(exp_row['date_end'])
+        self.date_obs = tai2utc(exp_row['date_obs'])[0:19]
+        self.date_end = tai2utc(exp_row['date_end'])[0:19]
         self.xcen = -9999 if exp_row['xcen'] is None else exp_row['xcen']
         self.ycen = -9999 if exp_row['ycen'] is None else exp_row['ycen']
         self.fovx = exp_row['fovx']
