@@ -52,7 +52,7 @@ def match_templates(eis_obs):
     #       or "s__11_188_675.3c.template.h5"
     for t in range(num_templates):
         line_id_str = all_templates[t].name.split('.')[0]
-        line_id_str.replace('__', '_') # single character elements are padded
+        line_id_str = line_id_str.replace('__', '_') # single character elements are padded
         line_id_parts = line_id_str.split('_')
         template_waves[t] = float(line_id_parts[2]+'.'+line_id_parts[3])
 

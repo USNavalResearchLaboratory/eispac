@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-"""EIS asrun catalog search PyQt4/5 gui.
+"""EIS as-run catalog search PyQt5 gui.
 
-A python gui to search the EIS asrun catalog. The intention is to
+A python gui to search the EIS as-run catalog. The intention is to
 be somewhat like the IDL routine eis_cat.pro, but with fewer
 features, at least initially. Very much a work in progress.
 
@@ -10,7 +10,8 @@ features, at least initially. Very much a work in progress.
 (2020-Dec-18) If no database is found, ask the user if they want to download it.
 (2021-Oct-22) Major update adding in more search criteria and faster queries.
 (2023-Jul-11) Added data mirrors for eis_cat.sqlite and HDF5 files
-(2023-Sep-23) Added viewing context images from MSSL 
+(2023-Sep-23) Added viewing context images from MSSL
+(2024-May-07) Removed PyQt4 support, cleaned-up code and fixed a search bug
 """
 __all__ = ['eis_catalog']
 
@@ -22,25 +23,12 @@ import urllib
 import ssl
 import certifi
 import sqlite3
-import pkgutil
 from datetime import datetime, timedelta
 import numpy as np
+from PyQt5 import QtCore, QtWidgets, QtGui, QtNetwork
 from eispac.download import eis_obs_struct
 from eispac.download.download_hdf5_data import download_hdf5_data
 from eispac.download.download_db import download_db
-
-if pkgutil.find_loader('PyQt4'):
-    from PyQt4 import QtCore, QtNetwork
-    from PyQt4 import QtGui as QtWidgets
-    have_Qt4 = True
-    have_Qt5 = False
-elif pkgutil.find_loader('PyQt5'):
-    from PyQt5 import QtCore, QtWidgets, QtGui, QtNetwork
-    have_Qt4 = False
-    have_Qt5 = True
-else:
-    print('Either PyQt4 or PyQt5 must be installed.')
-    sys.exit()
 
 def get_remote_image_dir(filename):
     """Parse a Level-0 filename and get the remote image dir"""
@@ -61,25 +49,21 @@ class Top(QtWidgets.QWidget):
         super(Top, self).__init__(parent)
         self.file_list = None
         self.selected_file = None
+        self.selected_info = []
         self.default_filename = 'eis_filelist.txt'
         self.default_start_time = '2018-05-29 00:00' # '29-May-2018 00:00'
         self.default_end_time = '2018-05-29 23:59' # '29-May-2018 23:59'
-        self.default_button_width = 165 #130
+        self.default_button_width = 150 #165 #130
         self.default_topdir = os.path.join(os.getcwd(), 'data_eis')
         self.dbfile = dbfile
         self.db_loaded = False
-        self.context_imgNX = 512
-        self.context_imgNY = 512
+        self.context_imgNX = 768 #512
+        self.context_imgNY = 768 #512
 
         # Font settings
-        if have_Qt4:
-            self.default_font = QtWidgets.QFont()
-            self.small_font = QtWidgets.QFont()
-            self.info_detail_font = QtWidgets.QFont("Courier New", 9)
-        else:
-            self.default_font = QtGui.QFont()
-            self.small_font = QtGui.QFont()
-            self.info_detail_font = QtGui.QFont("Courier New", 9)
+        self.default_font = QtGui.QFont()
+        self.small_font = QtGui.QFont()
+        self.info_detail_font = QtGui.QFont("Courier New", 9)
         self.default_font.setPointSize(11)
         self.small_font.setPointSize(9)
 
@@ -91,9 +75,15 @@ class Top(QtWidgets.QWidget):
                          'Obs. Title':'obstitle'}
         # Filter drop-down lists. given as gui_label:filter_value pairs
         self.rast_types = {'Any':None, 'Scan (0)':0, 'Sit-and-Stare (1)':1}
-        self.slit_slot = {'Any':None, '1" slit (0)':0, '2" slit (2)':2,
-                          '40" slot (3)':3, '266" slot (1)':1}
+        self.slit_slot = {'Any':None, 'Slit only (0 & 2)':[0,2],
+                          '1" slit (0)':[0], '2" slit (2)':[2],
+                          'Slot only (3 & 1)':[3,1],
+                          '40" slot (3)':[3], '266" slot (1)':[1]}
 
+        self.rtype_dict = {0:'0 (scan)', 1:'1 (sit-and-stare)'}
+        self.sindex_dict = {0:'0 (1" slit)', 2:'2 (2" slit)',
+                            3:'3 (40" slot)', 1:'1 (266" slot)'}
+        
         # Check for EIS database
         if os.path.isfile(self.dbfile):
             self.d = eis_obs_struct.EIS_DB(self.dbfile)
@@ -125,7 +115,7 @@ class Top(QtWidgets.QWidget):
         self.gui_row = 0
         # self.setStyleSheet("QLabel{font-size: 11pt;}")
 
-        # Quit, Help, Update DB buttons (with filename & timestamp)
+        # Quit & Update DB buttons (with filename & timestamp)
         self.top_menu() # very top
 
         # Selecting search criteria
@@ -146,7 +136,7 @@ class Top(QtWidgets.QWidget):
 
         # And away we go
         self.setLayout(self.grid)
-        self.setGeometry(50, 100, 1800, 800)
+        self.setGeometry(50, 100, 1800, 800) #(50, 100, 1800, 800)
         self.setWindowTitle('EIS As-Run Catalog Information')
         self.event_help()
         self.show()
@@ -161,18 +151,13 @@ class Top(QtWidgets.QWidget):
         self.quit.setFont(self.default_font)
         self.quit.clicked.connect(self.event_quit)
 
-        # self.help = QtWidgets.QPushButton('Help', self)
-        # self.help.setFixedWidth(self.default_button_width)
-        # self.help.setFont(self.default_font)
-        # self.help.clicked.connect(self.event_help)
-
         self.download_db = QtWidgets.QPushButton('Update Database', self)
         self.download_db.setFixedWidth(self.default_button_width)
         self.download_db.setFont(self.default_font)
         self.download_db.clicked.connect(self.event_download_db)
 
         self.db_source_box = QtWidgets.QComboBox()
-        self.db_source_box.addItems(['Hesperia (source)', 'NRL (mirror)'])
+        self.db_source_box.addItems(['NASA (source)', 'NRL (mirror)'])
         self.db_source_box.setFixedWidth(self.default_button_width) # or 150
         self.db_source_box.setFont(self.default_font)
 
@@ -185,7 +170,6 @@ class Top(QtWidgets.QWidget):
             self.db_info.setText('Unable to locate DB: ' + self.dbfile)
 
         self.grid.addWidget(self.quit, self.gui_row, 0)
-        # self.grid.addWidget(self.help, self.gui_row, 1)
         self.grid.addWidget(self.download_db, self.gui_row, 1)
         self.grid.addWidget(self.db_source_box, self.gui_row, 2)
         self.grid.addWidget(self.db_info, self.gui_row, 3, 1, 4)
@@ -442,7 +426,7 @@ class Top(QtWidgets.QWidget):
         primary_value = str(self.primary_text.text())
 
         if self.criteria[primary_key] == 'date_obs':
-            self.d.query_main(date=[start_time, end_time])
+            self.d.get_by_date(start_time, end_time) # searches eis_experiment
         else:
             search_kwargs = {'date':[start_time, end_time]}
             search_kwargs[self.criteria[primary_key]] = primary_value
@@ -492,10 +476,9 @@ class Top(QtWidgets.QWidget):
 
         headers = ['Date Observed', 'Study ID', 'Study Acronym',
                    'Obs. Title', 'Xcen', 'Ycen']
-        widths = [180, 80, 180, 350, 80, 80]
+        widths = [160, 60, 160, 300, 60, 60] #[180, 80, 180, 350, 80, 80]
 
         self.table_m = QtWidgets.QTableWidget(self)
-        # self.table_m = MyTableWidget(self)
         self.table_m.verticalHeader().setVisible(False)
         self.table_m.setRowCount(1)
         self.table_m.setColumnCount(len(headers))
@@ -513,7 +496,6 @@ class Top(QtWidgets.QWidget):
         self.file_list = []
         self.table_m.clearContents()
         self.table_m.setRowCount(1)
-        # self.table_m.setRowCount(len_info)
         r_type = self.rast_types[self.rast_type_box.currentText()]
         s_index = self.slit_slot[self.slit_slot_box.currentText()]
         wave_list = list(str(self.wave_text.text()).strip().split(','))
@@ -522,14 +504,14 @@ class Top(QtWidgets.QWidget):
             # Apply result filters (raster type, slit index, wavelengths)
             if r_type is not None and int(info[row][8]) != r_type:
                 continue
-            elif s_index is not None and int(info[row][9]) != s_index:
+            elif s_index is not None and int(info[row][9]) not in s_index:
                 continue
             elif any(wave_list):
                 missing_wave = False
                 for w in range(len(wave_list)):
                     try:
                         wvl = float(wave_list[w])
-                        # row[10] == wavemin array, row[11] == wavemax array
+                        # Note: row[10] == wavemin array, row[11] == wavemax array
                         wave_check = (wvl - info[row][10])*(info[row][11] - wvl)
                         if wave_check.max() < 0:
                             missing_wave = True
@@ -564,9 +546,6 @@ class Top(QtWidgets.QWidget):
             fstring = '{:0.1f}'.format(info[row][5])
             item = QtWidgets.QTableWidgetItem(fstring)
             self.table_m.setItem(new_row_ind, 5, item)
-            # # Filename
-            # item = QtWidgets.QTableWidgetItem(info[row][6])
-            # self.table_m.setItem(row, 6, item)
             self.file_list.append(info[row][6])
 
         # Update filter count label
@@ -577,9 +556,8 @@ class Top(QtWidgets.QWidget):
                                     +' filter matches')
 
         # Any cells highlighted?
-        # self.table_m.cellClicked.connect(self.get_details)
         self.table_m.currentCellChanged.connect(self.get_details)
-
+        self.tabs.currentChanged.connect(self.event_update_context_image)
 
     def get_details(self, row, column):
         """Provide details on selected cell."""
@@ -587,7 +565,6 @@ class Top(QtWidgets.QWidget):
         # Checking for a valid filename prevents crashes when a new search is
         # made and the results list is empty
         try:
-            # row_filename = str(self.table_info[row][6])
             row_filename = str(self.file_list[row])
         except:
             row_filename = None
@@ -599,7 +576,7 @@ class Top(QtWidgets.QWidget):
                 setValue(self.info_detail.verticalScrollBar().minimum())
 
             # Update the context image
-            self.event_update_context_image(row_filename)
+            self.event_update_context_image(0)
 
     def fill_info(self, file):
         """Retrieve useful info for a selected file."""
@@ -607,30 +584,29 @@ class Top(QtWidgets.QWidget):
         if len(self.d.eis_str) != 0:
             row, = [x for x in self.d.eis_str if x.filename == str(file)]
             self.selected_file = row.filename
-            info.append("{0:<20} {1}".format('filename', row.filename))
-            info.append("{0:<20} {1}".format('date_obs', row.date_obs))
-            info.append("{0:<20} {1}".format('date_end', row.date_end))
-            info.append("{0:<20} {1:0.1f}".format('xcen', row.xcen))
-            info.append("{0:<20} {1:0.1f}".format('ycen', row.ycen))
-            info.append("{0:<20} {1:0.1f}".format('fovx', row.fovx))
-            info.append("{0:<20} {1:0.1f}".format('fovy', row.fovy))
-            info.append("{0:<20} {1}".format('tl_id', row.tl_id))
-            info.append("{0:<20} {1}".format('study_id', row.study_id))
-            info.append("{0:<20} {1}".format('stud_acr', row.stud_acr))
-            info.append("{0:<20} {1}".format('rast_acr', row.rast_acr))
-            info.append("{0:<20} {1}".format('rast_id', row.rast_id))
-            info.append("{0:<20} {1}".format('jop_id', row.jop_id))
-            info.append("{0:<20} {1}".format('obstitle', row.obstitle))
-            info.append("{0:<20} {1}".format('obs_dec', row.obs_dec))
-            info.append("{0:<20} {1}".format('sci_obj', row.sci_obj))
-            info.append("{0:<20} {1}".format('target', row.target))
-            info.append("{0:<20} {1}".format('rastertype', row.rastertype))
-            info.append("{0:<20} {1}".format('slit_index', row.slit_index))
-            info.append("{0:<20} {1}".format('scan_fm_nsteps', row.scan_fm_nsteps))
-            info.append("{0:<20} {1}".format('scan_fm_stepsize',
-                                             row.scan_fm_stepsize))
-            info.append("{0:<20} {1}".format('nexp', row.nexp))
-            info.append("{0:<20} {1}".format('exptime', row.exptime))
+            info.append(f"{'filename':<20} {row.filename}")
+            info.append(f"{'date_obs':<20} {row.date_obs}")
+            info.append(f"{'date_end':<20} {row.date_end}")
+            info.append(f"{'xcen':<20} {row.xcen}")
+            info.append(f"{'ycen':<20} {row.ycen}")
+            info.append(f"{'fovx':<20} {row.fovx}")
+            info.append(f"{'fovy':<20} {row.fovy}")
+            info.append(f"{'tl_id':<20} {row.tl_id}")
+            info.append(f"{'study_id':<20} {row.study_id}")
+            info.append(f"{'stud_acr':<20} {row.stud_acr}")
+            info.append(f"{'rast_acr':<20} {row.rast_acr}")
+            info.append(f"{'rast_id':<20} {row.rast_id}")
+            info.append(f"{'jop_id':<20} {row.jop_id}")
+            info.append(f"{'obstitle':<20} {row.obstitle}")
+            info.append(f"{'obs_dec':<20} {row.obs_dec}")
+            info.append(f"{'sci_obj':<20} {row.sci_obj}")
+            info.append(f"{'target':<20} {row.target}")
+            info.append(f"{'rastertype':<20} {self.rtype_dict[int(row.rastertype)]}")
+            info.append(f"{'slit_index':<20} {self.sindex_dict[int(row.slit_index)]}")
+            info.append(f"{'scan_fm_nsteps':<20} {row.scan_fm_nsteps}")
+            info.append(f"{'scan_fm_stepsize':<20} {row.scan_fm_stepsize}")
+            info.append(f"{'nexp':<20} {row.nexp}")
+            info.append(f"{'exptime':<20} {row.exptime}")
 
             info.append(f"\n\n{'----- Line List -----':^55}")
             info.append(f"{'window':<8} {'title':<20} "
@@ -641,22 +617,18 @@ class Top(QtWidgets.QWidget):
                            +f"{row.width[i]:<5}")
             info.append("\n")
 
-            # Add info to context tab
-            self.info_context.clear()
-            self.info_context.append("{0:<20} {1}".format('filename', row.filename))
-            self.info_context.append("{0:<20} {1}".format('date_obs', row.date_obs))
-            self.info_context.append("{0:<20} {1}".format('date_end', row.date_end))
-            self.info_context.append("{0:<20} {1:0.2f}, {2:0.2f}".format('xcen, ycen', row.xcen, row.ycen))
-            self.info_context.append("{0:<20} {1:0.2f}, {2:0.2f}".format('fovx, fovy', row.fovx, row.fovy))
-            self.info_context.append("{0:<20} {1}".format('study_id', row.study_id))
-            self.info_context.append("{0:<20} {1}".format('stud_acr', row.stud_acr))
-            self.info_context.append("{0:<20} {1}".format('obstitle', row.obstitle))
+            # Generate info for display in context tab
+            self.selected_info = []
+            self.selected_info.append(f"{'filename':<20} {row.filename}")
+            self.selected_info.append(f"{'date_obs, date_end':<20} {row.date_obs}   to   {row.date_end}")
+            self.selected_info.append(f"{'xcen, ycen':<20} {row.xcen:0.2f}, {row.ycen:0.2f}")
+            self.selected_info.append(f"{'fovx, fovy':<20} {row.fovx:0.2f}, {row.fovy:0.2f}")
+            self.selected_info.append(f"{'study_id, stud_acr':<20} {row.study_id}, {row.stud_acr}")
+            self.selected_info.append(f"{'obstitle':<20} {row.obstitle}")
         return info
 
     @QtCore.pyqtSlot(int)
     def get_image(self):
-    # def get_image(self, ix):
-        # url = self.widgetList.itemData(ix)
         url = self.context_url
         self.start_request(url)
 
@@ -674,17 +646,14 @@ class Top(QtWidgets.QWidget):
             newUrl = reply.url().resolved(target)
             self.start_request(newUrl)
             return
-        # pixmap = QPixmap()
-        # pixmap.loadFromData(reply.readAll())
-        # self.widgetIMG.setPixmap(pixmap.scaledToHeight(380))
         pixmap = QtGui.QPixmap()
         pixmap.loadFromData(reply.readAll())
         pixmap = pixmap.scaled(self.context_imgNX, self.context_imgNY)
         self.context_img.setPixmap(pixmap)
 
-    def event_update_context_image(self, lv0_filename):
+    def event_update_context_image(self, tab_index):
         """Download context image into memory and update the image tab"""
-        clean_filename = lv0_filename.replace('.gz', '')
+        clean_filename = self.selected_file.replace('.gz', '')
         remote_dir = get_remote_image_dir(clean_filename)
         context_img_name = 'XRT_'+clean_filename+'.gif'
         self.context_url = remote_dir+context_img_name
@@ -694,12 +663,10 @@ class Top(QtWidgets.QWidget):
                 self.get_image()
             except:
                 print('   ERROR: context images or server are unavailable.')
-            # raw_img = urllib.request.urlopen(remote_dir+context_img_name,
-            #                                  context=self.ssl_context).read()
-            # pixmap = QtGui.QPixmap()
-            # pixmap.loadFromData(raw_img)
-            # pixmap = pixmap.scaled(self.context_imgNX, self.context_imgNY)
-            # self.context_img.setPixmap(pixmap)
+
+            self.info_context.clear()
+            for line in self.selected_info:
+                self.info_context.append(line)
         else:
             self.event_clear_context_image()
 
@@ -759,24 +726,6 @@ class Top(QtWidgets.QWidget):
         self.grid.addWidget(self.tabs, 1, 6, self.gui_row + 1, 3)
         self.tabs.setCurrentIndex(2) # switch to help tab
 
-        # ### OLD CODE ###
-        # title = QtWidgets.QLabel(self)
-        # title.setText('Details')
-        # title.setFont(self.default_font)
-        # # self.grid.addWidget(title, self.gui_row, 0, 1, 6)
-        # # self.grid.addWidget(title, self.gui_row, 6, 1, 3)
-        # self.grid.addWidget(title, 1, 6, 1, 3)
-        # # self.gui_row += 1
-        #
-        # self.info_detail = QtWidgets.QTextEdit()
-        # self.info_detail.setFont(self.info_detail_font)
-        # # self.grid.addWidget(self.info_detail, self.gui_row, 0, 1, 6)
-        # # self.grid.addWidget(self.info_detail, self.gui_row, 6, 1, 3)
-        # self.grid.addWidget(self.info_detail, 2, 6, self.gui_row, 3)
-        # #self.grid.setRowStretch(self.gui_row, 1)
-        # # self.gui_row += 1
-        # self.info_detail.setReadOnly(True)
-
     def event_apply_filter(self):
         if self.count_results > 0:
             self.mk_table(self.table_info)
@@ -803,7 +752,6 @@ class Top(QtWidgets.QWidget):
         set_save_dir.clicked.connect(self.event_set_save_dir)
 
         self.topdir_box = QtWidgets.QLineEdit(self)
-        # self.topdir_box.setFixedWidth(self.default_button_width)
         self.topdir_box.resize(4*self.default_button_width, self.frameGeometry().height())
         self.topdir_box.setText(self.default_topdir)
         self.topdir_box.setFont(self.default_font)
