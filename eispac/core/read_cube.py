@@ -141,7 +141,7 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
         for key in f_head['index']:
             val = np.array(f_head['index/'+key])
             if type(val[0]) == np.bytes_:
-                val = val.astype(np.unicode_) # convert bytes to unicode
+                val = val.astype(np.str_) # convert bytes to unicode
             if val.size == 1:
                 val = val[0]
             index[key] = val
@@ -153,7 +153,7 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
         for key in f_head['pointing']:
             val = np.array(f_head['pointing/'+key])
             if type(val[0]) == np.bytes_:
-                val = val.astype(np.unicode_) # convert bytes to unicode
+                val = val.astype(np.str_) # convert bytes to unicode
             if val.size == 1:
                 val = val[0]
             pointing[key] = val
@@ -175,8 +175,8 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
 
         # Read time and duration information
         try:
-            meta['date_obs'] = np.array(f_head['times/date_obs']).astype(np.unicode_)
-            meta['date_obs_format'] = np.array(f_head['times/time_format']).astype(np.unicode_)[0]
+            meta['date_obs'] = np.array(f_head['times/date_obs']).astype(np.str_)
+            meta['date_obs_format'] = np.array(f_head['times/time_format']).astype(np.str_)[0]
         except KeyError:
             print('WARNING: complete date_obs information for each raster step'
                  +' is missing in the HDF5 header file!')

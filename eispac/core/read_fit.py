@@ -60,10 +60,10 @@ def walk_and_load(hdf5_file, hdf5_path, verbose=False):
             # Convert objects, byte or ascii strings to uncode
             try:
                 # Old method, for consistency
-                output = output.astype(np.unicode_) # strings to unicode
+                output = output.astype(np.str_) # strings to unicode
             except:
                 # Better handling of unicode characters
-                output = np.array(output.item().decode('utf-8'))
+                output = np.array([ITEM.decode('utf-8') for ITEM in output])
         if output.size == 1:
             # Extract value from a single-element array (0- or 1-D arrays only)
             output = output.item()

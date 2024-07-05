@@ -5,6 +5,7 @@ import pathlib
 
 import numpy as np
 import astropy.units as u
+from astropy.io import fits
 from astropy.visualization import ImageNormalize, AsinhStretch, LinearStretch
 import sunpy.map
 from sunpy.map.mapbase import SpatialPair
@@ -48,16 +49,11 @@ class EISMap(sunpy.map.GenericMap):
         #     number of values
         if isinstance(data, (str, pathlib.Path)):
             if pathlib.Path(data).suffix.lower().startswith('.fit'):
-                import sunpy.io.fits
-                hdu_list = sunpy.io.fits.read(data)
-                data = hdu_list[0][0]
-                header = hdu_list[0][1]
-                if len(hdu_list) >= 2:
-                    rec_errs = hdu_list[1][0]
-                    ny = rec_errs.shape[0] # y-axis
-                    nx = rec_errs[0][0].shape[0] # x-axis
-                    errs = rec_errs['errors'].view(type=np.ndarray).reshape(ny,nx)
-                    kwargs['uncertainty'] = errs
+                with fits.open(data, mode='readonly') as hdul:
+                    data = hdul[0].data
+                    header = hdul[0].header
+                    if len(hdul) >= 2:
+                        kwargs['uncertainty'] = hdul[1].data['errors']
 
         super().__init__(data, header, **kwargs)
 
