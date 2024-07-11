@@ -511,6 +511,23 @@ For now, we will just show you some examples of the quick-look plots.
    *ALL* EIS velocity maps, not just those computed by EISPAC. Please
    use with care.
 
+Exploring Fit Results
+---------------------
+
+As mentioned in the chapter on command line scripts, the :ref:`sec-browse`
+GUI tool can be used to quickly plot and explore fits run using EISPAC.
+After loading a ``.fit.h5`` file made using `~eispac.core.save_fit`, 
+just click anywhere on the image to view the fit spectrum at the selected 
+location. Note: the data values will be loaded from the original level-1
+``.data.h5`` file; currently, viewing the fit for a data cutout will overplot
+the data points from the wrong level-1 pixel location (this bug will be 
+patched om a future version).
+
+.. figure:: figures/eis_explore_raster_fit_results.png
+   :align: center
+   :width: 300px
+
+   Example of viewing fit results in the ``eis_explore_raster`` GUI.
 
 .. rubric:: Footnotes
 

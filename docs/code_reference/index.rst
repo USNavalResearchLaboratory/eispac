@@ -7,6 +7,7 @@ API Reference
    :maxdepth: 1
 
    eispac_core
+   eispac_data
    eispac_download
    eispac_extern
    eispac_instr
