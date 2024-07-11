@@ -9,3 +9,4 @@ include eispac/templates/eis_template_dir/*.jpg
 include eispac/data/test/*.h5
 include eispac/data/templates/*.h5
 include eispac/data/templates/*.jpg
+include eispac/data/ref/*.txt

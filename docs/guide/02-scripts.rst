@@ -21,6 +21,10 @@ There are currently five command line scripts available,
    downloading the HDF5 files your computer. Can also generate a text list of
    files to download.
 
+-  ``eis_explore_raster`` - **New in 2024-July-11** GUI tool for viewing and
+   exploring the contents of one or more EIS rasters. Can be used on both 
+   level-1 HDF5 files and fit results produced by EISPAC.
+
 -  ``eis_browse_templates`` - GUI tool for browsing the fit templates
    corresponding to each spectral window in a given EIS observation and
    copying the template files from EISPAC to your current working directory
@@ -102,7 +106,9 @@ D. **Search** **Results**: List of all EIS observations matching your search
    additional information about that observation in the "Details" panel.
 
 E. **Details**: General use panel for displaying help information,
-   observation details, and status updates.
+   observation details, and status updates. Newer versions of the GUI have
+   addtional tabs here for viewing context images from SDO / AIA 
+   (or SOHO / EIT before 2010-May) as well as general help information.
 
 F. **Download** **Controls**: Select output directory, download selected
    file, download all files in the list (use with care!), or make a text
@@ -110,6 +116,44 @@ F. **Download** **Controls**: Select output directory, download selected
    printed to your console, NOT the details pane (this will be redirected
    better in a future update). If the "Use Date Tree" box is checked, files
    will be downloaded into subdirectories organized by month and day.
+
+.. _sec-explore:
+
+eis_explore_raster
+------------------
+
+**New in 2024-July-11** The ``eis_explore_raster`` GUI tool can be used to 
+view and explore the contents of one or more EIS rasters. The interface 
+works with both a level-1 HDF5 files and fit results produced by EISPAC 
+(as saved using the `~eispac.core.save_fit` function). More information 
+about fitting is given in the :ref:`sec-fitting` chapter.
+
+.. figure:: figures/eis_explore_raster_example.png
+   :align: center
+   :width: 600px
+
+   The main window of the `eis_explore_raster` GUI tool. The left image is
+   showing level-1 data in the Fe XII 195.119 window while the right image
+   is plotting the fit results for the Fe XI 188.299 lines. 
+
+Assorted program controls (including the number of image panels displayed)
+are found at far left of the GUI. Each image panel can load a different data
+file. Use the drop-down lists to select the spectral window and parameter 
+(and scaling method) to display. Clicking on any raster image will select and 
+plot the spectrum at that location. By default, selections will be synchronized 
+between panels using physical coordinates, reguardless of the image timestamps.
+Middle clicking any plot will toggle pan/zoom mode for that plot. When toggled 
+on, left click and drag the plot to pan or right click and move your mouse 
+right (or up) to to zoom in and left (or down) to zoom out.
+
+When viewing a level-1 file, clicking on the spectrum will select the center of 
+the wavelength range used to compute the summed raster image. Please note: the 
+data are plotted after including all wavelength corrections, which can result
+in offsets relative to the bin indices used for the sum. Loading a fitting 
+result will also plot all component Gaussians used in the fit. Markers showing
+the theoretical, rest wavelengths of different spectral lines (as given in the 
+`CHAINTI atomic database <https://www.chiantidatabase.org/>`_) can be toggled
+with the "Show line IDs" checkbox in the bottom left of the GUI. 
 
 .. _sec-browse:
 
@@ -125,3 +169,9 @@ the template relative to representative solar spectra (NOT the data in the
 actual observation). You can then use the "Copy template" button to make a
 copy of the template file in the output directory. Fit templates are
 explained more in the :ref:`sec-fitting` chapter.
+
+.. figure:: figures/eis_browse_templates_example.png
+   :align: center
+   :width: 600px
+
+   The main window of the `eis_browse_templates` GUI tool.

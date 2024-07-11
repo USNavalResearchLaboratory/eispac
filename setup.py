@@ -59,8 +59,9 @@ setuptools.setup(
         "Documentation": "https://eispac.readthedocs.io/"},
     entry_points = {
         "console_scripts": [
-            "eis_browse_templates = scripts.eis_browse_templates:eis_browse_templates",
             "eis_catalog = scripts.eis_catalog:eis_catalog",
+            "eis_explore_raster = scripts.eis_explore_raster:eis_explore_raster",
+            "eis_browse_templates = scripts.eis_browse_templates:eis_browse_templates",
             "eis_download_files = scripts.eis_download_files:eis_download_files",
             "eis_fit_files = scripts.eis_fit_files:eis_fit_files",
             "eis_plot_fit = scripts.eis_plot_fit:eis_plot_fit"]
