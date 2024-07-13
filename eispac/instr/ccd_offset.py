@@ -1,11 +1,14 @@
 """
 Functions for computing pixel offsets on CCD
 """
-__all__ = ['ccd_offset']
-
+import astropy.units as u
 import numpy as np
 
-def ccd_offset(wavelength):
+__all__ = ['ccd_offset']
+
+
+@u.quantity_input
+def ccd_offset(wavelength:u.Angstrom) ->u.pixel:
     """Calculate the spatial offset of a line relative to He II 256 Å
 
     Spatial offset of the specified wavelength relative
@@ -53,7 +56,7 @@ def ccd_offset(wavelength):
     .. [young09] Young, P.R., et al., 2009, A&A, 495, `587 <https://doi.org/10.1051/0004-6361:200810143>`_
     """
     # Calculate the pixel offset using an equation based on the wavelengths of
-    # specific reference lines (Fe VIII 185.21, Si 275.35, and He II 256.32)
+    # specific reference lines (Fe VIII 185.21, Si VII 275.35, and He II 256.32)
 
     # Note_1: The y-scale of EIS is always given as 1 [arcsec]/[pixel]. Since
     #         this offset is an instrumental effect specific to EIS, there is
@@ -61,12 +64,15 @@ def ccd_offset(wavelength):
     #         y-scale values.
     # Note_2: The value of 18.5 accounts for the base offset between the
     #         shortwave and longwave CCDs.
-    grating_tilt = -0.0792  # [pixels]/[angstrom]
+    grating_tilt = -0.0792*u.pixel/u.Angstrom
     wavelength = np.atleast_1d(wavelength)
     # Calculate the offset for all lines in the shortwave band
-    offset = grating_tilt * (wavelength-185.21) + 18.5 + grating_tilt * (275.35 - 256.32)
+    short_long_base_offset = 18.5 * u.pixel
+    offset_fe_8 = wavelength-185.21*u.Angstrom
+    offset_si_7_he_2 = 275.35*u.Angstrom - 256.32*u.Angstrom
+    offset = grating_tilt*offset_fe_8 + short_long_base_offset + grating_tilt*offset_si_7_he_2
     # Find and calculate the offset for all lines in the longwave band
-    i_ = np.where(wavelength > 230)
-    offset[i_] = grating_tilt * (wavelength[i_] - 256.32)
+    is_long_band = np.where(wavelength > 230*u.Angstrom)
+    offset[is_long_band] = grating_tilt * (wavelength[is_long_band] - 256.32*u.Angstrom)
 
     return offset
