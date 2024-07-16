@@ -104,30 +104,19 @@ def test_date_props(test_eis_map, attr, key):
     assert getattr(test_eis_map, attr).isot == test_eis_map.meta[key]
 
 
-def test_date(test_eis_map, test_header):
-    # Case 1: date-average exists
-    assert test_eis_map.date.isot == test_eis_map.meta['date_avg']
-    # Case 2: date-average is None so default to date_obs
-    header = copy.deepcopy(test_header)
-    del header['date_beg']
-    del header['date_end']
-    del header['date_avg']
-    new_map = sunpy.map.Map(test_eis_map.data, header)
-    assert new_map.date.isot == new_map.meta['date_obs']
-    # Case 3: date_avg is None so default to date_start
-    header = copy.deepcopy(test_header)
-    del header['date_avg']
-    del header['date_end']
-    del header['date_obs']
-    new_map = sunpy.map.Map(test_eis_map.data, header)
-    assert new_map.date.isot == new_map.meta['date_beg']
-    # Case 4: date_end and date_avg do not exist
-    header = copy.deepcopy(test_header)
-    del header['date_avg']
-    del header['date_beg']
-    del header['date_obs']
-    new_map = sunpy.map.Map(test_eis_map.data, header)
-    assert new_map.date.isot == new_map.meta['date_end']
+def test_date_is_dateobs(test_eis_map):
+    "Test that .date returns DATE_OBS"
+    assert test_eis_map.date.isot == test_eis_map.meta['date_obs']
+
+
+def test_date_is_date_start(test_eis_map):
+    "Test that .date returns the same date as .date_start"
+    assert test_eis_map.date == test_eis_map.date_start
+
+
+def test_reference_date_is_date_start(test_eis_map):
+    "Test that the reference date is the time at the beginning of the raster"
+    assert test_eis_map.reference_date == test_eis_map.date_start
 
 
 def test_plot_settings(test_eis_map):
