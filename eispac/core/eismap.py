@@ -126,13 +126,20 @@ class EISMap(sunpy.map.GenericMap):
         return self._get_date('date_avg') or super().date_average
 
     @property
-    def date(self):
-        # NOTE: we override this property to prioritize date_average 
-        # over DATE-OBS (or DATE_OBS). In GenericMap, this is reversed.
-        # We do this because we want to make sure we are constructing our 
-        # coordinate frames from DATE_AVG (the midpoint of the raster) and 
-        # not DATE-OBS which is the beginning of the raster.
-        return self.date_average or super().date
+    def reference_date(self):
+        """
+        The reference date for the coordinate system
+
+        According to Section 2.4 of
+        `EIS Software Note 9 <https://solarb.mssl.ucl.ac.uk/SolarB/eis_docs/eis_notes/09_POINTING/eis_swnote_09.pdf>`_,
+        the pointing keywords are defined at the start of the raster. As such, this property returns the
+        time at the beginning of the raster.
+
+        .. note:: This property is overridden because `sunpy.map.GenericMap` sets
+                  this to be the ``.date_average`` which in this case is the midpoint
+                  of the raster.
+        """
+        return self.date_start
 
     @classmethod
     def is_datasource_for(cls, data, header, **kwargs):
