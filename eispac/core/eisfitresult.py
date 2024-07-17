@@ -1,11 +1,12 @@
-__all__ = ['EISFitResult', 'create_fit_dict']
-
 import copy
 from datetime import datetime
+
+import astropy.units as u
 import numpy as np
 from scipy.ndimage import shift as shift_img
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
+
 from eispac import __version__ as eispac_version
 import eispac.core.fitting_functions as fit_fns
 from eispac.core.eisfittemplate import EISFitTemplate
@@ -13,6 +14,9 @@ from eispac.core.eismap import EISMap
 from eispac.util.rot_xy import rot_xy
 from eispac.instr.calc_velocity import calc_velocity
 from eispac.instr.ccd_offset import ccd_offset
+
+__all__ = ['EISFitResult', 'create_fit_dict']
+
 
 class EISFitResult:
     """Object containing the results from fitting one or more EIS window spectra
@@ -707,9 +711,10 @@ class EISFitResult:
     def shift2wave(self, array, wave=195.119):
         """Shift an array from this fit to the desired wavelength
         """
+        # FIXME: This function should actually use units
         this_wave = self.fit['wave_range'].mean()
         disp = np.zeros(len(array.shape))
-        disp[0] = ccd_offset(wave) - ccd_offset(this_wave)
+        disp[0] = ccd_offset(wave*u.Angstrom) - ccd_offset(this_wave*u.Angstrom)
         array = shift_img(array, disp)
         return array
 
