@@ -116,7 +116,7 @@ def test_date_is_date_start(test_eis_map):
 
 def test_reference_date_is_date_start(test_eis_map):
     "Test that the reference date is the time at the beginning of the raster"
-    assert test_eis_map.reference_date == test_eis_map.date_start
+    assert test_eis_map.reference_date == test_eis_map.date_start == Time(test_eis_map.wcs.dateavg)
 
 
 def test_plot_settings(test_eis_map):
