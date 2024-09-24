@@ -6,6 +6,7 @@ import numpy as np
 from scipy.ndimage import shift as shift_img
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
+from astropy.nddata import StdDevUncertainty
 
 from eispac import __version__ as eispac_version
 import eispac.core.fitting_functions as fit_fns
@@ -471,16 +472,18 @@ class EISFitResult:
         if self.meta is None or 'mod_index' not in self.meta.keys():
             print("Error: Missing mod_index containing pointing information.")
             return None
+        
+        if 'date_obs' not in self.meta.keys():
+            self.meta['date_obs'] = None
+
+        if 'duration' not in self.meta.keys():
+            self.meta['duration'] = None
 
         # Fetch index from the meta structure, cut out spectral data and update
         hdr_dict = copy.deepcopy(self.meta['mod_index'])
-        void = hdr_dict.pop('cname3', None)
-        void = hdr_dict.pop('crval3', None)
-        void = hdr_dict.pop('crpix3', None)
-        void = hdr_dict.pop('cdelt3', None)
-        void = hdr_dict.pop('ctype3', None)
-        void = hdr_dict.pop('cunit3', None)
-        void = hdr_dict.pop('naxis3', None)
+        for KEY in ['cname3', 'crval3', 'crpix3', 
+                    'cdelt3', 'ctype3', 'cunit3', 'naxis3']:
+            void = hdr_dict.pop(KEY, None)
         hdr_dict['naxis'] = 2
         hdr_dict['line_id'] = self.fit['line_ids'][gauss_ind]
         code_ver = self.eispac_version
@@ -507,7 +510,13 @@ class EISFitResult:
                  +' with a value of "intensity", "velocity", or "width"')
             return None
 
-        output_map = EISMap(data_array, hdr_dict, uncertainty=err_array, **kwargs)
+        date_obs_arr = self.meta['date_obs']
+        exptime_arr = self.meta['duration']
+        output_map = EISMap(data_array, hdr_dict, 
+                            uncertainty=StdDevUncertainty(err_array), 
+                            step_date_obs=date_obs_arr, 
+                            step_exptime=exptime_arr, 
+                            **kwargs)
 
         return output_map
 

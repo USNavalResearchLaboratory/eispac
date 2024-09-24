@@ -8,6 +8,7 @@ import numpy as np
 import h5py
 import astropy.wcs
 import astropy.units as u
+from astropy.nddata import StdDevUncertainty
 import sunpy.coordinates as coords
 from eispac.core.eiscube import EISCube
 from eispac.core.read_wininfo import read_wininfo
@@ -105,7 +106,7 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
     if int(window) < 25:
         # Interpret values < 25 as window number
         if window >=0 and window < num_win:
-            meta['iwin'] = window
+            meta['iwin'] = int(window)
             meta['iwin_str'] = f'win{window:02d}'
             print(f'Found window {window}')
         else:
@@ -119,7 +120,7 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
         p = (wininfo['wvl_max'] - wvl)*(wvl - wininfo['wvl_min'])
         iwin = np.where(p >= 0)[0]
         if len(iwin) == 1:
-            meta['iwin'] = iwin[0]
+            meta['iwin'] = int(iwin[0])
             meta['iwin_str'] = f'win{iwin[0]:02d}'
             print(f'Found a wavelength {wvl:.2f} [Angstroms] in window {iwin[0]}')
         else:
@@ -178,8 +179,21 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
             meta['date_obs'] = np.array(f_head['times/date_obs']).astype(np.str_)
             meta['date_obs_format'] = np.array(f_head['times/time_format']).astype(np.str_)[0]
         except KeyError:
-            print('WARNING: complete date_obs information for each raster step'
-                 +' is missing in the HDF5 header file!')
+            print('WARNING: the header file has missing or incomplete date_obs' 
+                 +' for each raster step! Filling with estimated timestamps.')
+            total_time = np.datetime64(index['date_end']) - np.datetime64(index['date_obs'])
+            total_time = total_time / np.timedelta64(1, 's') # ensure [s] units
+            est_cad = total_time / index['nexp']
+            est_date_obs = np.datetime64(index['date_obs']) \
+                         + np.arange(index['nexp']) \
+                         * np.timedelta64(int(est_cad*1000), 'ms')
+            if index['nraster'] == 1:
+                # Sit-and-stare timestamps inc left to right
+                meta['date_obs'] = est_date_obs.astype('str').astype('<U24')
+            else:
+                # raster timestamps inc from right to left (scan dir)
+                meta['date_obs'] = np.flip(est_date_obs.astype('str').astype('<U24'))
+            meta['date_obs_format'] = 'iso_8601'
         meta['duration'] = np.array(f_head['exposure_times/duration'])
         step_duration_units = f_head['exposure_times/duration_units'][0]
         meta['duration_units'] = step_duration_units.decode('utf-8')
@@ -257,10 +271,17 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
     ### (6) Fetch the observer location in heliographic coords
     hg_coords = coords.get_body_heliographic_stonyhurst('earth', time=date_obs)
 
-    ### (7) Create a new header dict updated values
+    ### (7) Calculate average exposure time and cadence
+    avg_exptime = np.mean(meta['duration'])
+    diff_date_obs = np.diff(meta['date_obs'].astype('datetime64'))
+    diff_date_obs = diff_date_obs / np.timedelta64(1, 's')
+    avg_cad = np.mean(np.abs(diff_date_obs))
+
+    ### (8) Create a new header dict updated values
     # Note: the order of axes here is the same as the original fits index
     output_hdr = dict()
 
+    # Time information
     output_hdr['naxis'] = 3
     output_hdr['date_obs'] = date_obs
     output_hdr['date_beg'] = date_obs
@@ -268,19 +289,36 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
     output_hdr['date_end'] = date_end
     output_hdr['timesys'] = 'UTC'
 
+    # Observation details
     output_hdr['telescop'] = 'Hinode'
     output_hdr['instrume'] = 'EIS'
-    output_hdr['stud_acr'] = index['stud_acr']
-    output_hdr['obstitle'] = index['obstitle']
-    output_hdr['target'] = index['target']
-    output_hdr['sci_obj'] = index['sci_obj']
     output_hdr['line_id'] = wininfo['line_id'][meta['iwin']]
     output_hdr['measrmnt'] = 'intensity'
     output_hdr['bunit'] = 'unknown' # units of primary observable
     output_hdr['slit_id'] = index['slit_id']
     output_hdr['slit_ind'] = index['slit_ind']
-    output_hdr['nraster'] = index['nraster']
+    output_hdr['nraster'] = index['nraster'] # 1 for sit-and-stare
+    output_hdr['tr_mode'] = index['tr_mode'] # tracking mode. "FIX" for no tracking
+    output_hdr['saa'] = index['saa'] # IN / OUT South Atlantic Anomaly (SAA)
+    output_hdr['hlz'] = index['hlz'] # IN / OUT High-Latitude Zone (HLZ)
+    output_hdr['exptime'] = avg_exptime
+    output_hdr['cadence'] = avg_cad
+    output_hdr['timeunit'] = 's'
 
+    # IDs and Study information
+    output_hdr['tl_id'] = index['tl_id']
+    output_hdr['jop_id'] = index['jop_id']
+    output_hdr['study_id'] = index['study_id']
+    output_hdr['stud_acr'] = index['stud_acr']
+    output_hdr['rast_id'] = index['rast_id']
+    output_hdr['rast_acr'] = index['rast_acr']
+    output_hdr['obstitle'] = index['obstitle'][:-1].strip()
+    output_hdr['obs_dec'] = index['obs_dec'][:-1].strip()
+    output_hdr['target'] = index['target']
+    output_hdr['sci_obj'] = index['sci_obj'][:-1].strip()
+    output_hdr['noaa_num'] = index['noaa_num']
+
+    # Coordinate information
     output_hdr['naxis1'] = nx_steps
     output_hdr['cname1'] = 'Solar-X'
     output_hdr['crval1'] = x1
@@ -356,6 +394,7 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
             cube_errs = lv_1_count_errs
             data_units = 'photon'
 
+        cube_errs = StdDevUncertainty(cube_errs)
         meta['mod_index']['bunit'] = data_units
         output_cube = EISCube(cube_data, wcs=clean_wcs, uncertainty=cube_errs,
                               wavelength=corrected_wave, radcal=radcal_array,

@@ -1,11 +1,13 @@
 """
 `~sunpy.map.Map` subclass for the EUV Imaging Spectrometer (EIS) on Hinode
 """
+import sys
 import pathlib
 
 import numpy as np
 import astropy.units as u
 from astropy.io import fits
+from astropy.nddata import StdDevUncertainty
 from astropy.visualization import ImageNormalize, AsinhStretch, LinearStretch
 import sunpy.map
 from sunpy.map.mapbase import SpatialPair
@@ -44,6 +46,9 @@ class EISMap(sunpy.map.GenericMap):
     """
 
     def __init__(self, data, header=None, **kwargs):
+        step_date_obs = None
+        step_exptime = None
+    
         # Check for a fits file containing a binary table with the errs
         # NB: errs are in a table with y-axis number of rows, each with x-axis
         #     number of values
@@ -53,24 +58,60 @@ class EISMap(sunpy.map.GenericMap):
                     data = hdul[0].data
                     header = hdul[0].header
                     if len(hdul) >= 2:
-                        kwargs['uncertainty'] = hdul[1].data['errors']
+                        data_errors = StdDevUncertainty(hdul[1].data['errors'])
+                        kwargs['uncertainty'] = data_errors
+                    if len(hdul) >= 3:
+                        step_date_obs = parse_time(hdul[2].data['step_date_obs'])
+                        step_exptime = hdul[2].data['step_exptime']
 
+        # Get user-input step_date_obs and step_exptime
+        # NB: this will overwrite any values from an input fits file
+        user_step_date_obs = kwargs.pop('step_date_obs', None)
+        user_step_exptime = kwargs.pop('step_exptime', None)
+        if user_step_date_obs is not None and header is not None:
+            if len(user_step_date_obs) == header['naxis1']:
+                step_date_obs = parse_time(user_step_date_obs)
+            else:
+                print(f'WARNING incorrect number of "step_date_obs" values!'
+                     +f' This EIS observation has {header["naxis1"]} steps.',
+                      file=sys.stderr)
+        if user_step_exptime is not None and header is not None:
+            if len(user_step_exptime) == header['naxis1']:
+                step_exptime = user_step_exptime
+            else:
+                print(f'WARNING: incorrect number of "step_exptime" values!'
+                     +f' This EIS observation has {header["naxis1"]} steps.',
+                      file=sys.stderr)
+
+        # Initalize the map
         super().__init__(data, header, **kwargs)
+        self._step_date_obs = step_date_obs
+        self._step_exptime = step_exptime
 
-        # Setup plot settings
+        # Setup plot settings and get default data masks
+        # This includes adjusting colormap and normalization depending on whether 
+        # the map contains intensity, velocity, or line width data
+        default_mask = None
         self.plot_settings['aspect'] = self.meta['cdelt2'] / self.meta['cdelt1']
-        # Adjust colormap and normalization depending on whether the map contains
-        # intensity, velocity, or line width data
         if self.meta['measrmnt'].lower().startswith('int'):
             self.plot_settings['cmap'] = 'Blues_r'
             self.plot_settings['norm'] = ImageNormalize(stretch=AsinhStretch())
+            default_mask = self.data == 0
         elif self.meta['measrmnt'].lower().startswith('vel'):
             self.plot_settings['cmap'] = 'RdBu_r'
             # Autoscale color range to 3*std (rounded to nearest multiple of 5)
             vlim = 5*round(3*self.data.std()/5)
             self.plot_settings['norm'] = ImageNormalize(vmin=-vlim, vmax=vlim)
+            if self.uncertainty is not None:
+                # Note: velocities of 0 may be valid UNLESS the errors are NaN
+                default_mask = (self.data == 0) & np.isnan(self.uncertainty.array)
         elif self.meta['measrmnt'].lower().startswith('wid'):
             self.plot_settings['cmap'] = 'viridis'
+            default_mask = self.data == 0
+
+        # Set the default mask (ignored if the user input their own mask)
+        if self.mask is None:
+            self.mask = default_mask
 
     @property
     def spatial_units(self):
@@ -79,7 +120,7 @@ class EISMap(sunpy.map.GenericMap):
 
     @property
     def processing_level(self):
-        return self.meta.get('lvl_num', 3)
+        return self.meta.get('lvl_num', 2)
 
     @property
     def waveunit(self):
@@ -141,6 +182,54 @@ class EISMap(sunpy.map.GenericMap):
         """
         return self.date_start
 
+    @property
+    def duration(self):
+        """Total duration of the observation in units of [min]
+        """
+        total_time = (np.datetime64(self.meta['date_end']) 
+                    - np.datetime64(self.meta['date_obs']))
+        total_time = total_time / np.timedelta64(60, 's') # convert to [min] 
+        return total_time * u.Unit('min')
+    
+    @property
+    def step_date_obs(self):
+        """date_obs timestamp of each step along the x-axis
+        """
+        if self._step_date_obs is not None:
+            return self._step_date_obs
+        else:
+            print(f'WARNING: exact "step_date_obs" values are unknown!' 
+                 +f' Estimating based on the observation start and end times.',
+                  file=sys.stderr)
+            total_time = self.duration.to('s').value
+            est_cad = total_time / self.meta['naxis1']
+            est_date_obs = (np.datetime64(self.meta['date_obs']) 
+                           + np.arange(self.meta['naxis1'])
+                           * np.timedelta64(int(est_cad*1000), 'ms'))
+
+            if self.meta['nraster'] == 1: 
+                # Sit-and-stare timestamps inc left to right
+                return parse_time(est_date_obs)
+            else:
+                # Normal raster timestamps inc from right to left (scan dir)
+                return parse_time(np.flip(est_date_obs))
+        
+    @property
+    def step_exptime(self):
+        """Exposure time of each step along the x-axis
+        """
+        if self._step_exptime is not None:
+            return self._step_exptime
+        else:
+            print(f'WARNING: exact "step_exptime" values are unknown!' 
+                 +f' Estimating based on the observation start and end times.'
+                 +f' Actual exposure times will be shorter due to on-board'
+                 +f' processing and the specific observation plan.',
+                  file=sys.stderr)
+            total_time = self.duration.to('s').value
+            est_avg_exptime = total_time / self.meta['naxis1']
+            return np.zeros(self.meta['naxis1']) + est_avg_exptime
+        
     @classmethod
     def is_datasource_for(cls, data, header, **kwargs):
         """
