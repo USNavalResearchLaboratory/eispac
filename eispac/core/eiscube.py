@@ -4,6 +4,7 @@ import sys
 import copy
 import numpy as np
 import astropy.units as u
+from astropy.nddata import StdDevUncertainty
 from astropy.convolution import convolve, CustomKernel
 from astropy.coordinates import SkyCoord
 from ndcube import __version__ as ndcube_ver
@@ -228,7 +229,7 @@ class EISCube(NDCube):
                 new_radcal = new_radcal/self.radcal
 
         new_data = self.data.copy()*new_radcal
-        new_errs = self.uncertainty.array.copy()*new_radcal
+        new_errs = StdDevUncertainty(self.uncertainty.array.copy()*new_radcal)
         new_meta = copy.deepcopy(self.meta)
         new_meta['mod_index']['bunit'] = 'erg / (cm2 s sr)'
         new_meta['notes'].append('Applied radcal to convert photon counts to intensity')
@@ -260,7 +261,7 @@ class EISCube(NDCube):
             return self
 
         new_data = self.data.copy()/self.radcal
-        new_errs = self.uncertainty.array.copy()/self.radcal
+        new_errs = StdDevUncertainty(self.uncertainty.array.copy()/self.radcal)
         new_meta = copy.deepcopy(self.meta)
         new_meta['mod_index']['bunit'] = 'photon'
         new_meta['notes'].append('Removed radcal to convert intensity to photon counts')
@@ -471,6 +472,7 @@ class EISCube(NDCube):
         if self.uncertainty is not None:
             sm_errs = np.sqrt(convolve(self.uncertainty.array**2,
                                        sm_kernel, **kwargs))
+            sm_errs = StdDevUncertainty(sm_errs)
         else:
             sm_errs = None
         sm_data_mask = np.logical_or(np.isnan(sm_data), sm_data < 0)

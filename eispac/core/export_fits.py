@@ -84,13 +84,9 @@ def export_fits(fit_result, save_dir=None, verbose=False):
 
     # Fetch index from the meta structure, cut out spectral data and update
     hdr_dict = copy.deepcopy(fit_result.meta['mod_index'])
-    void = hdr_dict.pop('cname3', None)
-    void = hdr_dict.pop('crval3', None)
-    void = hdr_dict.pop('crpix3', None)
-    void = hdr_dict.pop('cdelt3', None)
-    void = hdr_dict.pop('ctype3', None)
-    void = hdr_dict.pop('cunit3', None)
-    void = hdr_dict.pop('naxis3', None)
+    for KEY in ['cname3', 'crval3', 'crpix3', 
+                'cdelt3', 'ctype3', 'cunit3', 'naxis3']:
+        void = hdr_dict.pop(KEY, None)
     hdr_dict['naxis'] = 2
     code_ver = fit_result.eispac_version
     date_fit = fit_result.date_fit
@@ -112,7 +108,21 @@ def export_fits(fit_result, save_dir=None, verbose=False):
     err_hdr['tdim1'] = err_tdim
     err_hdr['tform1'] = err_tform
 
-    # Loop over all of the parameters and crewate the fits files
+    # Create the bintable table and header for step_date_obs and step_exptime 
+    col_date_obs = fits.Column(name='step_date_obs', format='24A', coord_type='UTC',
+                              array=fit_result.meta['date_obs'].astype('<U24'))
+    col_exptime = fits.Column(name='step_exptime', format='E', unit='s',
+                              array=fit_result.meta['duration'])
+    extra_hdu = fits.BinTableHDU.from_columns([col_date_obs, col_exptime])
+
+    # Add duplicate timestamps (to conform with the FITS-4 standard)
+    hdr_dict['date-obs'] = hdr_dict['date_obs']
+    hdr_dict['date-beg'] = hdr_dict['date_beg']
+    hdr_dict['date-avg'] = hdr_dict['date_avg']
+    hdr_dict['date-end'] = hdr_dict['date_end']
+    data_hdr = fits.Header(hdr_dict) # update primary header ONLY
+
+    # Loop over all of the parameters and create the fits files
     # If there are multiple line_ids, output each line to its own set of files
     # and return a list of filepaths (consistent with old IDL workflow)
     params = ['int', 'vel', 'wid']
@@ -162,7 +172,7 @@ def export_fits(fit_result, save_dir=None, verbose=False):
             err_col = fits.Column(name='errors', format=err_tform, dim=err_tdim,
                                   unit=err_hdr['tunit1'], array=err_array)
             err_hdu = fits.BinTableHDU.from_columns([err_col], header=err_hdr)
-            hdu_list = fits.HDUList([main_hdu, err_hdu])
+            hdu_list = fits.HDUList([main_hdu, err_hdu, extra_hdu])
             # hdu_list.writeto(output_files[-1], output_verify='silentfix',
             hdu_list.writeto(output_files[-1], output_verify='fix',
                              overwrite=True)

@@ -36,6 +36,7 @@ def test_header():
         LINE_ID = 'Fe XII 195.119'
         MEASRMNT= 'intensity'
         BUNIT   = 'erg / (cm2 s sr)'
+        NRASTER =                   60
         CRVAL1  =   -430.9469060897827
         CRPIX1  =                    1
         CDELT1  =    1.996799945831299
@@ -82,7 +83,7 @@ def test_nickname(test_eis_map):
 
 
 def test_processing_level(test_eis_map):
-    assert test_eis_map.processing_level == 3
+    assert test_eis_map.processing_level == 2
 
 
 def test_spatial_units(test_eis_map):
@@ -124,3 +125,19 @@ def test_plot_settings(test_eis_map):
     assert isinstance(test_eis_map.plot_settings['norm'].stretch, AsinhStretch)
     scale = test_eis_map.scale.axis2 / test_eis_map.scale.axis1
     assert test_eis_map.plot_settings['aspect'] == scale.decompose().value
+
+
+def test_duration(test_eis_map):
+    assert test_eis_map.duration == 61.9*u.min
+
+
+def test_step_date_obs(test_eis_map):
+    assert test_eis_map._step_date_obs is None
+    assert len(test_eis_map.step_date_obs) == test_eis_map.meta['naxis1']
+    assert test_eis_map.step_date_obs[-1].isot == test_eis_map.meta['date_obs']
+
+
+def test_step_exptime(test_eis_map):
+    assert test_eis_map._step_exptime is None
+    assert len(test_eis_map.step_exptime) == test_eis_map.meta['naxis1']
+    assert test_eis_map.step_exptime[0] == 61.9
