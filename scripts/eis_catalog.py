@@ -71,8 +71,11 @@ class Top(QtWidgets.QWidget):
         # Note: the keys:value pairs give the mapping of gui_label:sqlite_col
         self.criteria = {'Date Only':'date_obs', 'Study ID':'study_id',
                          'Study Acronym':'stud_acr', 'HOP ID':'jop_id',
-                         'Target':'target', 'Sci. Obj.':'sci_obj',
-                         'Obs. Title':'obstitle'}
+                         'Obs. Title':'obstitle',
+                         'Raster ID':'rast_id', 'Raster Acr.':'rast_acr',
+                         'Triggered Obs':None,
+                         'Target':'target', 'Science Obj.':'sci_obj',
+                         'Timeline ID':'tl_id'}
         # Filter drop-down lists. given as gui_label:filter_value pairs
         self.rast_types = {'Any':None, 'Scan (0)':0, 'Sit-and-Stare (1)':1}
         self.slit_slot = {'Any':None, 'Slit only (0 & 2)':[0,2],
@@ -218,39 +221,63 @@ class Top(QtWidgets.QWidget):
         self.info_help.clear()
         help_text = """EIS As-Run Catalog Search Tool
 
-* Please use ISO format dates (e.g., YYYY-MM-DD HH:MM). If only
-  the start date is provided, the end date will be assumed to be
-  24 hours later. WARNING: "Date Only" searches over the entire
-  mission can take a VERY long time, please be patient.
+### Searching for Obervations
 
-* Primary search criteria descriptions:
+* Please use ISO format dates (YYYY-MM-DD HH:MM). If only the
+  start date is provided, the end will be set for 24 hours later.
+  WARNING: "Date Only" searches over the entire mission can take
+  a VERY long time, please be patient.
 
-  Study ID
+* Primary search criteria descriptions (with catalog column names):
+
+  Study ID (study_id)
       ID number for specific observation plan (line list, raster
       steps, etc.). Studies may repeated throughout the mission.
 
-  Study Acronym
-      Short text label for the study. You only need to input the
-      first few characters (case is ignored).
+  Study Acronym (stud_acr)
+      Short text label for the study. You only need to input a
+      few characters (case is ignored).
 
-  HOP ID
+  HOP ID (jop_id)
       Hinode Operation Plan ID. Assigned to observations that were
       coordinated with other telescopes or spacecraft missions.
       Also known as "JOP ID" (Joint Obs. Program ID)
 
-  Target
-      Main observation target (e.g., Active Region, Quiet Sun).
-
-  Sci. Obj.
-      Target phenomena (e.g., AR, QS, BP, LMB)
-
-  Obs. Title
+  Obs. Title (obstitle)
       Observation title. Just a word or two is enough, results will
       be shown for all titles containing the input text.
 
-  Please Note: If "Target" and "Sci. Obj." are not defined by the
-  study author, default values "Quiet Sun" & "QS" are assigned,
+  Raster ID (rast_id) and Raster Acr. (rast_acr)
+      ID number and short text label for the raster program used in
+      the study. Rasters may be shared by multiple studies.
+      
+  Triggered Obs
+      Any raster run in response to an on-board trigger. There 
+      are three triggers that can be run: XRT flare (tl_id=1),
+      EIS flare (tl_id=3), & EIS bright point (tl_id=4). 
+      Selecting this the same as using Timeline ID = 1, 3, 4 
+
+  Target (target)
+      Main observation target (e.g., Active Region, Quiet Sun).
+
+  Science Obj. (sci_obj)
+      Target phenomena (e.g., AR, QS, BP, LMB)
+  
+  Timeline ID (tl_id)
+      ID number for a unique set of contiguous observations. This
+      could be a single raster or a set of multiple rasters run in
+      sequence. Timeline IDs of 1, 3, & 4 are special (see above), 
+      all other values should be unique over the life of EIS.
+
+  Please Note: If "Target" and "Science Obj." are not defined by
+  the EIS planner, default values "Quiet Sun" & "QS" are assigned,
   regardless of the actual observation target.
+
+  * Multiple ID numbers may be searched at the same time by separating
+    the numbers with "," (e.g. "1, 3, 4"). Ranges of numbers can be 
+    searched by separating the start & end values with "-" (e.g. "1-4")
+
+### Downloading files
 
 * If the "Use Date Tree" box is checked, files will be downloaded
   into subdirectories organized by date (../YYYY/MM/DD/)
@@ -427,15 +454,18 @@ class Top(QtWidgets.QWidget):
 
         if self.criteria[primary_key] == 'date_obs':
             self.d.get_by_date(start_time, end_time) # searches eis_experiment
+        elif primary_key.lower().startswith('trigger'):
+            # EIS triggered studies (1=XRT flare, 3=EIS flare, 4=EIS BP)
+            search_kwargs = {'date':[start_time, end_time]}
+            search_kwargs['tl_id'] = ['1', '3', '4']
+            self.d.search(**search_kwargs, quiet=True)
         else:
             search_kwargs = {'date':[start_time, end_time]}
             search_kwargs[self.criteria[primary_key]] = primary_value
-            self.d.query_main(**search_kwargs)
+            self.d.search(**search_kwargs, quiet=True)
 
         self.selected_file = None
         if len(self.d.eis_str) > 0:
-            # print('nrows: ', len(self.d.eis_str))
-            # print(eis_obs_struct.members(self.d.eis_str[0]))
             info = []
             i = 0
             for row in self.d.eis_str:
