@@ -14,6 +14,7 @@ __all__ = ['eis_explore_raster']
 
 import sys
 import os
+import glob
 import copy
 import numpy as np
 import shutil
@@ -29,7 +30,7 @@ try:
     from matplotlib.backends.backend_qtagg import FigureCanvas
     from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 except:
-    # Fallback imports (should stilol work in newer version of matplotlib)
+    # Fallback imports (should still work in newer version of matplotlib)
     from matplotlib.backends.backend_qt5agg import FigureCanvas
     from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
@@ -50,7 +51,7 @@ class MainWindow(QtWidgets.QWidget):
         self.font_default_italic = QtGui.QFont("Arial", 12, italic=True)
         self.font_small = QtGui.QFont("Arial", 10)
         self.font_info = QtGui.QFont("Courier New", 9)
-        self.base_width = 75
+        self.base_width = 85 #75
         # Note, most screens can only handle a max of four images
         # Set higher self.max_num_rasters at your own risk!
         self.max_num_rasters = 6 # MUST be between 2 to 9! (<= 4 is best)
@@ -66,10 +67,13 @@ class MainWindow(QtWidgets.QWidget):
         
         # EIS data objects and ref values
         self.display_mode = [None]*self.max_num_rasters
+        self.selected_dir = [None]*self.max_num_rasters
+        self.selected_file = [None]*self.max_num_rasters
         self.fit_filepath = [None]*self.max_num_rasters
-        self.cube_filepath = [None]*self.max_num_rasters
         self.fit_res = [None]*self.max_num_rasters
+        self.cube_filepath = [None]*self.max_num_rasters
         self.eis_cube = [None]*self.max_num_rasters
+        self.var_label = [None]*self.max_num_rasters
         self.inten_units = [None]*self.max_num_rasters
         self.cube_win_ind = [None]*self.max_num_rasters
         self.wave_bin_width = [None]*self.max_num_rasters #only used for obs data
@@ -81,6 +85,8 @@ class MainWindow(QtWidgets.QWidget):
         # Controls and plots for each image
         self.label_filepath = [None]*self.max_num_rasters
         self.button_select = [None]*self.max_num_rasters
+        self.box_file_list = [None]*self.max_num_rasters
+        self.box_cmap = [None]*self.max_num_rasters
         self.box_line_id = [None]*self.max_num_rasters
         self.box_var = [None]*self.max_num_rasters
         self.rast_nav = [None]*self.max_num_rasters
@@ -120,18 +126,20 @@ class MainWindow(QtWidgets.QWidget):
                       'Seven images', 'Eight images', 'Nine images']
         layout_list = [count_list[r] for r in range(self.max_num_rasters)]
 
-        inten_cmap_list = ['Blues_r', 'gray', 'gist_heat',
-                           'inferno', 'plasma', 'viridis', 
-                           'turbo', 'cubehelix', 
-                           'sdoaia171', 'sdoaia193', 'sdoaia211',
-                           'sohoeit171', 'sohoeit195', 'sohoeit284']
+        self.inten_cmap_list = ['Blues_r', 'gray', 'gist_heat',
+                                'inferno', 'plasma', 'viridis', 
+                                'turbo', 'cubehelix', 
+                                'sdoaia171', 'sdoaia193', 'sdoaia211',
+                                'sohoeit171', 'sohoeit195', 'sohoeit284']
+        self.vel_cmap_list = ['RdBu_r', 'coolwarm', 'seismic', 
+                              'Spectral_r', 'RdYlBu_r', 'PuOr_r', 'hmimag']
         
         # Basic buttons and info on far left
         self.button_quit = QtWidgets.QPushButton('Quit')
         self.button_quit.setFont(self.font_default)
         self.button_quit.clicked.connect(self.event_quit)
         self.button_quit.setFixedWidth(2*self.base_width)
-        self.button_quit.setFixedHeight(40)
+        # self.button_quit.setFixedHeight(40)
 
         self.button_open_all = QtWidgets.QPushButton('Open in ALL')
         self.button_open_all.setFont(self.font_default)
@@ -150,21 +158,32 @@ class MainWindow(QtWidgets.QWidget):
         self.radio_sync_cross.setFont(self.font_default)
         self.radio_sync_cross.setChecked(True)
 
-        self.label_inten_cmap = QtWidgets.QLabel()
-        self.label_inten_cmap.setFont(self.font_default)
-        self.label_inten_cmap.setText("Intensity colormap")
+        # self.label_inten_cmap = QtWidgets.QLabel()
+        # self.label_inten_cmap.setFont(self.font_default)
+        # self.label_inten_cmap.setText("Intensity colormap")
 
-        self.box_inten_cmap = QtWidgets.QComboBox()
-        self.box_inten_cmap.addItems(inten_cmap_list)
-        self.box_inten_cmap.setFixedWidth(2*self.base_width)
-        self.box_inten_cmap.setFont(self.font_default)
-        self.box_inten_cmap.setCurrentIndex(0)
-        self.box_inten_cmap.currentIndexChanged.connect(self.event_change_layout)
+        # self.box_inten_cmap = QtWidgets.QComboBox()
+        # self.box_inten_cmap.addItems(self.inten_cmap_list)
+        # self.box_inten_cmap.setFixedWidth(2*self.base_width)
+        # self.box_inten_cmap.setFont(self.font_default)
+        # self.box_inten_cmap.setCurrentIndex(0)
+        # self.box_inten_cmap.currentIndexChanged.connect(self.event_change_layout)
 
         self.label_tips = QtWidgets.QLabel()
         self.label_tips.setFont(self.font_default_italic)
-        self.label_tips.setText("\nMiddle click to toggle pan/zoom mode")
+        self.label_tips.setText("Middle click to toggle\npan/zoom mode"
+                                +"\n   Pan (left click)"
+                                +"\n   Zoom (right click)"
+                                +"\n                   \u2191 y-in"
+                                +"\n    x-out \u2190 + \u2192 x-in"
+                                +"\n                   \u2193 y-out")
         self.label_tips.setWordWrap(True)
+
+        self.radio_autoscale_ylim = QtWidgets.QCheckBox("Autoscale Y-limits")
+        self.radio_autoscale_ylim.setFixedWidth(2*self.base_width)
+        self.radio_autoscale_ylim.setFont(self.font_default)
+        self.radio_autoscale_ylim.setChecked(True)
+        self.radio_autoscale_ylim.stateChanged.connect(self.event_replot_all_spec)
 
         self.radio_sync_vline = QtWidgets.QCheckBox("Sync spec vlines")
         self.radio_sync_vline.setFixedWidth(2*self.base_width)
@@ -175,7 +194,13 @@ class MainWindow(QtWidgets.QWidget):
         self.radio_show_ids.setFixedWidth(2*self.base_width)
         self.radio_show_ids.setFont(self.font_default)
         self.radio_show_ids.setChecked(True)
-        self.radio_show_ids.stateChanged.connect(self.event_show_ids)
+        self.radio_show_ids.stateChanged.connect(self.event_replot_all_spec)
+
+        self.radio_show_details = QtWidgets.QCheckBox("Show details")
+        self.radio_show_details.setFixedWidth(2*self.base_width)
+        self.radio_show_details.setFont(self.font_default)
+        self.radio_show_details.setChecked(True)
+        self.radio_show_details.stateChanged.connect(self.event_replot_all_spec)
 
         # Sets of controls and figures for each raster
         for r in range(self.max_num_rasters):
@@ -191,6 +216,20 @@ class MainWindow(QtWidgets.QWidget):
             self.button_select[r].clicked.connect(self.event_select_file)
             self.button_select[r].setFixedWidth(self.base_width)
 
+            self.box_file_list[r] = QtWidgets.QComboBox()
+            self.box_file_list[r].setObjectName(f'r{r}_file_list')
+            self.box_file_list[r].addItems(['No file selected'])
+            self.box_file_list[r].setFont(self.font_default)
+            self.box_file_list[r].currentIndexChanged.connect(self.event_quick_select)
+
+            self.box_cmap[r] = QtWidgets.QComboBox()
+            self.box_cmap[r].setObjectName(f'r{r}_cmap')
+            self.box_cmap[r].addItems(['colormap'])
+            self.box_cmap[r].setFixedWidth(self.base_width)
+            self.box_cmap[r].setFont(self.font_small)
+            self.box_cmap[r].setCurrentIndex(0)
+            self.box_cmap[r].currentIndexChanged.connect(self.event_plot_raster)
+
             self.box_line_id[r] = QtWidgets.QComboBox()
             self.box_line_id[r].setObjectName(f'r{r}_line_id')
             self.box_line_id[r].addItems(['Window/Line'])
@@ -199,7 +238,7 @@ class MainWindow(QtWidgets.QWidget):
 
             self.box_var[r] = QtWidgets.QComboBox()
             self.box_var[r].setObjectName(f'r{r}_var')
-            self.box_var[r].addItems(['Variable'])
+            self.box_var[r].addItems(['Range/Variable'])
             self.box_var[r].setFont(self.font_default)
             self.box_var[r].currentIndexChanged.connect(self.event_plot_raster)
 
@@ -222,7 +261,7 @@ class MainWindow(QtWidgets.QWidget):
                         
             self.spec_fig[r] = Figure(figsize=(2, 2), constrained_layout=True)
             self.spec_canvas[r] = FigureCanvas(self.spec_fig[r])            
-            self.spec_nav[r] = NavigationToolbar(self.spec_canvas[r], self) # NEW!
+            self.spec_nav[r] = NavigationToolbar(self.spec_canvas[r], self)
 
         self.arange_layout(layout_index=1)
         self.setGeometry(50, 100, 1600, 900)
@@ -238,11 +277,13 @@ class MainWindow(QtWidgets.QWidget):
             self.main_grid.addWidget(self.button_open_all, 1, 0)
             self.main_grid.addWidget(self.box_layout, 2, 0)
             self.main_grid.addWidget(self.radio_sync_cross, 3, 0)
-            self.main_grid.addWidget(self.label_inten_cmap, 5, 0) 
-            self.main_grid.addWidget(self.box_inten_cmap, 6, 0) 
-            self.main_grid.addWidget(self.label_tips, 7, 0) 
-            self.main_grid.addWidget(self.radio_sync_vline, 8, 0)
-            self.main_grid.addWidget(self.radio_show_ids, 9, 0) 
+            # self.main_grid.addWidget(self.label_inten_cmap, 4, 0) 
+            # self.main_grid.addWidget(self.box_inten_cmap, 5, 0) 
+            self.main_grid.addWidget(self.label_tips, 4, 0) 
+            self.main_grid.addWidget(self.radio_autoscale_ylim, 6, 0)
+            self.main_grid.addWidget(self.radio_sync_vline, 7, 0)
+            self.main_grid.addWidget(self.radio_show_ids, 8, 0)
+            self.main_grid.addWidget(self.radio_show_details, 9, 0)
 
             # Setup frames and grids for each figure (better control of layout)
             for r in range(0, self.max_num_rasters):
@@ -250,17 +291,18 @@ class MainWindow(QtWidgets.QWidget):
                 self.sub_grid[r] = QtWidgets.QGridLayout(self.sub_frame[r])
                 self.sub_grid[r].setContentsMargins(0, 0, 0, 0)
                 # self.sub_grid[r].setVerticalSpacing(0)
-                self.sub_grid[r].addWidget(self.label_filepath[r], 0, 0, 1, 3)
-                self.sub_grid[r].addWidget(self.button_select[r], 1, 0)
+                # self.sub_grid[r].addWidget(self.label_filepath[r], 0, 0, 1, 3)
+                self.sub_grid[r].addWidget(self.button_select[r], 0, 0)
+                self.sub_grid[r].addWidget(self.box_file_list[r], 0, 1, 1, 2)
+                self.sub_grid[r].addWidget(self.box_cmap[r], 1, 0)
                 self.sub_grid[r].addWidget(self.box_line_id[r], 1, 1)
                 self.sub_grid[r].addWidget(self.box_var[r], 1, 2)
-                self.sub_grid[r].addWidget(self.button_reset_rast[r], 2, 0) # NEWER!
+                self.sub_grid[r].addWidget(self.button_reset_rast[r], 2, 0)
                 self.sub_grid[r].addWidget(self.rast_nav[r], 2, 1, 1, 2)
                 self.sub_grid[r].addWidget(self.rast_canvas[r], 3, 0, 4, 3)
                 self.sub_grid[r].addWidget(self.spec_canvas[r], 7, 0, 2, 3)
-                # self.sub_grid[r].addWidget(self.spec_nav[r], 9, 0, 1, 3) # NEW!
-                self.sub_grid[r].addWidget(self.button_reset_spec[r], 9, 0) # NEWER!
-                self.sub_grid[r].addWidget(self.spec_nav[r], 9, 1, 1, 2) # NEWER!
+                self.sub_grid[r].addWidget(self.button_reset_spec[r], 9, 0)
+                self.sub_grid[r].addWidget(self.spec_nav[r], 9, 1, 1, 2)
 
 
                 self.sub_frame[r].setLayout(self.sub_grid[r])
@@ -270,11 +312,9 @@ class MainWindow(QtWidgets.QWidget):
             ## Single image: Two col layout of raster (left) & spectrum (right)
             self.sub_grid[0].addWidget(self.rast_canvas[0], 3, 0, 6, 3)
             self.sub_grid[0].addWidget(self.spec_canvas[0], 3, 3, 3, 3)
-            # self.sub_grid[0].addWidget(self.spec_nav[0], 2, 3, 1, 3) # NEW!
-            self.sub_grid[0].addWidget(self.button_reset_spec[0], 2, 3) # NEWER!
-            self.sub_grid[0].addWidget(self.spec_nav[0], 2, 4, 1, 2) # NEWER!
-            # self.main_grid.addWidget(self.sub_frame[0], 0, 1, 9, 3*self.max_num_rasters)
-            self.main_grid.addWidget(self.sub_frame[0], 0, 1, 10, 3*self.max_num_rasters) # NEW!
+            self.sub_grid[0].addWidget(self.button_reset_spec[0], 2, 3)
+            self.sub_grid[0].addWidget(self.spec_nav[0], 2, 4, 1, 2)
+            self.main_grid.addWidget(self.sub_frame[0], 0, 1, 10, 3*self.max_num_rasters)
 
             # Hide all unused figure frames
             for r in range(1, self.max_num_rasters):
@@ -289,8 +329,8 @@ class MainWindow(QtWidgets.QWidget):
             self.main_grid.setColumnStretch(1, 1)
             self.main_grid.setColumnStretch(2, 1)
             self.main_grid.setColumnStretch(3, 1)
-            self.main_grid.setRowStretch(3, 3) # new!
-            self.main_grid.setRowStretch(7, 1) # new!
+            self.main_grid.setRowStretch(3, 3) 
+            self.main_grid.setRowStretch(7, 1) 
             if self.max_num_rasters >= 3:
                 for r in range(2, self.max_num_rasters):
                     self.main_grid.setColumnStretch(1+3*r, 0)
@@ -301,18 +341,16 @@ class MainWindow(QtWidgets.QWidget):
             # Multiple images: Raster (top) & spectrum (bottom) in SAME col
             self.sub_grid[0].addWidget(self.rast_canvas[0], 3, 0, 4, 3)
             self.sub_grid[0].addWidget(self.spec_canvas[0], 7, 0, 2, 3)
-            self.sub_grid[0].addWidget(self.spec_nav[0], 9, 0, 1, 3) # NEW!
-            self.sub_grid[0].addWidget(self.button_reset_spec[0], 9, 0) # NEWER!
-            self.sub_grid[0].addWidget(self.spec_nav[0], 9, 1, 1, 2) # NEWER!
-            # self.main_grid.addWidget(self.sub_frame[0], 0, 1, 9, 3)
-            self.main_grid.addWidget(self.sub_frame[0], 0, 1, 10, 3) # NEW!
+            self.sub_grid[0].addWidget(self.spec_nav[0], 9, 0, 1, 3)
+            self.sub_grid[0].addWidget(self.button_reset_spec[0], 9, 0)
+            self.sub_grid[0].addWidget(self.spec_nav[0], 9, 1, 1, 2)
+            self.main_grid.addWidget(self.sub_frame[0], 0, 1, 10, 3)
 
 
             # Show only the selected number of figures
             for r in range(1, self.max_num_rasters):
                 if r <= layout_index:
-                    # self.main_grid.addWidget(self.sub_frame[r], 0, 1+3*r, 9, 3)
-                    self.main_grid.addWidget(self.sub_frame[r], 0, 1+3*r, 10, 3) # NEW!
+                    self.main_grid.addWidget(self.sub_frame[r], 0, 1+3*r, 10, 3) 
                     self.sub_frame[r].show()
                 else:
                     self.main_grid.addWidget(self.sub_frame[r], 0, 0+r)
@@ -320,8 +358,8 @@ class MainWindow(QtWidgets.QWidget):
             
             # Setting stretch on grid for better resizing
             self.main_grid.setColumnStretch(0, 0)
-            self.main_grid.setRowStretch(3, 3) # new!
-            self.main_grid.setRowStretch(7, 1) # new!
+            self.main_grid.setRowStretch(3, 3) 
+            self.main_grid.setRowStretch(7, 1)
             for r in range(0, self.max_num_rasters):
                 if r <= layout_index:
                     self.main_grid.setColumnStretch(1+3*r, 0)
@@ -361,10 +399,14 @@ class MainWindow(QtWidgets.QWidget):
             self.inten_units[r_ind] = self.fit_res[r_ind].data_units
             file_dir = os.path.dirname(filepath)
             try:
+                # Loook for level-1 data in original source location
                 this_cube_filepath = self.fit_res[r_ind].meta['filename_data']
+                if not os.path.isfile(this_cube_filepath):
+                    this_cube_filepath = None
             except:
                 this_cube_filepath = None
             if this_cube_filepath is None:
+                # Look for level-1 data in local directory
                 base_eis_filename = os.path.basename(filepath)
                 base_eis_filename = base_eis_filename.split('.')[0]
                 this_cube_filepath = os.path.join(file_dir, base_eis_filename+'.data.h5')
@@ -384,6 +426,7 @@ class MainWindow(QtWidgets.QWidget):
 
         elif os.path.isfile(filepath) and filepath.endswith(('.data.h5', '.head.h5')):
             # Load EISCube object (window CAN be selected later)
+            filepath = filepath.replace('.head.', '.data.')
             self.display_mode[r_ind] = 'obs'
             self.fit_filepath[r_ind] = None
             self.fit_res[r_ind] = None
@@ -426,39 +469,65 @@ class MainWindow(QtWidgets.QWidget):
         elif self.display_mode[r_ind].lower().startswith('obs'):
             this_filepath = self.cube_filepath[r_ind]
         
+        self.box_file_list[r_ind].currentIndexChanged.disconnect(self.event_quick_select)
         if this_filepath is not None:       
             f_name = os.path.basename(this_filepath)
             dir_name = os.path.dirname(this_filepath)
+            self.selected_file[r_ind] = f_name
+            self.selected_dir[r_ind] = dir_name
+
+            # Get list all .data.h5 & .fit.h5 files in current dir
+            all_dir_file_list = []
+            all_dir_file_list.extend(glob.glob(os.path.join(dir_name, 'eis_*.data.h5')))
+            all_dir_file_list.extend(glob.glob(os.path.join(dir_name, 'eis_*.fit.h5')))
+            all_dir_file_list = sorted(all_dir_file_list)
+            all_dir_file_list = [os.path.basename(PATH) for PATH in all_dir_file_list]
+            this_file_ind = all_dir_file_list.index(f_name)
+
+            self.box_file_list[r_ind].clear()
+            self.box_file_list[r_ind].addItems(all_dir_file_list)
+            self.box_file_list[r_ind].setCurrentIndex(this_file_ind)
+            self.box_file_list[r_ind].setToolTip(f"Current dir: {dir_name}")
 
             self.label_filepath[r_ind].setText(f"File dir: {dir_name}/\nFilename: {f_name}")
         else:
             self.label_filepath[r_ind].setText("No file selected")
+        self.box_file_list[r_ind].currentIndexChanged.connect(self.event_quick_select)
 
     def update_line_id_box(self, r_ind=0):
         self.box_line_id[r_ind].currentIndexChanged.disconnect(self.event_plot_raster)
+        curr_line_ind = self.box_line_id[r_ind].currentIndex()
+        
         if (self.display_mode[r_ind].lower().startswith('fit') 
         and self.fit_res[r_ind] is not None):
             line_list = [line for line in self.fit_res[r_ind].fit['line_ids']]
-            curr_ind = self.fit_res[r_ind].fit['main_component']
+            main_ind = self.fit_res[r_ind].fit['main_component']
             self.box_line_id[r_ind].clear()
             self.box_line_id[r_ind].addItems(line_list)
-            self.box_line_id[r_ind].setCurrentIndex(np.min([len(line_list)-1, curr_ind]))
+            self.box_line_id[r_ind].setCurrentIndex(np.min([len(line_list)-1, main_ind]))
         elif (self.display_mode[r_ind].lower().startswith('obs') 
         and self.eis_cube[r_ind] is not None):
             win_ids = self.eis_cube[r_ind].meta['wininfo']['line_id']
             line_list = [f"{i}: {line}" for i, line in enumerate(win_ids)]
             self.box_line_id[r_ind].clear()
             self.box_line_id[r_ind].addItems(line_list)
-            self.box_line_id[r_ind].setCurrentIndex(0)
+            if curr_line_ind < len(win_ids):
+                # Use last selected window number
+                self.box_line_id[r_ind].setCurrentIndex(curr_line_ind)
+            else:
+                # Default to first data window
+                self.box_line_id[r_ind].setCurrentIndex(0)
         self.box_line_id[r_ind].currentIndexChanged.connect(self.event_plot_raster)
 
     def update_var_box(self, r_ind=0):
         self.box_var[r_ind].currentIndexChanged.disconnect(self.event_plot_raster)
+        curr_var_ind = self.box_var[r_ind].currentIndex()
         self.box_var[r_ind].clear()
+
         if self.display_mode[r_ind].lower().startswith('fit'):
             var_list = ['Intensity (asinh)', 'Intensity (linear)', 'Velocity', 'Width']
             self.box_var[r_ind].addItems(var_list)
-            self.box_var[r_ind].setCurrentIndex(0)  
+            default_var_ind = 0
         elif self.display_mode[r_ind].lower().startswith('obs'):
             var_list = ['3-bin sum (asinh)', '5-bin sum (asinh)', 
                         '7-bin sum (asinh)', '9-bin sum (asinh)', 
@@ -467,7 +536,14 @@ class MainWindow(QtWidgets.QWidget):
                         '7-bin sum (linear)', '9-bin sum (linear)', 
                         '11-bin sum (linear)', 'Total (linear)']
             self.box_var[r_ind].addItems(var_list)
-            self.box_var[r_ind].setCurrentIndex(2)
+            default_var_ind = 2
+
+        if self.rast_lims[r_ind] is not None and curr_var_ind < len(var_list):
+            # Use last selected var or sum width (if valid)
+            self.box_var[r_ind].setCurrentIndex(curr_var_ind)
+        else:
+            # Use the default var or sum width
+            self.box_var[r_ind].setCurrentIndex(default_var_ind)
         self.box_var[r_ind].currentIndexChanged.connect(self.event_plot_raster)
 
     def plot_raster(self, r_ind=0):
@@ -517,7 +593,9 @@ class MainWindow(QtWidgets.QWidget):
             else:
                 inten_scale = AsinhStretch()
 
-            inten_cmap = self.box_inten_cmap.currentText()
+            # inten_cmap = self.box_inten_cmap.currentText()
+            last_var = self.var_label[r_ind]
+            current_cmap = self.box_cmap[r_ind].currentText()
 
             # [FIT MODE] Plotting fit results
             if self.display_mode[r_ind].lower().startswith('fit'):
@@ -530,29 +608,35 @@ class MainWindow(QtWidgets.QWidget):
                 rast_index = self.fit_res[r_ind].meta['mod_index']
                 # Extract selected line and variable and set plot options
                 if var_str.lower().startswith('int'):
+                    this_var = 'intensity_fit'
                     rast_data = self.fit_res[r_ind].fit['int'][:,:,component_index]
                     rast_units = self.inten_units[r_ind]
                     inten_vmin = 0.0 #np.nanmin(rast_data)
                     # inten_vmin = np.nanpercentile(rast_data[np.where(rast_data > 0)], 0.5)
                     inten_vmax = np.nanpercentile(rast_data, 99.9)
-                    rast_cmap = inten_cmap #'Blues_r'
+                    valid_cmap_list = self.inten_cmap_list
+                    default_cmap = 'Blues_r'
                     rast_norm = ImageNormalize(vmin=inten_vmin, vmax=inten_vmax, 
                                                stretch=inten_scale)
                 elif var_str.lower().startswith('vel'):
+                    this_var = 'velocity'
                     rast_data = self.fit_res[r_ind].fit['vel'][:,:,component_index]
                     rast_units = 'km/s'
                     # Autoscale color range to 3*std
                     # (rounded to nearest multiple of 5 and capped at 30 km/s)
                     vel_vlim = np.min([30, 5*round(3*np.nanstd(rast_data/5))])
-                    rast_cmap = 'RdBu_r'
+                    valid_cmap_list = self.vel_cmap_list
+                    default_cmap = 'RdBu_r'
                     rast_norm = ImageNormalize(vmin=-vel_vlim, vmax=vel_vlim)
                 elif var_str.lower().startswith('wid'):
+                    this_var = 'width'
                     rast_data = self.fit_res[r_ind].fit['params'][:,:,2+3*component_index] #compat with old files
                     # rast_data = self.fit_res[r_ind].fit['width'][:,:,component_index]
                     rast_units = 'Angstrom'
                     width_vmax = np.nanpercentile(rast_data, 99.9)
                     width_vmin = np.min(rast_data[np.where(rast_data > 0)])
-                    rast_cmap = 'viridis'
+                    valid_cmap_list = self.inten_cmap_list
+                    default_cmap = 'viridis'
                     rast_norm = ImageNormalize(vmin=width_vmin, vmax=width_vmax)
 
             # [OBS MODE] Plotting EIS level-1 data cubes
@@ -610,7 +694,7 @@ class MainWindow(QtWidgets.QWidget):
                         self.spec_vline_ind[r_ind] = iwave_cen
                         self.spec_vline_val[r_ind] = self.rast_wcoords[r_ind][iwave_cen]
                     iwave_min = iwave_cen - int((num_bins-1)/2)
-                    iwave_max = iwave_cen + int((num_bins-1)/2) +1 # adj. for indexing [min,max)
+                    iwave_max = iwave_cen + int((num_bins-1)/2)+1 # adj. for Python indexing [min,max)
                     if iwave_min < 0:
                         iwave_min = None
                     if iwave_max >= self.eis_cube[r_ind].data.shape[2]:
@@ -623,13 +707,27 @@ class MainWindow(QtWidgets.QWidget):
                 rast_data = np.sum(self.eis_cube[r_ind].data[:,:,iwave_min:iwave_max], axis=2)
                 
                 # Set plot options
+                this_var = 'intensity_obs'
                 rast_units = self.inten_units[r_ind]
                 inten_vmin = 0.0 #np.nanmin(rast_data)
                 # inten_vmin = np.nanpercentile(rast_data[np.where(rast_data > 0)], 0.5)
                 inten_vmax = np.nanpercentile(rast_data, 99.9)
-                rast_cmap = inten_cmap #'Blues_r'
+                valid_cmap_list = self.inten_cmap_list
+                default_cmap = 'gist_heat' #'Blues_r'
                 rast_norm = ImageNormalize(vmin=inten_vmin, vmax=inten_vmax, 
                                            stretch=inten_scale)
+
+            # Select cmap and and Update cmap box
+            if this_var == last_var and current_cmap in valid_cmap_list:
+                rast_cmap = current_cmap
+            else:
+                rast_cmap = default_cmap
+            self.var_label[r_ind] = this_var
+            self.box_cmap[r_ind].currentIndexChanged.disconnect(self.event_plot_raster)
+            self.box_cmap[r_ind].clear()
+            self.box_cmap[r_ind].addItems(valid_cmap_list)
+            self.box_cmap[r_ind].setCurrentIndex(valid_cmap_list.index(rast_cmap))
+            self.box_cmap[r_ind].currentIndexChanged.connect(self.event_plot_raster)
 
             # Compute coordinate information
             # NB: x/y coords give pixel CENTERS while extend gives min/max edges
@@ -808,9 +906,10 @@ class MainWindow(QtWidgets.QWidget):
 
                 self.spec_ax[r_ind].plot(bkg_x, bkg_y, color='grey', ls=':', label='Background')
                 # self.spec_ax.set_title(f'Cutout indices: iy = {iy}, ix = {ix}')
-                self.spec_ax[r_ind].legend(loc='upper left', frameon=False, handlelength=1.2, handletextpad=0.5)
-                # self.spec_ax[r_ind].legend(loc='lower left', frameon=False, handlelength=1.0, ncol=3, 
-                #                            bbox_to_anchor=(0.0, 1.01, 1.0, .12), mode="expand", borderaxespad=0.0)
+                if self.radio_show_details.isChecked():
+                    self.spec_ax[r_ind].legend(loc='upper left', frameon=False, handlelength=1.2, handletextpad=0.5)
+                    # self.spec_ax[r_ind].legend(loc='lower left', frameon=False, handlelength=1.0, ncol=3, 
+                    #                            bbox_to_anchor=(0.0, 1.01, 1.0, .12), mode="expand", borderaxespad=0.0)
 
             
             # [Obs mode] Plot vertical lines for current sum range
@@ -830,31 +929,38 @@ class MainWindow(QtWidgets.QWidget):
                 self.spec_ax[r_ind].set_xlim(base_spec_xlim) # Keep original limits
 
                 # Display information about selected wavelength range
-                info_text = [f"{self.wave_bin_width[r_ind]} bin range:"
-                            +f"\nmin: {self.wave_sum_range[r_ind][0]:.3f}"
-                            +f"\ncenter: {self.spec_vline_val[r_ind]:.3f}"
-                            +f"\nmax: {self.wave_sum_range[r_ind][1]:.3f}"]
-                self.spec_ax[r_ind].text(0.02, 0.98, info_text[0], 
-                                        horizontalalignment='left',
-                                        verticalalignment='top',
-                                        transform=self.spec_ax[r_ind].transAxes)
+                if self.radio_show_details.isChecked():
+                    vline_ind = self.spec_vline_ind[r_ind]
+                    sum_half_width = int((self.wave_bin_width[r_ind]-1)/2)
+                    sum_ind_start = vline_ind - sum_half_width
+                    sum_ind_end = vline_ind + sum_half_width
+                    info_text = [f"{self.wave_bin_width[r_ind]} bin range:"
+                                +f"\nmin: {self.wave_sum_range[r_ind][0]:.3f} [{sum_ind_start}]"
+                                +f"\ncenter: {self.spec_vline_val[r_ind]:.3f} [{vline_ind}]"
+                                +f"\nmax: {self.wave_sum_range[r_ind][1]:.3f} [{sum_ind_end}]"]
+                    self.spec_ax[r_ind].text(0.02, 0.98, info_text[0], 
+                                            horizontalalignment='left',
+                                            verticalalignment='top',
+                                            transform=self.spec_ax[r_ind].transAxes)
 
             # Display location info
             # Note: we use the double prime symbols below (LaTeX looked odd)
-            loc_text = [f"{date_obs.replace('T', ' ')}"
-                       +f'\n{self.rast_xcoords[r_ind][x_ind]:.2f}″ [{x_ind}] X'
-                       +f'\n{self.rast_ycoords[r_ind][y_ind]:.2f}″ [{y_ind}] Y']
+            if self.radio_show_details.isChecked():
+                loc_text = [f"{date_obs.replace('T', ' ')}"
+                        +f'\n{self.rast_xcoords[r_ind][x_ind]:.2f}″ [{x_ind}] X'
+                        +f'\n{self.rast_ycoords[r_ind][y_ind]:.2f}″ [{y_ind}] Y']
 
-            self.spec_ax[r_ind].text(0.98, 0.98, loc_text[0], 
-                                    horizontalalignment='right',
-                                    verticalalignment='top',
-                                    transform=self.spec_ax[r_ind].transAxes)
+                self.spec_ax[r_ind].text(0.98, 0.98, loc_text[0], 
+                                        horizontalalignment='right',
+                                        verticalalignment='top',
+                                        transform=self.spec_ax[r_ind].transAxes)
             
             curr_xlim = self.spec_ax[r_ind].get_xlim()
             curr_ylim = self.spec_ax[r_ind].get_ylim() # not needed?
             
             # Annotate all CHIANTI lines in current window
             if self.radio_show_ids.isChecked():
+                mixed_trans = self.spec_ax[r_ind].get_xaxis_transform()  # x in data, y in axes
                 loc_ids = np.where((self.all_line_ids['wave'] >= curr_xlim[0])
                                    & (self.all_line_ids['wave'] <= curr_xlim[1]))
                 nearby_ids = self.all_line_ids[loc_ids]
@@ -868,18 +974,24 @@ class MainWindow(QtWidgets.QWidget):
                                 last_id_yscale = 0.40 # reset if gets too high
                         else:
                             last_id_yscale = 0.40
-                        marker_y = (last_id_yscale+0.04)*curr_ylim[1]
                         id_x = nearby_ids['wave'][i] + 0.01
-                        id_y = last_id_yscale*curr_ylim[1]
+                        # id_y = last_id_yscale*curr_ylim[1]
+                        # marker_y = (last_id_yscale+0.04)*curr_ylim[1]
+                        id_y = last_id_yscale
+                        marker_y = last_id_yscale+0.04
 
-                        self.spec_ax[r_ind].plot([nearby_ids['wave'][i]], [marker_y], 'r+', zorder=3)
-                        self.spec_ax[r_ind].annotate(nearby_ids['id'][i], xy=(id_x, id_y), color='navy', zorder=3)
+                        self.spec_ax[r_ind].plot([nearby_ids['wave'][i]], [marker_y], 'r+', 
+                                                 zorder=3, transform=mixed_trans)
+                        self.spec_ax[r_ind].annotate(nearby_ids['id'][i], xy=(id_x, id_y), color='navy', 
+                                                     zorder=3, xycoords=mixed_trans,
+                                                     annotation_clip=True)
 
             # Restore last selected plot limts (if valid)
             # NB: indexing in this way should ensure a subview in the current limits
             if last_spec_xlim[0] <= curr_xlim[1] and last_spec_xlim[1] >= curr_xlim[0]:
                 self.spec_ax[r_ind].set_xlim(last_spec_xlim)
-                # self.spec_ax[r_ind].set_ylim(last_spec_ylim)
+            if not self.radio_autoscale_ylim.isChecked() and last_spec_ylim[1] > 1:
+                self.spec_ax[r_ind].set_ylim(last_spec_ylim)
 
             # Label axes and update the figure
             self.spec_ax[r_ind].set_xlabel('Wavelength [$\AA$]')
@@ -927,6 +1039,15 @@ class MainWindow(QtWidgets.QWidget):
                                 filter='eis_*.h5', options=options)
 
         self.load_file(selected_file, r_ind=0, load_in_all=True)
+
+    def event_quick_select(self):
+        r_ind = int(self.sender().objectName()[1])
+
+        curr_dir = self.selected_dir[r_ind]
+        new_filename = self.box_file_list[r_ind].currentText()
+        selected_file = os.path.join(curr_dir, new_filename)
+
+        self.load_file(selected_file, r_ind=r_ind)
 
     def event_plot_raster(self, index):
         r_ind = int(self.sender().objectName()[1])
@@ -1009,7 +1130,7 @@ class MainWindow(QtWidgets.QWidget):
                 self.spec_vline_val[r_ind] = xdata
                 self.plot_raster(r_ind=r_ind)
 
-    def event_show_ids(self):
+    def event_replot_all_spec(self):
         for r in range(self.max_num_rasters):
             self.plot_spectrum(r_ind=r)
 
