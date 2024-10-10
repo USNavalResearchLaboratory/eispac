@@ -723,7 +723,7 @@ class EISFitResult:
         # FIXME: This function should actually use units
         this_wave = self.fit['wave_range'].mean()
         disp = np.zeros(len(array.shape))
-        disp[0] = ccd_offset(wave*u.Angstrom) - ccd_offset(this_wave*u.Angstrom)
+        disp[0] = ccd_offset(wave*u.Angstrom).value - ccd_offset(this_wave*u.Angstrom).value
         array = shift_img(array, disp)
         return array
 
