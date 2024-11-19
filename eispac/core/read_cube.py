@@ -14,7 +14,7 @@ from eispac.core.eiscube import EISCube
 from eispac.core.read_wininfo import read_wininfo
 from eispac.instr.calc_read_noise import calc_read_noise
 
-def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
+def read_cube(filename=None, window=0, exp_set='sum', apply_radcal=True, radcal=None,
               abs_errs=True, count_offset=None, debug=False):
     """Load a single window of EIS data from an HDF5 file into an EISCube object
 
@@ -25,6 +25,11 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
     window : int, float, or str, optional
         Requested spectral window number or the value of any wavelength within
         the requested window. Default is '0'
+    exp_set : int or str, optional
+        Index number of the exposure set to load from the file. Only used in the 
+        rare case of scanning observations with multiple exposures per raster 
+        position. Can also set to a value of "sum" to add together all exposures 
+        and simulate a longer exposure image. Default is "sum".
     apply_radcal : bool, optional
         If set to True, will apply the pre-flight radiometric calibration curve
         found in the HDF5 header file and set units to erg/(cm^2 s sr). If set
@@ -179,13 +184,15 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
             meta['date_obs'] = np.array(f_head['times/date_obs']).astype(np.str_)
             meta['date_obs_format'] = np.array(f_head['times/time_format']).astype(np.str_)[0]
         except KeyError:
+            # Estimate missing or broken timestamps (ideally, never used)
             print('WARNING: the header file has missing or incomplete date_obs' 
                  +' for each raster step! Filling with estimated timestamps.')
             total_time = np.datetime64(index['date_end']) - np.datetime64(index['date_obs'])
             total_time = total_time / np.timedelta64(1, 's') # ensure [s] units
-            est_cad = total_time / index['nexp']
+            n_xsteps = index['nexp'] / index['nexp_prp']
+            est_cad = total_time / n_xsteps
             est_date_obs = np.datetime64(index['date_obs']) \
-                         + np.arange(index['nexp']) \
+                         + np.arange(n_xsteps) \
                          * np.timedelta64(int(est_cad*1000), 'ms')
             if index['nraster'] == 1:
                 # Sit-and-stare timestamps inc left to right
@@ -222,6 +229,73 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
         radcal_array = None
 
     ############################################################################
+    ### Check for multiple exposure sets and select one (very rarely used)
+    ############################################################################
+    if len(lv_1_counts.shape) == 4:
+        nexp_per_pos = lv_1_counts.shape[0] # Num exposures per slit position
+
+        if not isinstance(exp_set, (str, int)):
+            print(f"ERROR: invalid 'raster' keyword data type. Please input a"
+                 +f" string of 'sum' or an integer.", file=sys.stderr)
+            return None
+        elif isinstance(exp_set, str):
+            if exp_set.isdigit():
+                # convert string containing an integer
+                exp_set = int(exp_set)
+            elif exp_set.lower() != 'sum':
+                print(f"ERROR: invalid raster string of '{exp_set}'. Please"
+                     +f" input either 'sum' or an integer between 0 and"
+                     +f" {nexp_per_pos-1}.", file=sys.stderr)
+                return None
+
+        if isinstance(exp_set, int):
+            if (exp_set >= nexp_per_pos) or (exp_set < -1*nexp_per_pos):
+                # Check for out-of-bound indices
+                oob_exp_set = exp_set
+                if exp_set < 0:
+                    exp_set = 0
+                else:
+                    exp_set = nexp_per_pos-1
+                print(f"WARNING: exp_set {oob_exp_set} is out of bounds."
+                     +f" Loading the nearest valid exp_set ({exp_set}) instead.", 
+                     file=sys.stderr)
+            elif exp_set < 0:
+                # convert negative indices to positive
+                exp_set = nexp_per_pos - exp_set
+    
+        # Extract the correct subarrays
+        if str(exp_set).lower() == 'sum':
+            print(f'Summing all {nexp_per_pos} sets exposures per slit position')
+            lv_1_counts = np.nansum(lv_1_counts, axis=0)
+            meta['date_obs'] = meta['date_obs'][0, :]
+            meta['duration'] = np.nansum(meta['duration'], axis=0)
+            meta['wave_corr'] = np.nanmean(meta['wave_corr'], axis=0)
+            meta['wave_corr_t'] = np.nanmean(meta['wave_corr_t'], axis=0)
+            meta['pointing']['solar_x'] = meta['pointing']['solar_x'][0, :]
+        else:
+            print(f'Loading exposure set {exp_set} ({exp_set+1} of {nexp_per_pos})')
+            lv_1_counts = lv_1_counts[exp_set,:,:,:]
+            meta['date_obs'] = meta['date_obs'][exp_set, :]
+            meta['duration'] = meta['duration'][exp_set, :]
+            meta['wave_corr'] = meta['wave_corr'][exp_set, :, :]
+            meta['wave_corr_t'] = meta['wave_corr_t'][exp_set, :]
+            meta['pointing']['solar_x'] = meta['pointing']['solar_x'][exp_set, :]
+    elif len(lv_1_counts.shape) > 4:
+        print(f"ERROR: cannot read input file with data array shape of"
+             +f" {lv_1_counts.shape}.", file=sys.stderr)
+        return None
+
+    ############################################################################
+    ### Determine observation type
+    ############################################################################
+    if index['nraster'] == 1:
+        obs_type = 'sit-and-stare'
+    elif index['nexp_prp'] >= 2:
+        obs_type = 'multi_scan'
+    else:
+        obs_type = 'scan'
+
+    ############################################################################
     ### Apply pointing corrections and create output EISCube
     ############################################################################
 
@@ -240,10 +314,6 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
 
     ### (3) Apply wave correction and get median base wavelength value and delta
     counts_shape = lv_1_counts.shape
-    if len(counts_shape) > 3:
-        print('ERROR: EIS observations with multiple rasters in a single file'
-             +' are not currently supported.', file=sys.stderr)
-        return None
     ny_pxls = counts_shape[0] # num pixels along the slit (y-axis)
     nx_steps = counts_shape[1] # num raster steps (x-axis)
     n_wave = counts_shape[2] # num wavelength values (i.e. EIS window width)
@@ -297,7 +367,10 @@ def read_cube(filename=None, window=0, apply_radcal=True, radcal=None,
     output_hdr['bunit'] = 'unknown' # units of primary observable
     output_hdr['slit_id'] = index['slit_id']
     output_hdr['slit_ind'] = index['slit_ind']
+    output_hdr['obs_type'] = obs_type
     output_hdr['nraster'] = index['nraster'] # 1 for sit-and-stare
+    output_hdr['nexp'] = index['nexp'] # total num exposures
+    output_hdr['nexp_prp'] = index['nexp_prp'] # num exposures per slit position
     output_hdr['tr_mode'] = index['tr_mode'] # tracking mode. "FIX" for no tracking
     output_hdr['saa'] = index['saa'] # IN / OUT South Atlantic Anomaly (SAA)
     output_hdr['hlz'] = index['hlz'] # IN / OUT High-Latitude Zone (HLZ)

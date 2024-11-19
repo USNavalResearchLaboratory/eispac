@@ -73,6 +73,7 @@ class MainWindow(QtWidgets.QWidget):
         self.fit_res = [None]*self.max_num_rasters
         self.cube_filepath = [None]*self.max_num_rasters
         self.eis_cube = [None]*self.max_num_rasters
+        self.obs_type = [None]*self.max_num_rasters #only used for obs data
         self.var_label = [None]*self.max_num_rasters
         self.inten_units = [None]*self.max_num_rasters
         self.cube_win_ind = [None]*self.max_num_rasters
@@ -418,11 +419,13 @@ class MainWindow(QtWidgets.QWidget):
                 self.eis_cube[r_ind] = eispac.read_cube(this_cube_filepath, mean_wave, 
                                                         apply_radcal=apply_radcal)
                 self.cube_win_ind[r_ind] = self.eis_cube[r_ind].meta['iwin']
+                self.obs_type[r_ind] = self.eis_cube[r_ind].meta['mod_index']['obs_type']
             else:
                 # Clear old object
                 self.cube_filepath[r_ind] = None
                 self.eis_cube[r_ind] = None
                 self.cube_win_ind[r_ind] = None
+                self.obs_type[r_ind] = None
 
         elif os.path.isfile(filepath) and filepath.endswith(('.data.h5', '.head.h5')):
             # Load EISCube object (window CAN be selected later)
@@ -434,9 +437,10 @@ class MainWindow(QtWidgets.QWidget):
             self.eis_cube[r_ind] = eispac.read_cube(filepath, window=0, 
                                                     apply_radcal=True)
             self.inten_units[r_ind] = self.eis_cube[r_ind].meta['mod_index']['bunit']
+            self.obs_type[r_ind] = self.eis_cube[r_ind].meta['mod_index']['obs_type']
             self.rast_wcoords[r_ind] = None
-            self.spec_vline_ind[r_ind] = None
-            self.spec_vline_val[r_ind] = None
+            # self.spec_vline_ind[r_ind] = None
+            # self.spec_vline_val[r_ind] = None
         else:
             return # If invalid file, do nothing
         
@@ -455,6 +459,7 @@ class MainWindow(QtWidgets.QWidget):
                 self.cube_filepath[r] = copy.deepcopy(self.cube_filepath[0])
                 self.eis_cube[r] = copy.deepcopy(self.eis_cube[0])
                 self.inten_units[r] = copy.deepcopy(self.inten_units[0])
+                self.obs_type[r] = copy.deepcopy(self.obs_type[0])
 
                 # Update text and plots
                 self.update_filepath(r_ind=r)
@@ -508,7 +513,15 @@ class MainWindow(QtWidgets.QWidget):
         elif (self.display_mode[r_ind].lower().startswith('obs') 
         and self.eis_cube[r_ind] is not None):
             win_ids = self.eis_cube[r_ind].meta['wininfo']['line_id']
-            line_list = [f"{i}: {line}" for i, line in enumerate(win_ids)]
+            if self.obs_type[r_ind].lower() != 'multi_scan':
+                # Normal scan or sit-and-stare obs
+                line_list = [f"{i}: {line}" for i, line in enumerate(win_ids)]
+            else:
+                # "multi_scan" with multiple exposures per position
+                line_list = [f"{i}-sum: {line}" for i, line in enumerate(win_ids)]
+                for exp_num in range(self.eis_cube[r_ind].meta['index']['nexp_prp']):
+                    exp_list = [f"{i}-{exp_num}: {line}" for i, line in enumerate(win_ids)]
+                    line_list.extend(exp_list)
             self.box_line_id[r_ind].clear()
             self.box_line_id[r_ind].addItems(line_list)
             if curr_line_ind < len(win_ids):
@@ -582,20 +595,26 @@ class MainWindow(QtWidgets.QWidget):
                 self.spec_fig[r_ind].clf()
                 self.spec_fig[r_ind].canvas.draw_idle()
 
-            # Get selected line and variable
+            # Get selected line/window index and variable/width name
             component_index = self.box_line_id[r_ind].currentIndex()
             var_str = self.box_var[r_ind].currentText()
+            last_var = self.var_label[r_ind] # Used for persistence of settings
 
+            if self.display_mode[r_ind].lower().startswith('obs'):
+                # split out window index and exposure set string
+                window_text = self.box_line_id[r_ind].currentText()
+                component_index = int(window_text.split(':')[0].split('-')[0])
+                exp_set_str = str(window_text.split(':')[0].split('-')[-1])
+
+            # Get current colormap and requested nomalization
+            # inten_cmap = self.box_inten_cmap.currentText()
+            current_cmap = self.box_cmap[r_ind].currentText()
             if var_str.lower().endswith('(asinh)'):
                 inten_scale = AsinhStretch()
             elif var_str.lower().endswith('(linear)'):
                 inten_scale = LinearStretch()
             else:
                 inten_scale = AsinhStretch()
-
-            # inten_cmap = self.box_inten_cmap.currentText()
-            last_var = self.var_label[r_ind]
-            current_cmap = self.box_cmap[r_ind].currentText()
 
             # [FIT MODE] Plotting fit results
             if self.display_mode[r_ind].lower().startswith('fit'):
@@ -644,13 +663,14 @@ class MainWindow(QtWidgets.QWidget):
                 if component_index != self.eis_cube[r_ind].meta['iwin']:
                     # Load in recently selected data cube
                     self.eis_cube[r_ind] = eispac.read_cube(self.cube_filepath[r_ind], 
-                                                            window=component_index,   
+                                                            window=component_index,
+                                                            exp_set=exp_set_str,    
                                                             apply_radcal=True)
                     self.cube_win_ind[r_ind] = component_index
                     self.inten_units[r_ind] = str(self.eis_cube[r_ind].unit)
                     self.rast_wcoords[r_ind] = None
-                    self.spec_vline_ind[r_ind] = None
-                    self.spec_vline_val[r_ind] = None
+                    # self.spec_vline_ind[r_ind] = None
+                    # self.spec_vline_val[r_ind] = None
                     self.wave_bin_width[r_ind] = None
                     self.wave_sum_range[r_ind] = None
                 
@@ -663,6 +683,15 @@ class MainWindow(QtWidgets.QWidget):
                     max_wave = base_wave + rast_index['cdelt3']*(n_waves-1)
                     self.rast_wcoords[r_ind] = np.linspace(base_wave, max_wave, 
                                                            num=n_waves)
+
+                # Reset spec vline if outside raster wavelength range
+                if self.spec_vline_val[r_ind] is not None:
+                    rast_min_wave = self.rast_wcoords[r_ind][0]
+                    rast_max_wave = self.rast_wcoords[r_ind][-1]
+                    if ((self.spec_vline_val[r_ind] < rast_min_wave) 
+                    or (self.spec_vline_val[r_ind] > rast_max_wave)):
+                        self.spec_vline_ind[r_ind] = None
+                        self.spec_vline_val[r_ind] = None
 
                 # By default, select bin nearest line_id wavelength (if able)
                 if self.spec_vline_ind[r_ind] is None:
