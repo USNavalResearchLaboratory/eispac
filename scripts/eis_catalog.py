@@ -160,7 +160,7 @@ class Top(QtWidgets.QWidget):
         self.download_db.clicked.connect(self.event_download_db)
 
         self.db_source_box = QtWidgets.QComboBox()
-        self.db_source_box.addItems(['NASA (source)', 'NRL (mirror)'])
+        self.db_source_box.addItems(['NRL (source)', 'NASA (mirror)'])
         self.db_source_box.setFixedWidth(self.default_button_width) # or 150
         self.db_source_box.setFont(self.default_font)
 
@@ -198,7 +198,7 @@ class Top(QtWidgets.QWidget):
         info = (f'Downloading eis_cat.sqlite.\n'
                 f'   Remote: {db_remote_text}\n'
                 f'   Local: {os.path.abspath(self.dbfile)}\n\n'
-                f'Please wait...')
+                f'Please wait (see console for download progress)...')
         self.info_detail.append(info)
         QtWidgets.QApplication.processEvents() # update gui while user waits
         if self.db_loaded:
@@ -432,9 +432,9 @@ class Top(QtWidgets.QWidget):
     def event_search(self):
         """Validate and process search request."""
         self.tabs.setCurrentIndex(0) #switch to details tab
+        self.info_detail.clear()
         self.search_info.setText('Found ?? search results')
         self.filter_info.setText('Showing ?? filter matches')
-        self.info_detail.clear()
         if self.db_loaded == False:
             self.info_detail.append('No EIS As-Run Catalog found!\n\n'
                                     +'Please use the "Update Database" '
@@ -622,10 +622,8 @@ class Top(QtWidgets.QWidget):
             info.append(f"{'fovx':<20} {row.fovx}")
             info.append(f"{'fovy':<20} {row.fovy}")
             info.append(f"{'tl_id':<20} {row.tl_id}")
-            info.append(f"{'study_id':<20} {row.study_id}")
-            info.append(f"{'stud_acr':<20} {row.stud_acr}")
-            info.append(f"{'rast_acr':<20} {row.rast_acr}")
-            info.append(f"{'rast_id':<20} {row.rast_id}")
+            info.append(f"{'study_id, stud_acr':<20} {row.study_id}, {row.stud_acr}")
+            info.append(f"{'rast_id, rast_acr':<20} {row.rast_id}, {row.rast_acr}")
             info.append(f"{'jop_id':<20} {row.jop_id}")
             info.append(f"{'obstitle':<20} {row.obstitle}")
             info.append(f"{'obs_dec':<20} {row.obs_dec}")
@@ -638,7 +636,8 @@ class Top(QtWidgets.QWidget):
             info.append(f"{'nexp':<20} {row.nexp}")
             info.append(f"{'exptime':<20} {row.exptime}")
 
-            info.append(f"\n\n{'----- Line List -----':^55}")
+            line_list_title = f"----- Line List (ll_id: {row.ll_id}) -----"
+            info.append(f"\n\n{line_list_title:^55}")
             info.append(f"{'window':<8} {'title':<20} "
                        +f"{'wavemin':<9} {'wavemax':<9} {'width':<5}")
             for i in range(0,len(row.ll_title)):
@@ -683,13 +682,13 @@ class Top(QtWidgets.QWidget):
 
     def event_update_context_image(self, tab_index):
         """Download context image into memory and update the image tab"""
-        clean_filename = self.selected_file.replace('.gz', '')
-        remote_dir = get_remote_image_dir(clean_filename)
-        context_img_name = 'XRT_'+clean_filename+'.gif'
-        self.context_url = remote_dir+context_img_name
 
         if self.tabs.currentIndex() == 1:
             try:
+                clean_filename = self.selected_file.replace('.gz', '')
+                remote_dir = get_remote_image_dir(clean_filename)
+                context_img_name = 'XRT_'+clean_filename+'.gif'
+                self.context_url = remote_dir+context_img_name
                 self.get_image()
             except:
                 print('   ERROR: context images or server are unavailable.')

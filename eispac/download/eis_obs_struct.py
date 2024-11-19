@@ -73,6 +73,13 @@ class EIS_DB():
         # Create placeholders
         self.eis_str = []
         self.skipped_obs = []
+        self.unknown_main_row = {'stud_acr':'unknown', 'study_id':-999, 'jop_id':-999, 
+                                 'obstitle':'NO STUDY INFO FOUND! ', 
+                                 'obs_dec':'No study info with same tl_id found within +-12 hrs ', 
+                                 'sci_obj':'?? ', 'target':'unknown'}
+        self.unknown_exp_row = {'filename':' ', 'date_obs':1, 'date_end':2, 
+                                'xcen':-90000, 'ycen':-90000, 'fovx':0.0, 'fovy':0.0, 
+                                'tl_id':0, 'rast_acr':'unknown', 'rast_id':1}
 
     def load_ll(self):
         """Load useful info from line linelist db."""
@@ -169,12 +176,21 @@ class EIS_DB():
             for loop_m_row in main_rows:
                 if primary_db.lower().startswith('main'):
                     # Search the EXPERIMENT DB for info
+                    t_start = loop_m_row['date_obs'] - 43200 # 12 hr BEFORE
+                    t_end = loop_m_row['date_end'] + 43200 # 12 hr AFTER
                     exp_string = ('filename, date_obs, date_end, xcen, ycen,'
                                  +' fovx, fovy, tl_id, rast_acr, rast_id')
                     self.cur.execute('SELECT '+exp_string+' FROM'
-                                    +' eis_experiment WHERE tl_id==?',
-                                    (loop_m_row['tl_id'],))
+                                    +' eis_experiment WHERE tl_id==?'
+                                    +' AND date_obs BETWEEN ? and ?',
+                                    (loop_m_row['tl_id'], t_start, t_end))
                     exp_rows = self.cur.fetchall()
+                    if len(exp_rows) <= 0:
+                        empty_e_row = self.unknown_exp_row
+                        empty_e_row['tl_id'] = loop_m_row['tl_id']
+                        empty_e_row['date_obs'] = loop_m_row['date_obs']
+                        empty_e_row['date_end'] = loop_m_row['date_end']
+                        exp_rows = [empty_e_row]
                 
                 for e_row in exp_rows:
                     # Validate rast ID
@@ -243,11 +259,20 @@ class EIS_DB():
                         m_row = loop_m_row
                     elif primary_db.lower().startswith('exp'):
                         # Search the MAIN DB for information
+                        t_start = e_row['date_obs'] - 43200 # 12 hr BEFORE
+                        t_end = e_row['date_end'] + 43200 # 12 hr AFTER
                         main_string = ('stud_acr, study_id, jop_id, obstitle,'
                                       +' obs_dec, sci_obj, target')
                         self.cur.execute('SELECT '+main_string+ ' FROM eis_main'
-                                        +' WHERE tl_id = ?', (e_row['tl_id'],))
-                        m_row, = self.cur.fetchall()
+                                        +' WHERE tl_id = ?'
+                                        +' AND date_obs BETWEEN ? and ?', 
+                                        (e_row['tl_id'], t_start, t_end))
+                        study_rows = self.cur.fetchall()
+                        if len(study_rows) <= 0:
+                            # No matching row found in eis_main!
+                            m_row = self.unknown_main_row
+                        else:
+                            m_row = study_rows[0]
 
                     # Extract, merge, and append the obs info from all rows
                     self.eis_str.append(EIS_Struct(e_row, ll_row, rast_row, m_row))
@@ -276,8 +301,8 @@ class EIS_DB():
             text_cols = ['rast_acr', 'll_acr']
             valid_cols = self.exp_cols
         elif primary_db.lower().startswith('eis_main'):
-            select_cols = ('tl_id, stud_acr, study_id, jop_id, obstitle,'
-                          +' obs_dec, sci_obj, target')
+            select_cols = ('tl_id, date_obs, date_end, stud_acr, study_id,'
+                          +' jop_id, obstitle, obs_dec, sci_obj, target')
             text_cols = ['stud_acr', 'obstitle', 'obs_dec', 'target', 'sci_obj',
                          'join_sb', 'solb_sci', 'eis_sc', 
                          'st_auth', 'observer', 'planner', 'tohbans']
