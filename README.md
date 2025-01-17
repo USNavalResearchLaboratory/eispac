@@ -21,6 +21,11 @@ Python environment. The general approach is as follows:
    template files and underlying methodology that is used in the IDL SolarSoft
    environment.
 
+## Citing EISPAC
+
+If you use EISPAC in your reaserch, please consider citing the
+[JOSS paper](https://joss.theoj.org/papers/10.21105/joss.04914).
+
 ## Getting Started
 
 * Install using PIP (recommended) or by manually downloading this repo.
@@ -120,8 +125,5 @@ Here, in no particular order, is a list of some things that may be added in futu
 * Expanded documentation
 * More unit and integration tests
 * More detailed logging (with option to send all log information to a file)
-* Scripts for quickly viewing data and spectra fits
-* Scripts and routines for creating new fit templates
 * Consider adding a subclass of `NDCubeSequence` which can hold multiple spectral windows
 * Consider storing the output fit parameters in another `NDCube`
-* Restructure project to use the Sunpy affiliated package template?

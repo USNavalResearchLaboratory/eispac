@@ -123,8 +123,11 @@ def read_fit(filename, verbose=False):
     # Restore the fit function
     fit_result.fit_func = getattr(fit_fns, fit_result.func_name)
 
-    # Make sure the .fit['Line_ids'] is ALWAYS an array (for code consistency)
+    # Make sure certain metadata are ALWAYS kept as arrays (for code consistency)
     fit_result.fit['line_ids'] = np.atleast_1d(fit_result.fit['line_ids'])
+    for META_KEY in ['date_obs', 'duration']:
+        if META_KEY in fit_result.meta.keys(): # need check for very old files
+            fit_result.meta[META_KEY] = np.atleast_1d(fit_result.meta[META_KEY])
 
     # If version number is missing, try to guess it
     if 'eispac_version' not in top_key_list:

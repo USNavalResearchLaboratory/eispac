@@ -343,9 +343,12 @@ def read_cube(filename=None, window=0, exp_set='sum', apply_radcal=True, radcal=
 
     ### (7) Calculate average exposure time and cadence
     avg_exptime = np.mean(meta['duration'])
-    diff_date_obs = np.diff(meta['date_obs'].astype('datetime64'))
-    diff_date_obs = diff_date_obs / np.timedelta64(1, 's')
-    avg_cad = np.mean(np.abs(diff_date_obs))
+    if index['nexp'] > 1:
+        diff_date_obs = np.diff(meta['date_obs'].astype('datetime64'))
+        diff_date_obs = diff_date_obs / np.timedelta64(1, 's')
+        avg_cad = np.mean(np.abs(diff_date_obs))
+    else:
+        avg_cad = avg_exptime # default for single exposure obs
 
     ### (8) Create a new header dict updated values
     # Note: the order of axes here is the same as the original fits index
