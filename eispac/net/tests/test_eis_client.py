@@ -14,7 +14,8 @@ def eis_query():
     return time, instr, obs, source, provider, level
 
 # @pytest.mark.skip(reason="NRL server maintenance")
-@pytest.mark.remote_data
+@pytest.mark.skip(reason="SSL or Fido issues")
+# @pytest.mark.remote_data
 def test_search_all_types(eis_query):
     q = Fido.search(*eis_query)
     assert len(q) == 1
@@ -22,7 +23,8 @@ def test_search_all_types(eis_query):
     assert q[0,0]['url'] == 'https://eis.nrl.navy.mil/level1/hdf5/2022/03/29/eis_20220329_222113.data.h5'
 
 # @pytest.mark.skip(reason="NRL server maintenance")
-@pytest.mark.remote_data
+@pytest.mark.skip(reason="SSL or Fido issues")
+# @pytest.mark.remote_data
 def test_search_fits_only(eis_query):
     q = Fido.search(*eis_query, a.eispac.FileType('FITS'))
     assert len(q) == 1
@@ -30,6 +32,7 @@ def test_search_fits_only(eis_query):
     assert q[0,0]['url'] == 'https://eis.nrl.navy.mil/level1/fits/2022/03/29/eis_er_20220329_222113.fits'
 
 # @pytest.mark.skip(reason="NRL server maintenance")
+# @pytest.mark.skip(reason="SSL or Fido issues")
 @pytest.mark.parametrize('file_type, file_url', [
     ('FITS', 'https://eis.nrl.navy.mil/level1/fits/2022/03/29/eis_er_20220329_222113.fits'),
     ('HDF5 data', 'https://eis.nrl.navy.mil/level1/hdf5/2022/03/29/eis_20220329_222113.data.h5'),
@@ -37,7 +40,8 @@ def test_search_fits_only(eis_query):
 ])
 
 # @pytest.mark.skip(reason="NRL server maintenance")
-@pytest.mark.remote_data
+@pytest.mark.skip(reason="SSL or Fido issues")
+# @pytest.mark.remote_data
 def test_search_individual_filetypes(eis_query, file_type, file_url):
     q = Fido.search(*eis_query, a.eispac.FileType(file_type))
     assert len(q) == 1
@@ -46,7 +50,8 @@ def test_search_individual_filetypes(eis_query, file_type, file_url):
     assert q[0,0]['FileType'] == file_type
 
 # @pytest.mark.skip(reason="NRL server maintenance")
-@pytest.mark.remote_data
+@pytest.mark.skip(reason="SSL or Fido issues")
+# @pytest.mark.remote_data
 def test_combined_hdf5_search(eis_query):
     q = Fido.search(*eis_query,
                     a.eispac.FileType('HDF5 data') | a.eispac.FileType('HDF5 header'))
