@@ -90,9 +90,9 @@ def walk_and_save(hdf5_group, data_obj, data_key, print_str, verbose=False):
         if verbose:
             print('   ', print_str)
         temp_data = data_obj
-        if isinstance(data_obj, (np.ndarray, np.str_)):
-            if str(data_obj.dtype).startswith('U', 1):
-                temp_data = data_obj.astype(np.string_)
+        if hasattr(data_obj, 'dtype'):
+            if 'U' in str(data_obj.dtype):
+                temp_data = data_obj.astype(np.bytes_)
         hdf5_group.create_dataset(str(data_key), data=temp_data)
 
 # function to save fit dictionary
