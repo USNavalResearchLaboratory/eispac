@@ -159,17 +159,6 @@ class MainWindow(QtWidgets.QWidget):
         self.radio_sync_cross.setFont(self.font_default)
         self.radio_sync_cross.setChecked(True)
 
-        # self.label_inten_cmap = QtWidgets.QLabel()
-        # self.label_inten_cmap.setFont(self.font_default)
-        # self.label_inten_cmap.setText("Intensity colormap")
-
-        # self.box_inten_cmap = QtWidgets.QComboBox()
-        # self.box_inten_cmap.addItems(self.inten_cmap_list)
-        # self.box_inten_cmap.setFixedWidth(2*self.base_width)
-        # self.box_inten_cmap.setFont(self.font_default)
-        # self.box_inten_cmap.setCurrentIndex(0)
-        # self.box_inten_cmap.currentIndexChanged.connect(self.event_change_layout)
-
         self.label_tips = QtWidgets.QLabel()
         self.label_tips.setFont(self.font_default_italic)
         self.label_tips.setText("Middle click to toggle\npan/zoom mode"
@@ -581,6 +570,8 @@ class MainWindow(QtWidgets.QWidget):
                 old_cross_x = self.rast_crosshair[r_ind].get_offsets()[0,0]
                 old_cross_y = self.rast_crosshair[r_ind].get_offsets()[0,1]
                 self.crosshair_old_coords[r_ind] = [old_cross_x, old_cross_y]
+                self.rast_crosshair[r_ind].remove()
+                self.rast_crosshair[r_ind] = None
 
             self.rast_fig[r_ind].clf()
 

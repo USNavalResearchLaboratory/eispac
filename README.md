@@ -86,7 +86,7 @@ environment. You can now import the package using `import eispac`.
 
 ### Required Packages
 
-* python >= 3.8
+* python >= 3.9
 * numpy >= 1.18
 * scipy >= 1.4
 * matplotlib >= 3.1
