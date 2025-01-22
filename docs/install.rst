@@ -10,7 +10,7 @@ automatically check and install missing dependencies, assuming your
 environment is configured appropriately. If it does not, you may wish to
 try installing the required packages individually first.
 
--  python >= 3.8
+-  python >= 3.9
 
 -  numpy >= 1.18
 
