@@ -18,26 +18,30 @@ class download_hdf5_data:
     filename :  `str` or `list`
         An EIS filename. Such as, eis_l0_20200311_213413.fits, eis_l1_20200311_213413.fits.gz,
         /some_path/eis_l0_20200311_213413.fits. Can be a single path or a list of paths
-    datetree : `bool`
-        Create a local path organized by date (YYYY/MM/DD)
-    local_top : `str`
-        Top of the local path (e.g., data_eis)
-    nodata : `bool`
-        Don't download data files
-    nohead : `bool`
-        Don't download head files
-    overwrite : `bool`
-        Download even if file exists locally
-    headonly : `bool`
-        Equivalent to ``nodata`` + ``overwrite``
-    max_conn : int
+    source : `str`, optional
+        Short name of remote file source to download from. Select from 'NRL', 
+        'NASA', or 'MSSL'. Default is 'NRL', which is the primary data server.
+    local_top : `str`, optional
+        String with the local path the the top-level dir to download the files
+        to. Default is '{current working dir}/data_eis'
+    datetree : `bool`, optional
+        If set to 'True', create a local path organized by date (YYYY/MM/DD).
+        Default is 'False'
+    nodata : `bool`, optional
+        If set to 'True', don't download data files. Default is 'False'
+    nohead : `bool`, optional
+        If set to 'True', don't download head files. Default is 'False'
+    overwrite : `bool`, optional
+        If set to 'True', download even if file exists locally. Default is 'False'
+    headonly : `bool`, optional
+        Equivalent to "nodata=True" & "overwrite=True"
+    max_conn : int, optional
         Max number of download connections that parfive will use
-
     """
 
-    def __init__(self, filename=None, source='nrl', local_top='data_eis', datetree=False,
-                 nodata=False, nohead=False, overwrite=False, headonly=False,
-                 max_conn=2):
+    def __init__(self, filename=None, source='nrl', local_top='data_eis', 
+                 datetree=False, nodata=False, nohead=False, overwrite=False, 
+                 headonly=False, max_conn=2):
         if source.lower().startswith('nasa'):
             self.top_url = 'https://umbra.nascom.nasa.gov/hinode/eis/level1/hdf5/'
         elif source.lower().startswith('mssl'):

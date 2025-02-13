@@ -7,3 +7,4 @@ from .core import *
 from .extern import *
 from .util import *
 from . import data
+from . import db
