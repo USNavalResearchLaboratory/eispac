@@ -2,11 +2,14 @@ __all__ = ['EISCube']
 
 import sys
 import copy
+import warnings
 import numpy as np
+import astropy.wcs
 import astropy.units as u
 from astropy.nddata import StdDevUncertainty
 from astropy.convolution import convolve, CustomKernel
 from astropy.coordinates import SkyCoord
+from sunpy.coordinates import frames
 from ndcube import __version__ as ndcube_ver
 from ndcube import NDCube
 
@@ -488,5 +491,131 @@ class EISCube(NDCube):
                               meta=new_meta, unit=self.unit,
                               # mask=sm_data_mask, missing_axes=wcs_mask)
                               mask=sm_data_mask)
+
+        return output_cube
+    
+    def extract_points(self, coords):
+        """Extract data at specific coordinates and output a new EISCube.
+
+        Parameters
+        ----------
+        coords : `~astropy.coordinates.Skycoord`
+            Skycoord object containing the physical (i.e. "world") coordinates
+            of the requested points. Note, coordinates should be in the
+            helioprojective coordinate system and have an obstime close to the
+            EIS observation time.
+
+        Returns
+        -------
+        output_cube : `EISCube` class instance
+            A new EISCube class instance containing the extracted points
+        """
+        # Validate input coords and extract arrays of X and Y values
+        if isinstance(coords, (list, tuple)):
+            print('ERROR: lists of coordinates is currently not supported!.'
+                 +' Please input a SkyCoord object', file=sys.stderr)
+            return None
+        elif isinstance(coords, SkyCoord):
+            if not isinstance(coords.frame, frames.Helioprojective):
+                print('ERROR: Incorrect coordinate frame. Please convert input'
+                    +' SkyCoord to sunpy.coordinates.frames.Helioprojective', 
+                    file=sys.stderr)
+                return None
+            # Convert input coords to [arcsec] and extract value arrays
+            # TO-DO: check frame obstime and give warnings as needed
+            x_points = coords.Tx.to('arcsec').value
+            y_points = coords.Ty.to('arcsec').value
+        else:
+            print('ERROR: invalid coords data type.'
+                 +' Please input a Skycoord object', file=sys.stderr)
+            return None
+
+        # Check dimensions of EISCube
+        cube_shape = self.data.shape
+        if len(cube_shape) != 3:
+            print('ERROR: This EISCube has the wrong number of dimensions!'
+                 +' Points can only be extracted from a 3D cube with dimensions'
+                 +' of [ny, nx, wave]', file=sys.stderr)
+            return None
+
+        # Extract EISCube coord arrays
+        # Note: We could calculate directly from .meta['mod_index'] instead
+        # Note: Since we have a spectral coord, we always get a warning about
+        #       "target cannot be converted to ICRS". This is fine, so ignore it
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            cube_Tx = self.axis_world_coords(0)[0].Tx.to('arcsec')[0,:].value
+            cube_Ty = self.axis_world_coords(0)[0].Ty.to('arcsec')[:,0].value
+
+        # Filter input coords for points inside the EIS FoV
+        loc_in_fov = np.where((x_points >= np.nanmin(cube_Tx))
+                            & (x_points <= np.nanmax(cube_Tx))
+                            & (y_points >= np.nanmin(cube_Ty))
+                            & (y_points <= np.nanmax(cube_Ty)))
+        n_input_pts = len(x_points)
+        n_valid_pts = len(loc_in_fov[0])
+        if n_valid_pts <= 0:
+            # All corods are outside the EIS FoV
+            print(f'ERROR: None of the selected points are inside the'
+                 +' observation field-of-view! Please check your coordinates'
+                 +' and try again.', file=sys.stderr)
+            return None
+        elif n_valid_pts < n_input_pts:
+            # Remove invalid points from coord arrays
+            # TO-DO: print out omitted coords
+            x_points = x_points[loc_in_fov]
+            y_points = y_points[loc_in_fov]
+            print(f'WARNING: {n_input_pts - n_valid_pts} out of {n_input_pts}'
+                 +' input coords are NOT inside the observation field-of-view!'
+                 +' Coords outside will be ignored.', file=sys.stderr)
+        
+        # Initialize temp arrays for the data
+        nx = len(x_points)
+        n_wave = cube_shape[2]
+        ex_x_vals = np.zeros(nx)
+        ex_y_vals = np.zeros(nx)
+        ex_data = np.zeros((1, nx, n_wave))
+        ex_errs = np.zeros((1, nx, n_wave))
+        ex_wave = np.zeros((1, nx, n_wave))
+        ex_mask = np.zeros((1, nx, n_wave), dtype=bool)
+        ex_date_obs = np.zeros(nx, dtype='U24')
+        ex_duration = np.zeros(nx)
+        
+        # Loop over each point, compute the nearest pixel indices, 
+        # and then extract the information (inc. the obs coords)
+        for pt in range(nx):
+            ix = np.argmin(np.abs(cube_Tx - x_points[pt]))
+            iy = np.argmin(np.abs(cube_Ty - y_points[pt]))
+            ex_x_vals[pt] = cube_Tx[ix]
+            ex_y_vals[pt] = cube_Ty[iy]
+            ex_data[0,pt,:] = self.data[iy,ix,:]
+            ex_errs[0,pt,:] = self.uncertainty.array[iy,ix,:]
+            ex_wave[0,pt,:] = self.wavelength[iy,ix,:]
+            ex_mask[0,pt,:] = self.mask[iy,ix,:]
+            ex_date_obs[pt] = self.meta['date_obs'][ix]
+            ex_duration[pt] = self.meta['duration'][ix]
+        
+        # Update mod_index and other metadata
+        new_meta = copy.deepcopy(self.meta)
+        new_meta['notes'].append(f'Extracted {nx} data points')
+        old_obs_type = new_meta['mod_index']['obs_type']
+        new_meta['mod_index']['obs_type'] = f'Extracted {old_obs_type} points'
+        new_meta['mod_index']['naxis1'] = nx
+        new_meta['mod_index']['naxis2'] = 1
+        new_meta['date_obs'] = ex_date_obs
+        new_meta['duration'] = ex_duration
+        new_meta['pointing']['solar_x'] = ex_x_vals
+        new_meta['pointing']['solar_y'] = ex_y_vals
+        
+        # Pack everything up in a new EISCube
+        ex_errs = StdDevUncertainty(ex_errs)
+        new_wcs = astropy.wcs.WCS(new_meta['mod_index'], fix=True)
+        # wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
+
+        output_cube = EISCube(ex_data, wcs=new_wcs, uncertainty=ex_errs,
+                              wavelength=ex_wave, radcal=self.radcal,
+                              meta=new_meta, unit=self.unit,
+                              # mask=ex_mask, missing_axes=wcs_mask)
+                              mask=ex_mask)
 
         return output_cube
