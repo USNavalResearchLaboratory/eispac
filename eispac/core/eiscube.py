@@ -494,42 +494,26 @@ class EISCube(NDCube):
 
         return output_cube
     
-    def extract_points(self, coords):
+    def extract_points(self, coords, units=u.arcsec):
         """Extract data at specific coordinates and output a new EISCube.
 
         Parameters
         ----------
-        coords : `~astropy.coordinates.Skycoord`
-            Skycoord object containing the physical (i.e. "world") coordinates
-            of the requested points. Note, coordinates should be in the
-            helioprojective coordinate system and have an obstime close to the
-            EIS observation time.
-
+        coords : array-like or `~astropy.coordinates.SkyCoord`
+            List, array, Quantity, or SkyCoord object containing the physical 
+            (i.e. "world") coordinates of the requested points. Note, 
+            coordinates should be in the helioprojective coordinate system and 
+            have an obstime close to the EIS observation time.
+        units : str or `~astropy.units.Quantity`
+            Units used for lists or arrays of input coords. Will be ignored if 
+            coords is either a SkyCoord object or already has Astropy units 
+            attached. Default is 'arcsec'.
+            
         Returns
         -------
         output_cube : `EISCube` class instance
             A new EISCube class instance containing the extracted points
         """
-        # Validate input coords and extract arrays of X and Y values
-        if isinstance(coords, (list, tuple)):
-            print('ERROR: lists of coordinates is currently not supported!.'
-                 +' Please input a SkyCoord object', file=sys.stderr)
-            return None
-        elif isinstance(coords, SkyCoord):
-            if not isinstance(coords.frame, frames.Helioprojective):
-                print('ERROR: Incorrect coordinate frame. Please convert input'
-                    +' SkyCoord to sunpy.coordinates.frames.Helioprojective', 
-                    file=sys.stderr)
-                return None
-            # Convert input coords to [arcsec] and extract value arrays
-            # TO-DO: check frame obstime and give warnings as needed
-            x_points = coords.Tx.to('arcsec').value
-            y_points = coords.Ty.to('arcsec').value
-        else:
-            print('ERROR: invalid coords data type.'
-                 +' Please input a Skycoord object', file=sys.stderr)
-            return None
-
         # Check dimensions of EISCube
         cube_shape = self.data.shape
         if len(cube_shape) != 3:
@@ -537,6 +521,61 @@ class EISCube(NDCube):
                  +' Points can only be extracted from a 3D cube with dimensions'
                  +' of [ny, nx, wave]', file=sys.stderr)
             return None
+
+        # Validate datetype of input coords
+        # Note: we also make sure to convert coords to a [N,2] array
+        assemble_skycoords = True
+        input_coords = copy.deepcopy(coords)
+        if isinstance(input_coords, SkyCoord):
+            assemble_skycoords = False
+        elif isinstance(input_coords, u.Quantity):
+            input_unit = input_coords.unit
+            input_coords = np.atleast_2d(input_coords.value)
+        elif isinstance(input_coords, (list, tuple, np.ndarray)):
+            input_unit = u.Unit(copy.deepcopy(units))
+            input_coords = np.atleast_2d(input_coords)
+        else:
+            print('ERROR: invalid coords data type. Please input a SkyCoord,'
+                 +' Quantity, list, or array of coordinate points.', 
+                 file=sys.stderr)
+            return None
+        
+        # If given a list, array, or Quantity, make a SkyCoord object
+        if assemble_skycoords:
+            # First, check that the input units are angular
+            if not input_unit.physical_type == 'angle':
+                print('ERROR: invalid coordinate units. Please input an'
+                     +' angular unit (e.g. arcsec, degrees).', 
+                      file=sys.stderr)
+                return None
+            
+            # Next, check dimensions of coord array
+            if len(input_coords.shape) != 2 or input_coords.shape[-1] != 2:
+                print('ERROR: incorrect number of coordinate dimensions! Please'
+                     +' input a list or array with dimensions of [N,2].', 
+                      file=sys.stderr)
+                return None
+            input_coords = SkyCoord(input_coords*input_unit, 
+                                    frame=frames.Helioprojective)
+
+        # Check SkyCoord frame and observer
+        # TO-DO: also check obstime and compare to 
+        if not isinstance(input_coords.frame, frames.Helioprojective):
+            print('ERROR: Incorrect coordinate frame. Please convert input'
+                +' SkyCoord to sunpy.coordinates.frames.Helioprojective', 
+                file=sys.stderr)
+            return None
+        elif input_coords.observer is None:
+            print('WARNING: Unknown observer for input coords. Will assume'
+                 +' an observer at or near Earth.')
+        elif input_coords.observer.lower() != 'earth':
+            print(f'WARNING: Input SkyCoord has observer={input_coords.observer}.'
+                 +' If this observer is NOT at or near Earth, the extracted'
+                 +' points will be incorrect.')
+        
+        # Convert input coords to [arcsec] and extract value arrays
+        x_points = np.atleast_1d(input_coords.Tx.to('arcsec').value)
+        y_points = np.atleast_1d(input_coords.Ty.to('arcsec').value)
 
         # Extract EISCube coord arrays
         # Note: We could calculate directly from .meta['mod_index'] instead
@@ -566,7 +605,7 @@ class EISCube(NDCube):
             x_points = x_points[loc_in_fov]
             y_points = y_points[loc_in_fov]
             print(f'WARNING: {n_input_pts - n_valid_pts} out of {n_input_pts}'
-                 +' input coords are NOT inside the observation field-of-view!'
+                 +' input coords are NOT inside the EIS field-of-view!'
                  +' Coords outside will be ignored.', file=sys.stderr)
         
         # Initialize temp arrays for the data
