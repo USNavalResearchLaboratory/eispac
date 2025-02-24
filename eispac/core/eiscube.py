@@ -494,20 +494,24 @@ class EISCube(NDCube):
 
         return output_cube
     
-    def extract_points(self, coords, units=u.arcsec):
+    def extract_points(self, coords, units=u.arcsec, quiet=False):
         """Extract data at specific coordinates and output a new EISCube.
 
         Parameters
         ----------
         coords : array-like or `~astropy.coordinates.SkyCoord`
             List, array, Quantity, or SkyCoord object containing the physical 
-            (i.e. "world") coordinates of the requested points. Note, 
-            coordinates should be in the helioprojective coordinate system and 
-            have an obstime close to the EIS observation time.
-        units : str or `~astropy.units.Quantity`
+            (i.e. "world") coordinates of the requested points. Lists or arrays
+            of pixel indices are also acceptable. Note, input SkyCoord objects
+            should be in the helioprojective coordinate system and have an 
+            obstime close to the EIS observation time.
+        units : str or `~astropy.units.Quantity`, optional
             Units used for lists or arrays of input coords. Will be ignored if 
             coords is either a SkyCoord object or already has Astropy units 
             attached. Default is 'arcsec'.
+        quiet : bool, optional
+            If set to "True", will not print warnings and updates to the
+            command line. Default is "False". 
             
         Returns
         -------
@@ -525,6 +529,7 @@ class EISCube(NDCube):
         # Validate datetype of input coords
         # Note: we also make sure to convert coords to a [N,2] array
         assemble_skycoords = True
+        use_pixel_coords = False
         input_coords = copy.deepcopy(coords)
         if isinstance(input_coords, SkyCoord):
             assemble_skycoords = False
@@ -542,8 +547,11 @@ class EISCube(NDCube):
         
         # If given a list, array, or Quantity, make a SkyCoord object
         if assemble_skycoords:
-            # First, check that the input units are angular
-            if not input_unit.physical_type == 'angle':
+            # First, check that the input units are angular (or pixel)
+            if str(input_unit).lower().startswith('pix'):
+                use_pixel_coords = True
+                input_unit = u.arcsec # hack to allow checking the SkyCoord obj
+            elif not input_unit.physical_type == 'angle':
                 print('ERROR: invalid coordinate units. Please input an'
                      +' angular unit (e.g. arcsec, degrees).', 
                       file=sys.stderr)
@@ -559,19 +567,42 @@ class EISCube(NDCube):
                                     frame=frames.Helioprojective)
 
         # Check SkyCoord frame and observer
-        # TO-DO: also check obstime and compare to 
         if not isinstance(input_coords.frame, frames.Helioprojective):
             print('ERROR: Incorrect coordinate frame. Please convert input'
                 +' SkyCoord to sunpy.coordinates.frames.Helioprojective', 
                 file=sys.stderr)
             return None
-        elif input_coords.observer is None:
+        
+        if input_coords.observer is None:
+            input_observer = 'none'
+        elif isinstance(input_coords.observer, frames.HeliographicStonyhurst):
+            input_observer = input_coords.observer.object_name
+        elif isinstance(input_coords.observer, str):
+            input_observer = input_coords.observer
+        
+        if quiet:
+            pass # Don't check and print warnings if asked to be quiet
+        elif input_observer.lower() == 'none':
             print('WARNING: Unknown observer for input coords. Will assume'
                  +' an observer at or near Earth.')
-        elif input_coords.observer.lower() != 'earth':
-            print(f'WARNING: Input SkyCoord has observer={input_coords.observer}.'
-                 +' If this observer is NOT at or near Earth, the extracted'
-                 +' points will be incorrect.')
+        elif input_observer.lower() not in ['earth', 'hinode', 'eis']:
+            print(f'WARNING: Input SkyCoord has observer={input_observer}.'
+                 +f' If this observer is NOT at or near Earth, the extracted'
+                 +f' points will be incorrect.')
+            
+        # Check SkyCoord obstime
+        cube_date_obs = self.meta['mod_index']['date_obs']
+        cube_date_end = self.meta['mod_index']['date_end']
+        if quiet:
+            pass # Don't check and print warnings if asked to be quiet
+        elif input_coords.obstime is None:
+            print(f'WARNING: Unknown obstime for input coords. Will assume'
+                 +f' the coords are valid for times near {cube_date_obs}.')
+        elif ((input_coords.obstime.isot < cube_date_obs) 
+        or (input_coords.obstime.isot > cube_date_end)):
+            print(f'WARNING: Input coords have obstime={input_coords.obstime.isot}'
+                 +f' while this EISCube is from {cube_date_obs} to {cube_date_end}.'
+                 +f' Please consider transforming input coords to match.')
         
         # Convert input coords to [arcsec] and extract value arrays
         x_points = np.atleast_1d(input_coords.Tx.to('arcsec').value)
@@ -586,27 +617,40 @@ class EISCube(NDCube):
             cube_Tx = self.axis_world_coords(0)[0].Tx.to('arcsec')[0,:].value
             cube_Ty = self.axis_world_coords(0)[0].Ty.to('arcsec')[:,0].value
 
+        # Set ref value arrays (for either world or pixel coords)
+        ref_x_vals = cube_Tx # default is using world coords
+        ref_y_vals = cube_Ty
+        if use_pixel_coords:
+            ref_x_vals = np.arange(cube_shape[1])
+            ref_y_vals = np.arange(cube_shape[0])
+
+            # Convert negative input pixels into positive pixel values
+            x_points[np.where(x_points < 0)] += cube_shape[1]
+            y_points[np.where(y_points < 0)] += cube_shape[0]
+
+
         # Filter input coords for points inside the EIS FoV
-        loc_in_fov = np.where((x_points >= np.nanmin(cube_Tx))
-                            & (x_points <= np.nanmax(cube_Tx))
-                            & (y_points >= np.nanmin(cube_Ty))
-                            & (y_points <= np.nanmax(cube_Ty)))
+        loc_in_fov = np.where((x_points >= np.nanmin(ref_x_vals))
+                            & (x_points <= np.nanmax(ref_x_vals))
+                            & (y_points >= np.nanmin(ref_y_vals))
+                            & (y_points <= np.nanmax(ref_y_vals)))
         n_input_pts = len(x_points)
         n_valid_pts = len(loc_in_fov[0])
         if n_valid_pts <= 0:
             # All corods are outside the EIS FoV
             print(f'ERROR: None of the selected points are inside the'
-                 +' observation field-of-view! Please check your coordinates'
-                 +' and try again.', file=sys.stderr)
+                 +f' observation field-of-view! Please check your coordinates'
+                 +f' and try again.', file=sys.stderr)
             return None
         elif n_valid_pts < n_input_pts:
             # Remove invalid points from coord arrays
             # TO-DO: print out omitted coords
             x_points = x_points[loc_in_fov]
             y_points = y_points[loc_in_fov]
-            print(f'WARNING: {n_input_pts - n_valid_pts} out of {n_input_pts}'
-                 +' input coords are NOT inside the EIS field-of-view!'
-                 +' Coords outside will be ignored.', file=sys.stderr)
+            if not quiet:
+                print(f'WARNING: {n_input_pts - n_valid_pts} out of {n_input_pts}'
+                     +f' input coords are NOT inside the EIS field-of-view!'
+                     +f' Coords outside will be ignored.', file=sys.stderr)
         
         # Initialize temp arrays for the data
         nx = len(x_points)
@@ -623,8 +667,8 @@ class EISCube(NDCube):
         # Loop over each point, compute the nearest pixel indices, 
         # and then extract the information (inc. the obs coords)
         for pt in range(nx):
-            ix = np.argmin(np.abs(cube_Tx - x_points[pt]))
-            iy = np.argmin(np.abs(cube_Ty - y_points[pt]))
+            ix = np.argmin(np.abs(ref_x_vals - x_points[pt]))
+            iy = np.argmin(np.abs(ref_y_vals - y_points[pt]))
             ex_x_vals[pt] = cube_Tx[ix]
             ex_y_vals[pt] = cube_Ty[iy]
             ex_data[0,pt,:] = self.data[iy,ix,:]
