@@ -2,11 +2,14 @@ __all__ = ['EISCube']
 
 import sys
 import copy
+import warnings
 import numpy as np
+import astropy.wcs
 import astropy.units as u
 from astropy.nddata import StdDevUncertainty
 from astropy.convolution import convolve, CustomKernel
 from astropy.coordinates import SkyCoord
+from sunpy.coordinates import frames
 from ndcube import __version__ as ndcube_ver
 from ndcube import NDCube
 
@@ -75,6 +78,7 @@ class EISCube(NDCube):
         self._current_radcal = input_radcal
         kwargs['copy'] = True # Try to ensure meta is not leaked between cutouts
         super().__init__(*args, **kwargs)
+        # TO-DO: initialize .meta['mod_index'], .meta['notes'], and others
 
     @property
     def wavelength(self):
@@ -160,6 +164,17 @@ class EISCube(NDCube):
         else:
             # Works just fine in ndcube 1.4.2 (for all kinds of slices)
             ax_shape = wcs_arr_shape
+
+        # Reassemble orginal slice parameters, for recording in the notes
+        slice_str = '['
+        for i, sl_obj in enumerate(item):
+            delim = '' if i == 0 else ', '
+            start = '' if sl_obj.start is None else str(sl_obj.start)
+            stop = '' if sl_obj.stop is None else str(sl_obj.stop)
+            step = '' if sl_obj.step is None else ':'+str(sl_obj.step)
+            slice_str = slice_str + delim + start + ':' + stop + step
+        slice_str = slice_str + ']'
+        kwargs['meta']['notes'].append(f'Sliced with EISCube{slice_str}')
 
         x2 = x1 + ax_shape[1]*m_idx['cdelt1']
         y2 = y1 + ax_shape[0]*m_idx['cdelt2']
@@ -488,5 +503,235 @@ class EISCube(NDCube):
                               meta=new_meta, unit=self.unit,
                               # mask=sm_data_mask, missing_axes=wcs_mask)
                               mask=sm_data_mask)
+
+        return output_cube
+    
+    def extract_points(self, coords, units=u.arcsec, quiet=False):
+        """Extract data at specific coordinates and output a new EISCube.
+
+        Parameters
+        ----------
+        coords : array-like or `~astropy.coordinates.SkyCoord`
+            List, array, Quantity, or SkyCoord object containing the physical 
+            (i.e. "world") coordinates of the requested points. Lists or arrays
+            of pixel indices are also acceptable. Note, input SkyCoord objects
+            should be in the helioprojective coordinate system and have an 
+            obstime close to the EIS observation time.
+        units : str or `~astropy.units.Quantity`, optional
+            Units used for lists or arrays of input coords. Will be ignored if 
+            coords is either a SkyCoord object or already has Astropy units 
+            attached. Default is 'arcsec'.
+        quiet : bool, optional
+            If set to "True", will not print warnings and updates to the
+            command line. Default is "False". 
+            
+        Returns
+        -------
+        output_cube : `EISCube` class instance
+            A new EISCube class instance containing the extracted points
+        """
+        # Check dimensions of EISCube
+        cube_shape = self.data.shape
+        if len(cube_shape) != 3:
+            print('ERROR: This EISCube has the wrong number of dimensions!'
+                 +' Points can only be extracted from a 3D cube with dimensions'
+                 +' of [ny, nx, wave]', file=sys.stderr)
+            return None
+
+        # Validate datetype of input coords
+        # Note: we also make sure to convert coords to a [N,2] array
+        assemble_skycoords = True
+        use_pixel_coords = False
+        input_coords = copy.deepcopy(coords)
+        if isinstance(input_coords, SkyCoord):
+            assemble_skycoords = False
+        elif isinstance(input_coords, u.Quantity):
+            input_unit = input_coords.unit
+            input_coords = np.atleast_2d(input_coords.value)
+        elif isinstance(input_coords, (list, tuple, np.ndarray)):
+            input_unit = u.Unit(copy.deepcopy(units))
+            input_coords = np.atleast_2d(input_coords)
+        else:
+            print('ERROR: invalid coords data type. Please input a SkyCoord,'
+                 +' Quantity, list, or array of coordinate points.', 
+                 file=sys.stderr)
+            return None
+        
+        # If given a list, array, or Quantity, make a SkyCoord object
+        if assemble_skycoords:
+            # First, check that the input units are angular (or pixel)
+            if str(input_unit).lower().startswith('pix'):
+                use_pixel_coords = True
+                input_unit = u.arcsec # hack to allow checking the SkyCoord obj
+            elif not input_unit.physical_type == 'angle':
+                print('ERROR: invalid coordinate units. Please input an'
+                     +' angular unit (e.g. arcsec, degrees).', 
+                      file=sys.stderr)
+                return None
+            
+            # Next, check dimensions of coord array
+            if len(input_coords.shape) != 2 or input_coords.shape[-1] != 2:
+                print('ERROR: incorrect number of coordinate dimensions! Please'
+                     +' input a list or array with dimensions of [N,2].', 
+                      file=sys.stderr)
+                return None
+            input_coords = SkyCoord(input_coords*input_unit, 
+                                    frame=frames.Helioprojective)
+
+        # Check SkyCoord frame and observer
+        if not isinstance(input_coords.frame, frames.Helioprojective):
+            print('ERROR: Incorrect coordinate frame. Please convert input'
+                +' SkyCoord to sunpy.coordinates.frames.Helioprojective', 
+                file=sys.stderr)
+            return None
+        
+        if input_coords.observer is None:
+            input_observer = 'unknown'
+        elif isinstance(input_coords.observer, frames.HeliographicStonyhurst):
+            input_observer = input_coords.observer.object_name
+        elif isinstance(input_coords.observer, str):
+            input_observer = input_coords.observer
+        
+        if quiet:
+            pass # Don't check and print warnings if asked to be quiet
+        elif input_observer.lower() == 'unknown':
+            print('WARNING: Unknown observer for input coords. Will assume'
+                 +' an observer at or near Earth.')
+        elif input_observer.lower() not in ['earth', 'hinode', 'eis']:
+            print(f'WARNING: Input SkyCoord has observer={input_observer}.'
+                 +f' If this observer is NOT at or near Earth, the extracted'
+                 +f' points will be incorrect.')
+            
+        # Check SkyCoord obstime
+        cube_date_obs = self.meta['mod_index']['date_obs']
+        cube_date_end = self.meta['mod_index']['date_end']
+        if input_coords.obstime is None:
+            input_obstime = 'unknown'
+        else:
+            input_obstime = input_coords.obstime.isot
+
+        if quiet:
+            pass # Don't check and print warnings if asked to be quiet
+        elif input_obstime == 'unknown':
+            print(f'WARNING: Unknown obstime for input coords. Will assume'
+                 +f' the coords are valid for times near {cube_date_obs}.')
+        elif ((input_obstime < cube_date_obs) or (input_obstime > cube_date_end)):
+            print(f'WARNING: Input coords have obstime={input_obstime} while'
+                 +f' this EISCube is from {cube_date_obs} to {cube_date_end}.'
+                 +f' Please consider transforming input coords to match.')
+        
+        # Convert input coords to [arcsec] and extract value arrays
+        x_points = np.atleast_1d(input_coords.Tx.to('arcsec').value)
+        y_points = np.atleast_1d(input_coords.Ty.to('arcsec').value)
+        points_units = u.arcsec
+
+        # Extract EISCube coord arrays
+        # Note: We could calculate directly from .meta['mod_index'] instead
+        # Note: Since we have a spectral coord, we always get a warning about
+        #       "target cannot be converted to ICRS". This is fine, so ignore it
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            cube_Tx = self.axis_world_coords(0)[0].Tx.to('arcsec')[0,:].value
+            cube_Ty = self.axis_world_coords(0)[0].Ty.to('arcsec')[:,0].value
+
+        # Set ref value arrays (for either world or pixel coords)
+        ref_x_vals = cube_Tx # default is using world coords
+        ref_y_vals = cube_Ty
+        if use_pixel_coords:
+            points_units = u.pix
+            ref_x_vals = np.arange(cube_shape[1])
+            ref_y_vals = np.arange(cube_shape[0])
+
+            # Convert negative input pixels into positive pixel values
+            x_points[np.where(x_points < 0)] += cube_shape[1]
+            y_points[np.where(y_points < 0)] += cube_shape[0]
+
+
+        # Filter input coords for points inside the EIS FoV
+        loc_in_fov = np.where((x_points >= np.nanmin(ref_x_vals))
+                            & (x_points <= np.nanmax(ref_x_vals))
+                            & (y_points >= np.nanmin(ref_y_vals))
+                            & (y_points <= np.nanmax(ref_y_vals)))
+        n_input_pts = len(x_points)
+        n_valid_pts = len(loc_in_fov[0])
+        if n_valid_pts <= 0:
+            # All corods are outside the EIS FoV
+            print(f'ERROR: None of the selected points are inside the'
+                 +f' observation field-of-view! Please check your coordinates'
+                 +f' and try again.', file=sys.stderr)
+            return None
+        elif n_valid_pts < n_input_pts:
+            # Remove invalid points from coord arrays
+            # TO-DO: print out omitted coords
+            x_points = x_points[loc_in_fov]
+            y_points = y_points[loc_in_fov]
+            if not quiet:
+                print(f'WARNING: {n_input_pts - n_valid_pts} out of {n_input_pts}'
+                     +f' input coords are NOT inside the EIS field-of-view!'
+                     +f' Coords outside will be ignored.', file=sys.stderr)
+        
+        # Initialize temp arrays for the data
+        nx = len(x_points)
+        n_wave = cube_shape[2]
+        ex_x_pix = np.zeros(nx)
+        ex_y_pix = np.zeros(nx)
+        ex_x_vals = np.zeros(nx)
+        ex_y_vals = np.zeros(nx)
+        ex_data = np.zeros((1, nx, n_wave))
+        ex_errs = np.zeros((1, nx, n_wave))
+        ex_wave = np.zeros((1, nx, n_wave))
+        ex_mask = np.zeros((1, nx, n_wave), dtype=bool)
+        ex_date_obs = np.zeros(nx, dtype='U24')
+        ex_duration = np.zeros(nx)
+        
+        # Loop over each point, compute the nearest pixel indices, 
+        # and then extract the information (inc. the obs coords)
+        for pt in range(nx):
+            ix = np.argmin(np.abs(ref_x_vals - x_points[pt]))
+            iy = np.argmin(np.abs(ref_y_vals - y_points[pt]))
+            ex_x_pix[pt] = ix
+            ex_y_pix[pt] = iy
+            ex_x_vals[pt] = cube_Tx[ix]
+            ex_y_vals[pt] = cube_Ty[iy]
+            ex_data[0,pt,:] = self.data[iy,ix,:]
+            ex_errs[0,pt,:] = self.uncertainty.array[iy,ix,:]
+            ex_wave[0,pt,:] = self.wavelength[iy,ix,:]
+            ex_mask[0,pt,:] = self.mask[iy,ix,:]
+            ex_date_obs[pt] = self.meta['date_obs'][ix]
+            ex_duration[pt] = self.meta['duration'][ix]
+        
+        # Update mod_index and other metadata
+        new_meta = copy.deepcopy(self.meta)
+        new_meta['notes'].append(f'Extracted {nx} data points')
+        old_obs_type = new_meta['mod_index']['obs_type']
+        new_meta['mod_index']['obs_type'] = f'Extracted {old_obs_type} points'
+        new_meta['mod_index']['naxis1'] = nx
+        new_meta['mod_index']['naxis2'] = 1
+        new_meta['date_obs'] = ex_date_obs
+        new_meta['duration'] = ex_duration
+
+        # Create new 'extracted' dict in teh metadata
+        new_meta['extracted'] = {}
+        new_meta['extracted']['coord_x'] = ex_x_vals
+        new_meta['extracted']['coord_y'] = ex_y_vals
+        new_meta['extracted']['coord_units'] = 'arcsec'
+        new_meta['extracted']['input_x'] = x_points
+        new_meta['extracted']['input_y'] = y_points
+        new_meta['extracted']['input_units'] = str(points_units)
+        new_meta['extracted']['observer'] = input_observer
+        new_meta['extracted']['obstime'] = input_obstime
+        new_meta['extracted']['pix_x'] = ex_x_pix
+        new_meta['extracted']['pix_y'] = ex_y_pix
+        
+        # Pack everything up in a new EISCube
+        ex_errs = StdDevUncertainty(ex_errs)
+        new_wcs = astropy.wcs.WCS(new_meta['mod_index'], fix=True)
+        # wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
+
+        output_cube = EISCube(ex_data, wcs=new_wcs, uncertainty=ex_errs,
+                              wavelength=ex_wave, radcal=self.radcal,
+                              meta=new_meta, unit=self.unit,
+                              # mask=ex_mask, missing_axes=wcs_mask)
+                              mask=ex_mask)
 
         return output_cube
