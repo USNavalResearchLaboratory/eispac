@@ -78,6 +78,7 @@ class EISCube(NDCube):
         self._current_radcal = input_radcal
         kwargs['copy'] = True # Try to ensure meta is not leaked between cutouts
         super().__init__(*args, **kwargs)
+        # TO-DO: initialize .meta['mod_index'], .meta['notes'], and others
 
     @property
     def wavelength(self):
@@ -163,6 +164,17 @@ class EISCube(NDCube):
         else:
             # Works just fine in ndcube 1.4.2 (for all kinds of slices)
             ax_shape = wcs_arr_shape
+
+        # Reassemble orginal slice parameters, for recording in the notes
+        slice_str = '['
+        for i, sl_obj in enumerate(item):
+            delim = '' if i == 0 else ', '
+            start = '' if sl_obj.start is None else str(sl_obj.start)
+            stop = '' if sl_obj.stop is None else str(sl_obj.stop)
+            step = '' if sl_obj.step is None else ':'+str(sl_obj.step)
+            slice_str = slice_str + delim + start + ':' + stop + step
+        slice_str = slice_str + ']'
+        kwargs['meta']['notes'].append(f'Sliced with EISCube{slice_str}')
 
         x2 = x1 + ax_shape[1]*m_idx['cdelt1']
         y2 = y1 + ax_shape[0]*m_idx['cdelt2']
@@ -574,7 +586,7 @@ class EISCube(NDCube):
             return None
         
         if input_coords.observer is None:
-            input_observer = 'none'
+            input_observer = 'unknown'
         elif isinstance(input_coords.observer, frames.HeliographicStonyhurst):
             input_observer = input_coords.observer.object_name
         elif isinstance(input_coords.observer, str):
@@ -582,7 +594,7 @@ class EISCube(NDCube):
         
         if quiet:
             pass # Don't check and print warnings if asked to be quiet
-        elif input_observer.lower() == 'none':
+        elif input_observer.lower() == 'unknown':
             print('WARNING: Unknown observer for input coords. Will assume'
                  +' an observer at or near Earth.')
         elif input_observer.lower() not in ['earth', 'hinode', 'eis']:
@@ -593,20 +605,25 @@ class EISCube(NDCube):
         # Check SkyCoord obstime
         cube_date_obs = self.meta['mod_index']['date_obs']
         cube_date_end = self.meta['mod_index']['date_end']
+        if input_coords.obstime is None:
+            input_obstime = 'unknown'
+        else:
+            input_obstime = input_coords.obstime.isot
+
         if quiet:
             pass # Don't check and print warnings if asked to be quiet
-        elif input_coords.obstime is None:
+        elif input_obstime == 'unknown':
             print(f'WARNING: Unknown obstime for input coords. Will assume'
                  +f' the coords are valid for times near {cube_date_obs}.')
-        elif ((input_coords.obstime.isot < cube_date_obs) 
-        or (input_coords.obstime.isot > cube_date_end)):
-            print(f'WARNING: Input coords have obstime={input_coords.obstime.isot}'
-                 +f' while this EISCube is from {cube_date_obs} to {cube_date_end}.'
+        elif ((input_obstime < cube_date_obs) or (input_obstime > cube_date_end)):
+            print(f'WARNING: Input coords have obstime={input_obstime} while'
+                 +f' this EISCube is from {cube_date_obs} to {cube_date_end}.'
                  +f' Please consider transforming input coords to match.')
         
         # Convert input coords to [arcsec] and extract value arrays
         x_points = np.atleast_1d(input_coords.Tx.to('arcsec').value)
         y_points = np.atleast_1d(input_coords.Ty.to('arcsec').value)
+        points_units = u.arcsec
 
         # Extract EISCube coord arrays
         # Note: We could calculate directly from .meta['mod_index'] instead
@@ -621,6 +638,7 @@ class EISCube(NDCube):
         ref_x_vals = cube_Tx # default is using world coords
         ref_y_vals = cube_Ty
         if use_pixel_coords:
+            points_units = u.pix
             ref_x_vals = np.arange(cube_shape[1])
             ref_y_vals = np.arange(cube_shape[0])
 
@@ -655,6 +673,8 @@ class EISCube(NDCube):
         # Initialize temp arrays for the data
         nx = len(x_points)
         n_wave = cube_shape[2]
+        ex_x_pix = np.zeros(nx)
+        ex_y_pix = np.zeros(nx)
         ex_x_vals = np.zeros(nx)
         ex_y_vals = np.zeros(nx)
         ex_data = np.zeros((1, nx, n_wave))
@@ -669,6 +689,8 @@ class EISCube(NDCube):
         for pt in range(nx):
             ix = np.argmin(np.abs(ref_x_vals - x_points[pt]))
             iy = np.argmin(np.abs(ref_y_vals - y_points[pt]))
+            ex_x_pix[pt] = ix
+            ex_y_pix[pt] = iy
             ex_x_vals[pt] = cube_Tx[ix]
             ex_y_vals[pt] = cube_Ty[iy]
             ex_data[0,pt,:] = self.data[iy,ix,:]
@@ -687,8 +709,19 @@ class EISCube(NDCube):
         new_meta['mod_index']['naxis2'] = 1
         new_meta['date_obs'] = ex_date_obs
         new_meta['duration'] = ex_duration
-        new_meta['pointing']['solar_x'] = ex_x_vals
-        new_meta['pointing']['solar_y'] = ex_y_vals
+
+        # Create new 'extracted' dict in teh metadata
+        new_meta['extracted'] = {}
+        new_meta['extracted']['coord_x'] = ex_x_vals
+        new_meta['extracted']['coord_y'] = ex_y_vals
+        new_meta['extracted']['coord_units'] = 'arcsec'
+        new_meta['extracted']['input_x'] = x_points
+        new_meta['extracted']['input_y'] = y_points
+        new_meta['extracted']['input_units'] = str(points_units)
+        new_meta['extracted']['observer'] = input_observer
+        new_meta['extracted']['obstime'] = input_obstime
+        new_meta['extracted']['pix_x'] = ex_x_pix
+        new_meta['extracted']['pix_y'] = ex_y_pix
         
         # Pack everything up in a new EISCube
         ex_errs = StdDevUncertainty(ex_errs)
