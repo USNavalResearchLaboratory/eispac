@@ -24,6 +24,7 @@ import sys
 import os
 import re
 import sqlite3
+from warnings import warn
 import numpy as np
 from .convert import tai2utc, utc2tai
 
@@ -37,6 +38,10 @@ class EIS_DB():
 
     def __init__(self, dbfile):
         """Establish connection and load some useful info."""
+        warn('eispac.download.eis_obs_struct.EIS_DB has been depricated and'
+            +' will be removed in the near future. Please use'
+            +' eispac.db.EISAsRun instead (works as a drop-in replacement)',
+            DeprecationWarning, 2)
         self.conn = sqlite3.connect(dbfile)
         if sys.version_info[0] < 3:
             self.conn.text_factory = str

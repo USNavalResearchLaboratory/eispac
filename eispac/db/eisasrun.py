@@ -31,8 +31,8 @@ import pathlib
 import sqlite3
 import numpy as np
 from astropy.table import Table
-from eispac.download.convert import tai2utc, utc2tai
-from eispac.download.download_db import download_db
+from eispac.util.convert import tai2utc, utc2tai
+from .download_db import download_db
 from .find_eis_cat import find_eis_cat
 from .get_remote_db_modtime import get_remote_db_modtime
 
@@ -413,6 +413,7 @@ class EISAsRun():
         
         if len(self.results) > 0:
             self.results = Table(rows=self.results)
+            self.results.sort('date_obs')
 
     def search(self, noreturn=False, quiet=False, print_sql=False, 
                auto_update=False, **kwargs):
@@ -462,7 +463,7 @@ class EISAsRun():
                 if ',' in input_date:
                     input_date = input_date.split(',')
                 else:
-                    input_date = list(input_date)
+                    input_date = [input_date]
             if isinstance(input_date, (list, tuple)):
                 if input_date[0] is None or input_date[0] == '':
                     # don't bother searching by date
