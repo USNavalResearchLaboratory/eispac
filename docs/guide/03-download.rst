@@ -11,7 +11,7 @@ use the  ``eis_catalog`` GUI tool included with EISPAC. This tool provides
 an easy interface to the official EIS as-run database and can search based on
 a wide range of technical criteria (see the :ref:`sec-catalog` section for details).
 Alternatively, you can browse and download files directly from the online archive
-(https://eis.nrl.navy.mil/) or use the `~eispac.download.download_hdf5_data()`
+(https://eis.nrl.navy.mil/) or use the `~eispac.db.download_hdf5_data()`
 function (assuming you know the exact name of the file you want).
 
 Using SunPy's Fido Interface

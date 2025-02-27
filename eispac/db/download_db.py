@@ -1,3 +1,4 @@
+__all__ = ['download_db']
 
 import os
 from pathlib import Path

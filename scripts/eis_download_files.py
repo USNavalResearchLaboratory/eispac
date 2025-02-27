@@ -64,11 +64,16 @@ def eis_download_files():
     # everything left is input
     arglist = sys.argv[1:]
 
-    # look for datetree option
+    # look for datetree and overwrite keyword options
     datetree = False
     if '-datetree' in arglist:
         datetree = True
         arglist.remove('-datetree')
+
+    overwrite = False
+    if '-overwrite' in arglist:
+        overwrite = True
+        arglist.remove('-overwrite')
 
     # look for remote source options
     data_source = 'nrl'
@@ -97,8 +102,9 @@ def eis_download_files():
         # download the files
         for name in names:
             print(f'+ processing {name}')
-            o = eispac.download.download_hdf5_data(name, source=data_source,
-                                                   datetree=datetree)
+            o = eispac.db.download_hdf5_data(name, source=data_source,
+                                             datetree=datetree, 
+                                             overwrite=overwrite)
 
 if __name__ == '__main__':
     eis_download_files()

@@ -26,9 +26,9 @@ import sqlite3
 from datetime import datetime, timedelta
 import numpy as np
 from PyQt5 import QtCore, QtWidgets, QtGui, QtNetwork
-from eispac.download import eis_obs_struct
-from eispac.download.download_hdf5_data import download_hdf5_data
-from eispac.download.download_db import download_db
+from eispac.db.eisasrun import EISAsRun
+from eispac.db.download_hdf5_data import download_hdf5_data
+from eispac.db.download_db import download_db
 
 def get_remote_image_dir(filename):
     """Parse a Level-0 filename and get the remote image dir"""
@@ -89,7 +89,7 @@ class Top(QtWidgets.QWidget):
         
         # Check for EIS database
         if os.path.isfile(self.dbfile):
-            self.d = eis_obs_struct.EIS_DB(self.dbfile)
+            self.d = EISAsRun(self.dbfile)
             self.db_loaded = True
         else:
             # Ask if the user wants to download a copy of the database
@@ -100,7 +100,7 @@ class Top(QtWidgets.QWidget):
             if ask_db == QtWidgets.QMessageBox.Yes:
                 self.dbfile = download_db()
                 if not str(self.dbfile).endswith('.part'):
-                    self.d = eis_obs_struct.EIS_DB(self.dbfile)
+                    self.d = EISAsRun(self.dbfile)
                 else:
                     print('Failed to download EIS database!')
             else:
@@ -211,7 +211,7 @@ class Top(QtWidgets.QWidget):
                                     +'Please check your internet connection '
                                     +' or try a different source.')
         else:
-            self.d = eis_obs_struct.EIS_DB(self.dbfile)
+            self.d = EISAsRun(self.dbfile)
             self.update_db_file_label()
             self.info_detail.append('\nComplete')
             self.db_loaded = True
@@ -453,16 +453,16 @@ class Top(QtWidgets.QWidget):
         primary_value = str(self.primary_text.text())
 
         if self.criteria[primary_key] == 'date_obs':
-            self.d.get_by_date(start_time, end_time) # searches eis_experiment
+            self.d.search(date=[start_time, end_time], noreturn=True)
         elif primary_key.lower().startswith('trigger'):
             # EIS triggered studies (1=XRT flare, 3=EIS flare, 4=EIS BP)
             search_kwargs = {'date':[start_time, end_time]}
             search_kwargs['tl_id'] = ['1', '3', '4']
-            self.d.search(**search_kwargs, quiet=True)
+            self.d.search(**search_kwargs, noreturn=True)
         else:
             search_kwargs = {'date':[start_time, end_time]}
             search_kwargs[self.criteria[primary_key]] = primary_value
-            self.d.search(**search_kwargs, quiet=True)
+            self.d.search(**search_kwargs, noreturn=True)
 
         self.selected_file = None
         if len(self.d.eis_str) > 0:
@@ -617,10 +617,8 @@ class Top(QtWidgets.QWidget):
             info.append(f"{'filename':<20} {row.filename}")
             info.append(f"{'date_obs':<20} {row.date_obs}")
             info.append(f"{'date_end':<20} {row.date_end}")
-            info.append(f"{'xcen':<20} {row.xcen}")
-            info.append(f"{'ycen':<20} {row.ycen}")
-            info.append(f"{'fovx':<20} {row.fovx}")
-            info.append(f"{'fovy':<20} {row.fovy}")
+            info.append(f"{'xcen, ycen':<20} {row.xcen:0.2f}, {row.ycen:0.2f}")
+            info.append(f"{'fovx, fovy':<20} {row.fovx:0.2f}, {row.fovy:0.2f}")
             info.append(f"{'tl_id':<20} {row.tl_id}")
             info.append(f"{'study_id, stud_acr':<20} {row.study_id}, {row.stud_acr}")
             info.append(f"{'rast_id, rast_acr':<20} {row.rast_id}, {row.rast_acr}")
@@ -636,11 +634,11 @@ class Top(QtWidgets.QWidget):
             info.append(f"{'nexp':<20} {row.nexp}")
             info.append(f"{'exptime':<20} {row.exptime}")
 
-            line_list_title = f"----- Line List (ll_id: {row.ll_id}) -----"
-            info.append(f"\n\n{line_list_title:^55}")
+            line_list_title = f"----- Line List (ll_id: {row.ll_id},  ll_acr: {row.ll_acr}) -----"
+            info.append(f"\n\n{line_list_title:<55}")
             info.append(f"{'window':<8} {'title':<20} "
                        +f"{'wavemin':<9} {'wavemax':<9} {'width':<5}")
-            for i in range(0,len(row.ll_title)):
+            for i in range(0, row.n_windows):
                 info.append(f"{i:<8} {row.ll_title[i]:<20} "
                            +f"{row.wavemin[i]:<9.2f} {row.wavemax[i]:<9.2f} "
                            +f"{row.width[i]:<5}")

@@ -1,8 +1,12 @@
 #!/usr/bin/env python
 
+__all__ = ['download_hdf5_data']
+
 import os
+import numpy as np
 import asyncio
 import parfive
+from astropy.table import Table
 # import urllib.request, requests, wget
 
 
@@ -69,9 +73,23 @@ class download_hdf5_data:
         """
         input can be a filename or a list of filenames
         """
-        # make input into a list so we can iterate over it
-        if not isinstance(this_input, list):
+        # Convert input into a list so we can iterate over it
+        # Note: if given a single value, ".tolist()" will just return a str
+        if isinstance(this_input, np.ndarray):
+            # Numpy array
+            this_input = this_input.tolist()
+        elif isinstance(this_input, (Table, Table.Row)):
+            # Astropy Table, such as a search result from EISAsRun.search()
+            if 'filename' in this_input.keys():
+                this_input = this_input['filename'].tolist()
+        
+        if isinstance(this_input, str):
+            # String with a single filename (see note above)
             this_input = [this_input]
+        elif not isinstance(this_input, list):
+            # Invalid input datatype, give an error and quit
+            return None
+        
         # process input and download
         for this_file in this_input:
             self.construct_filenames(this_file)

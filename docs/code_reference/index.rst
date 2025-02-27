@@ -8,7 +8,7 @@ API Reference
 
    eispac_core
    eispac_data
-   eispac_download
+   eispac_db
    eispac_extern
    eispac_instr
    eispac_net
