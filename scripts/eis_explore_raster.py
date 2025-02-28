@@ -69,6 +69,7 @@ class MainWindow(QtWidgets.QWidget):
         self.display_mode = [None]*self.max_num_rasters
         self.selected_dir = [None]*self.max_num_rasters
         self.selected_file = [None]*self.max_num_rasters
+        self.file_date_obs = [None]*self.max_num_rasters
         self.fit_filepath = [None]*self.max_num_rasters
         self.fit_res = [None]*self.max_num_rasters
         self.cube_filepath = [None]*self.max_num_rasters
@@ -82,6 +83,8 @@ class MainWindow(QtWidgets.QWidget):
         self.rast_xcoords = [None]*self.max_num_rasters
         self.rast_ycoords = [None]*self.max_num_rasters
         self.rast_wcoords = [None]*self.max_num_rasters #only used for obs data
+        self.rast_slice_ind = [None]*self.max_num_rasters #only used for CCD
+        self.rast_slice_coord = [None]*self.max_num_rasters #only used for CCD
 
         # Controls and plots for each image
         self.label_filepath = [None]*self.max_num_rasters
@@ -107,6 +110,8 @@ class MainWindow(QtWidgets.QWidget):
         # Matplotlib click events and selected values
         self.rast_click = [None]*self.max_num_rasters
         self.rast_crosshair = [None]*self.max_num_rasters
+        self.rast_axhline = [None]*self.max_num_rasters
+        self.rast_axvline = [None]*self.max_num_rasters
         self.crosshair_new_coords = [None]*self.max_num_rasters
         self.crosshair_old_coords = [None]*self.max_num_rasters
         self.crosshair_ind = [None]*self.max_num_rasters
@@ -528,7 +533,6 @@ class MainWindow(QtWidgets.QWidget):
 
         if self.display_mode[r_ind].lower().startswith('fit'):
             var_list = ['Intensity (asinh)', 'Intensity (linear)', 'Velocity', 'Width']
-            self.box_var[r_ind].addItems(var_list)
             default_var_ind = 0
         elif self.display_mode[r_ind].lower().startswith('obs'):
             var_list = ['3-bin sum (asinh)', '5-bin sum (asinh)', 
@@ -537,9 +541,14 @@ class MainWindow(QtWidgets.QWidget):
                         '3-bin sum (linear)', '5-bin sum (linear)', 
                         '7-bin sum (linear)', '9-bin sum (linear)', 
                         '11-bin sum (linear)', 'Total (linear)']
-            self.box_var[r_ind].addItems(var_list)
             default_var_ind = 2
 
+        # If a full EISCube with the level-1 data is loaded, add CCD option
+        if self.eis_cube[r_ind] is not None:
+            var_list.append('CCD (asinh)')
+            var_list.append('CCD (linear)')
+
+        self.box_var[r_ind].addItems(var_list)
         if self.rast_lims[r_ind] is not None and curr_var_ind < len(var_list):
             # Use last selected var or sum width (if valid)
             self.box_var[r_ind].setCurrentIndex(curr_var_ind)
@@ -556,6 +565,7 @@ class MainWindow(QtWidgets.QWidget):
          
         if self.fit_res[r_ind] is not None or self.eis_cube[r_ind] is not None:
             
+            # Store copies of old plot limits and crosshair coords
             if self.rast_ax[r_ind] is not None:
                 # Update current RAST plot limits [[x1, x2], [y1, y2]]
                 last_rast_xlim = self.rast_ax[r_ind].get_xlim()
@@ -567,13 +577,24 @@ class MainWindow(QtWidgets.QWidget):
                 self.rast_lims[r_ind] = None
 
             if self.rast_crosshair[r_ind] is not None:
+                # Save old crosshair coords, then remove the object from the ax
                 old_cross_x = self.rast_crosshair[r_ind].get_offsets()[0,0]
                 old_cross_y = self.rast_crosshair[r_ind].get_offsets()[0,1]
                 self.crosshair_old_coords[r_ind] = [old_cross_x, old_cross_y]
                 self.rast_crosshair[r_ind].remove()
                 self.rast_crosshair[r_ind] = None
 
-            self.rast_fig[r_ind].clf()
+            # If there are any lines plotted on the ax, remove them
+            if self.rast_axhline[r_ind] is not None:
+                self.rast_axhline[r_ind].remove()
+                self.rast_axhline[r_ind] = None
+            if self.rast_axvline[r_ind] is not None:
+                self.rast_axvline[r_ind].remove()
+                self.rast_axvline[r_ind] = None
+
+            if self.rast_ax[r_ind] is not None:
+                self.rast_ax[r_ind].cla()
+            self.rast_fig[r_ind].clf() # Clear the entire figure
 
             if self.spec_ax[r_ind] is not None:
                 # Update current SPEC plot limits [[x1, x2], [y1, y2]]
@@ -597,6 +618,17 @@ class MainWindow(QtWidgets.QWidget):
                 component_index = int(window_text.split(':')[0].split('-')[0])
                 exp_set_str = str(window_text.split(':')[0].split('-')[-1])
 
+            # Toggle CCD display mode
+            if var_str.lower().startswith('ccd'):
+                # Add ' ccd' to end of display mode, if needed
+                if not self.display_mode[r_ind].lower().endswith('ccd'):
+                    self.display_mode[r_ind] = self.display_mode[r_ind] + ' ccd'
+            elif self.display_mode[r_ind].lower().endswith('ccd'):
+                # Remove ' ccd' from end of display mode, if needed
+                self.display_mode[r_ind] = self.display_mode[r_ind][0:-4]
+                self.rast_slice_ind[r_ind] = None
+                self.rast_slice_coord[r_ind] = None
+
             # Get current colormap and requested nomalization
             # inten_cmap = self.box_inten_cmap.currentText()
             current_cmap = self.box_cmap[r_ind].currentText()
@@ -615,8 +647,8 @@ class MainWindow(QtWidgets.QWidget):
                 self.wave_bin_width[r_ind] = None
                 self.wave_sum_range[r_ind] = None
 
-                rast_index = self.fit_res[r_ind].meta['mod_index']
                 # Extract selected line and variable and set plot options
+                rast_index = self.fit_res[r_ind].meta['mod_index']
                 if var_str.lower().startswith('int'):
                     this_var = 'intensity_fit'
                     rast_data = self.fit_res[r_ind].fit['int'][:,:,component_index]
@@ -665,9 +697,8 @@ class MainWindow(QtWidgets.QWidget):
                     self.wave_bin_width[r_ind] = None
                     self.wave_sum_range[r_ind] = None
                 
-                # Load the modified index
+                # Compute wavelength coord array
                 rast_index = self.eis_cube[r_ind].meta['mod_index']
-
                 if self.rast_wcoords[r_ind] is None:
                     n_waves = int(self.eis_cube[r_ind].data.shape[2])
                     base_wave = rast_index['crval3']
@@ -700,7 +731,7 @@ class MainWindow(QtWidgets.QWidget):
                     self.spec_vline_val[r_ind] = self.rast_wcoords[r_ind][iw]
 
                 # Get indices of wavelength axis to sum over
-                if var_str.lower().startswith('total'):
+                if var_str.lower().startswith(('total', 'ccd')):
                     iwave_cen = None
                     iwave_min, iwave_max = None, None
                     self.wave_bin_width[r_ind] = None
@@ -737,6 +768,79 @@ class MainWindow(QtWidgets.QWidget):
                 rast_norm = ImageNormalize(vmin=inten_vmin, vmax=inten_vmax, 
                                            stretch=inten_scale)
 
+            # Get or estimate exposure cadence
+            if self.eis_cube[r_ind] is not None:
+                rast_cad = self.eis_cube[r_ind].meta['mod_index']['cadence']
+            else:
+                # estimate for old fit results (before summer 2024)
+                total_time = np.datetime64(rast_index['date_end']) - np.datetime64(rast_index['date_obs'])
+                total_time = total_time / np.timedelta64(1, 's') # ensure [s] units
+                rast_cad = total_time / rast_index['naxis1']
+
+            # [CCD MODE] Plotting a single exposure of EIS level-1 intensities
+            # NB: this will override some params from FIT and OBS mode above
+            if self.display_mode[r_ind].lower().endswith('ccd'):
+                # Select correct exposure index to load (i.e. X-axis index)
+                if self.crosshair_ind[r_ind] is None:
+                    ccd_exp_ind = 0
+                else:
+                    ccd_exp_ind = self.crosshair_ind[r_ind][0]
+                    if ccd_exp_ind >= rast_index['naxis1']:
+                        ccd_exp_ind = rast_index['naxis1'] - 1
+                
+                # Load the CCD exposure and set plot options
+                this_var = 'intensity_ccd'
+                rast_data = self.eis_cube[r_ind].data[:,ccd_exp_ind,:]
+                rast_units = self.inten_units[r_ind]
+                inten_vmin = 0.0 #np.nanmin(rast_data)
+                # inten_vmin = np.nanpercentile(rast_data[np.where(rast_data > 0)], 0.5)
+                inten_vmax = np.nanpercentile(rast_data, 99.9)
+                valid_cmap_list = self.inten_cmap_list
+                default_cmap = 'gist_heat' #'Blues_r'
+                rast_norm = ImageNormalize(vmin=inten_vmin, vmax=inten_vmax, 
+                                           stretch=inten_scale)
+                
+                # Save true X-axis index and coord of this slice
+                self.rast_slice_ind[r_ind] = ccd_exp_ind
+                if rast_index['nraster'] == 1:
+                    # Sit-and-stare raster (space-time)
+                    self.rast_slice_coord[r_ind] = 0.0 + rast_cad*(ccd_exp_ind-1)
+                else:
+                    # Scan raster (space-space)
+                    self.rast_slice_coord[r_ind] = rast_index['crval1'] + rast_index['cdelt1']*(ccd_exp_ind-1)
+
+                # Set base coordinate variables for space-wavelength img (CCD)
+                xlabel_text = "Wavelength [$\AA$]"
+                n_xaxis, n_yaxis = rast_index['naxis3'], rast_index['naxis2']
+                xdelta, ydelta = rast_index['cdelt3'], rast_index['cdelt2']
+                rast_bot_left = [rast_index['crval3'], rast_index['crval2']]
+                rast_aspect = 'auto'
+            elif rast_index['nraster'] == 1:
+                # Base coordinate variables for space-time img (sit-and-stare)
+                xlabel_text = "Time elapsed [s]"
+                n_xaxis, n_yaxis = rast_index['naxis1'], rast_index['naxis2']
+                xdelta, ydelta = rast_cad, rast_index['cdelt2']
+                rast_bot_left = [0.0, rast_index['crval2']]
+                rast_aspect = 'auto'
+            else:
+                # Base coordinate variables for space-space img (scan)
+                xlabel_text = "Solar-X [arcsec]"
+                n_xaxis, n_yaxis = rast_index['naxis1'], rast_index['naxis2']
+                xdelta, ydelta = rast_index['cdelt1'], rast_index['cdelt2']
+                rast_bot_left = [rast_index['crval1'], rast_index['crval2']]
+                rast_aspect = 'equal'
+                
+            # Compute coordinate arrays
+            # NB: x/y coords give pixel CENTERS while extend gives min/max edges
+            rast_top_right = [rast_bot_left[0] + xdelta*(n_xaxis-1), 
+                              rast_bot_left[1] + ydelta*(n_yaxis-1)]
+            subplot_extent = [rast_bot_left[0]-xdelta/2, rast_top_right[0]+xdelta/2, 
+                              rast_bot_left[1]-ydelta/2, rast_top_right[1]+ydelta/2]
+            self.rast_xcoords[r_ind] = np.linspace(rast_bot_left[0], rast_top_right[0], 
+                                                   num=n_xaxis)
+            self.rast_ycoords[r_ind] = np.linspace(rast_bot_left[1], rast_top_right[1], 
+                                                   num=n_yaxis)
+            
             # Select cmap and and Update cmap box
             if this_var == last_var and current_cmap in valid_cmap_list:
                 rast_cmap = current_cmap
@@ -749,24 +853,12 @@ class MainWindow(QtWidgets.QWidget):
             self.box_cmap[r_ind].setCurrentIndex(valid_cmap_list.index(rast_cmap))
             self.box_cmap[r_ind].currentIndexChanged.connect(self.event_plot_raster)
 
-            # Compute coordinate information
-            # NB: x/y coords give pixel CENTERS while extend gives min/max edges
-            xdelta, ydelta = rast_index['cdelt1'], rast_index['cdelt2']
-            rast_bot_left = [rast_index['crval1'], rast_index['crval2']]
-            rast_top_right = [rast_bot_left[0] + xdelta*(rast_index['naxis1']-1), 
-                              rast_bot_left[1] + ydelta*(rast_index['naxis2']-1)]
-            subplot_extent = [rast_bot_left[0]-xdelta/2, rast_top_right[0]+xdelta/2, 
-                              rast_bot_left[1]-ydelta/2, rast_top_right[1]+ydelta/2]
-            self.rast_xcoords[r_ind] = np.linspace(rast_bot_left[0], rast_top_right[0], 
-                                                   num=rast_index['naxis1'])
-            self.rast_ycoords[r_ind] = np.linspace(rast_bot_left[1], rast_top_right[1], 
-                                                   num=rast_index['naxis2'])
-            
             # Plot the raster
+            self.file_date_obs[r_ind] = rast_index['date_obs']
             self.rast_ax[r_ind] = self.rast_fig[r_ind].subplots()
             self.rast_img[r_ind] = self.rast_ax[r_ind].imshow(rast_data, extent=subplot_extent, 
-                                origin='lower', cmap=rast_cmap, norm=rast_norm)
-            self.rast_ax[r_ind].set_xlabel("Solar-X [arcsec]", fontsize=10)
+                                origin='lower', cmap=rast_cmap, norm=rast_norm, aspect=rast_aspect)
+            self.rast_ax[r_ind].set_xlabel(xlabel_text, fontsize=10)
             self.rast_ax[r_ind].set_ylabel("Solar-Y [arcsec]", fontsize=10)
 
             rast_cbar = self.rast_fig[r_ind].colorbar(self.rast_img[r_ind], ax=self.rast_ax[r_ind], pad=0.01)
@@ -782,10 +874,12 @@ class MainWindow(QtWidgets.QWidget):
                 pass
             elif (last_rast_xlim[0] <= curr_xlim[1] and last_rast_xlim[1] >= curr_xlim[0]
             and last_rast_ylim[0] <= curr_ylim[1] and last_rast_ylim[1] >= curr_ylim[0]):
-                self.rast_ax[r_ind].set_xlim(last_rast_xlim)
                 self.rast_ax[r_ind].set_ylim(last_rast_ylim)
 
-            self.rast_fig[r_ind].subplots_adjust(left=0.10, right=0.90, bottom=0.10, top=0.98)
+                if (not this_var.lower().endswith('ccd')) or (this_var == last_var):
+                    self.rast_ax[r_ind].set_xlim(last_rast_xlim)
+
+            self.rast_fig[r_ind].subplots_adjust(left=0.12, right=0.90, bottom=0.10, top=0.98)
             self.rast_img[r_ind].figure.canvas.draw_idle() # Update the plot!
             self.rast_ax[r_ind].autoscale(False) # Fixes issue with zooming
 
@@ -810,6 +904,10 @@ class MainWindow(QtWidgets.QWidget):
                     old_x_val, old_y_val = self.crosshair_old_coords[r_ind]
                 else:
                     old_x_val, old_y_val = rast_xmin-999, rast_ymin-999
+
+                # If CCD mode is ON, effectively ignore new_x_val
+                if self.display_mode[r_ind].lower().endswith('ccd'):
+                    new_x_val = (rast_xmin + rast_xmax)/2.0 # always valid
 
                 if ((new_x_val >= rast_xmin and new_x_val <= rast_xmax)
                 and (new_y_val >= rast_ymin and new_y_val <= rast_ymax)):
@@ -838,11 +936,33 @@ class MainWindow(QtWidgets.QWidget):
         if self.rast_crosshair[r_ind] is not None:
             self.rast_crosshair[r_ind].remove()
             self.rast_crosshair[r_ind] = None
+
+        # Remove horizontal and vertical lines
+        if self.rast_axhline[r_ind] is not None:
+            self.rast_axhline[r_ind].remove()
+            self.rast_axhline[r_ind] = None
+        if self.rast_axvline[r_ind] is not None:
+            self.rast_axvline[r_ind].remove()
+            self.rast_axvline[r_ind] = None
             
         # Plot new crosshair (if raster is currently visible)
         if crosshair_in_axes and r_ind <= self.curr_layout_ind:
             self.rast_crosshair[r_ind] = self.rast_ax[r_ind].scatter(x_val, y_val, s=24, 
                                                          c='violet', marker='x')
+
+            # Plot horizontal and vertical lines 
+            if self.display_mode[r_ind].lower().endswith('ccd'):
+                # If CCD mode is ON, add a horizontal line
+                self.rast_axhline[r_ind] = self.rast_ax[r_ind].axhline(y_val, color='violet', ls='--')
+            else:
+                # Check if OTHER rasters of the same timestamp have CCD mode on
+                for other_r in range(self.max_num_rasters):
+                    if other_r == r_ind:
+                        pass # ignore THIS raster
+                    elif (str(self.display_mode[other_r]).lower().endswith('ccd')
+                    and str(self.file_date_obs[other_r]) == str(self.file_date_obs[r_ind])):
+                        # Add vertical line to show CCD mode of OTHER rast
+                        self.rast_axvline[r_ind] = self.rast_ax[r_ind].axvline(x_val, color='violet', ls='--')
 
             self.rast_img[r_ind].figure.canvas.draw_idle() # Update the plot!
             self.plot_spectrum(r_ind=r_ind)
@@ -886,11 +1006,22 @@ class MainWindow(QtWidgets.QWidget):
             ls_list = ['-', '-', '-', '-', '-', '-', 
                        '--', '--', '--', '--', '--', '--']
 
+            # Load data array indices
             x_ind = self.crosshair_ind[r_ind][0]
             y_ind = self.crosshair_ind[r_ind][1]
 
+            # Get X/Y coordinate values
+            x_val = self.rast_xcoords[r_ind][x_ind]
+            y_val = self.rast_ycoords[r_ind][y_ind]
+
+            # IF CCD mode is ON, restore the real X-axis index and coord
+            if self.display_mode[r_ind].lower().endswith('ccd'):
+                x_ind = self.rast_slice_ind[r_ind]
+                x_val = self.rast_slice_coord[r_ind]
+
             # Plot the actual data values (if loaded)
             if self.eis_cube[r_ind] is not None:
+                rast_index = self.eis_cube[r_ind].meta['mod_index']
                 date_obs = self.eis_cube[r_ind].meta['date_obs'][x_ind]
                 data_x = self.eis_cube[r_ind].wavelength[y_ind, x_ind, :]
                 data_y = self.eis_cube[r_ind].data[y_ind, x_ind, :]
@@ -906,8 +1037,9 @@ class MainWindow(QtWidgets.QWidget):
                     self.spec_ax[r_ind].plot(data_bad_x, data_bad_y, ls='', marker='o', 
                                                 markerfacecolor='none', markeredgecolor='grey')
             
-            # [Fit mode] Plot fit profiles
+            # [FIT MODE] Plot fit profiles
             if self.fit_res[r_ind] is not None:
+                rast_index = self.fit_res[r_ind].meta['mod_index']
                 date_obs = self.fit_res[r_ind].meta['date_obs'][x_ind]
                 red_chi2 = self.fit_res[r_ind].fit['chi2'][y_ind, x_ind]
                 stat_text = "${\chi^2}_{red}$ = "+ f"{red_chi2:.2f}"
@@ -932,7 +1064,7 @@ class MainWindow(QtWidgets.QWidget):
                     #                            bbox_to_anchor=(0.0, 1.01, 1.0, .12), mode="expand", borderaxespad=0.0)
 
             
-            # [Obs mode] Plot vertical lines for current sum range
+            # [OBS MODE] Plot vertical lines for current sum range
             # NB: the bin locations are based on the NOMINAL wavelength coords
             #     while the data is plotted with the CORRECTED wavelengths.
             #     Therefore, there can be small offsets between the two
@@ -966,9 +1098,16 @@ class MainWindow(QtWidgets.QWidget):
             # Display location info
             # Note: we use the double prime symbols below (LaTeX looked odd)
             if self.radio_show_details.isChecked():
+                if rast_index['nraster'] == 1:
+                    # Sit-and-stare raster 
+                    x_val_str = f'{x_val:.2f} s'
+                else:
+                    # Scan raster
+                    x_val_str = f'{x_val:.2f}″'
+                y_val_str = f'{y_val:.2f}″'
                 loc_text = [f"{date_obs.replace('T', ' ')}"
-                        +f'\n{self.rast_xcoords[r_ind][x_ind]:.2f}″ [{x_ind}] X'
-                        +f'\n{self.rast_ycoords[r_ind][y_ind]:.2f}″ [{y_ind}] Y']
+                        +f'\n{x_val_str} [{x_ind}] X'
+                        +f'\n{y_val_str} [{y_ind}] Y']
 
                 self.spec_ax[r_ind].text(0.98, 0.98, loc_text[0], 
                                         horizontalalignment='right',
@@ -1109,7 +1248,29 @@ class MainWindow(QtWidgets.QWidget):
             if self.radio_sync_cross.isChecked():
                 # Update ALL crosshairs and spectra
                 for r in range(self.max_num_rasters):
-                    self.crosshair_new_coords[r] = [xdata, ydata]
+
+                    # If CCD mode of CLICKED rast is ON, use this rast OLD x_coord
+                    copy_xdata = xdata
+                    if str(self.display_mode[r_ind]).lower().endswith('ccd'):
+                        if self.crosshair_old_coords[r] is not None:
+                            copy_xdata = self.crosshair_old_coords[r][0]
+
+                    self.crosshair_new_coords[r] = [copy_xdata, ydata]
+
+                    # If CCD mode of THIS rast is ON, update rast image too
+                    if str(self.display_mode[r]).lower().endswith('ccd'):
+                        # Check timestamp and CCD mode of CLICKED rast
+                        if str(self.display_mode[r_ind]).lower().endswith('ccd'):
+                            pass # skip if the CLICKED rast is CCD mode
+                        elif (self.file_date_obs[r] is not None 
+                        and self.file_date_obs[r] == str(self.file_date_obs[r_ind])):
+                            # If CLICKED rast is NOT in CCD mode,
+                            # get index of new CCD exposure (i.e. x-axis step)
+                            ix = np.argmin(np.abs(self.rast_xcoords[r_ind] - xdata))
+                            iy = np.argmin(np.abs(self.rast_ycoords[r_ind] - ydata))
+                            self.crosshair_ind[r] = [ix, iy]
+                            self.plot_raster(r_ind=r)
+                    
                     self.plot_crosshair(r_ind=r)
             else:
                 # Only update the crosshair and spectrum for the canvas clicked
