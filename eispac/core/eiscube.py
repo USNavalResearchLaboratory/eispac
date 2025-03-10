@@ -169,10 +169,13 @@ class EISCube(NDCube):
         slice_str = '['
         for i, sl_obj in enumerate(item):
             delim = '' if i == 0 else ', '
-            start = '' if sl_obj.start is None else str(sl_obj.start)
-            stop = '' if sl_obj.stop is None else str(sl_obj.stop)
-            step = '' if sl_obj.step is None else ':'+str(sl_obj.step)
-            slice_str = slice_str + delim + start + ':' + stop + step
+            if isinstance(sl_obj, int):
+                slice_str = slice_str + delim +str(sl_obj)
+            else:
+                start = '' if sl_obj.start is None else str(sl_obj.start)
+                stop = '' if sl_obj.stop is None else str(sl_obj.stop)
+                step = '' if sl_obj.step is None else ':'+str(sl_obj.step)
+                slice_str = slice_str + delim + start + ':' + stop + step
         slice_str = slice_str + ']'
         kwargs['meta']['notes'].append(f'Sliced with EISCube{slice_str}')
 
