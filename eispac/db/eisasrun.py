@@ -27,10 +27,13 @@ import sys
 import os
 import re
 import time
+from datetime import datetime
 import pathlib
 import sqlite3
 import numpy as np
 from astropy.table import Table
+from astropy.time import Time
+from sunpy.time import TimeRange
 from eispac.util.convert import tai2utc, utc2tai
 from .download_db import download_db
 from .find_eis_cat import find_eis_cat
@@ -47,31 +50,13 @@ class EISAsRun():
     def __init__(self, filepath=None):
         """Establish connection and load some useful info."""
         
-        # Validate input filepath
-        input_cat_filepath = None
-        if filepath is None:
-            print(f'WARNING: Missing path to the EIS as-run catalog!',
-                  file=sys.stderr)
-        elif not isinstance(filepath, (str, pathlib.Path)): 
-            print(f'ERROR: Invalid EIS as-run catalog path! Please input a'
-                 +f' valid string or pathlib.Path object.',
-                  file=sys.stderr)
-        else:
-            input_cat_filepath = pathlib.Path(filepath).resolve()
-            if (not input_cat_filepath.is_file() 
-            or not str(filepath).lower().endswith('.sqlite')):
-                input_cat_filepath = None
-                print(f'ERROR: Input path does not point to a SQLite file!'
-                      +f' Please input a valid string or pathlib.Path object.',
-                      file=sys.stderr)
-
+        # Locate EIS as-run catalog
+        input_cat_filepath = find_eis_cat(filepath)
+            
         if input_cat_filepath is None:
-            print('Attempting to automatically locate the EIS as-run catalog...')
-            input_cat_filepath = find_eis_cat()
-            if input_cat_filepath is None:
-                # IF still cannot find a valid catalog file, just exit
-                self.cat_filepath = None
-                return None
+            # IF still cannot find a valid catalog file, just exit
+            self.cat_filepath = None
+            return None
         
         # Connect to the catalog file
         self.cat_filepath = input_cat_filepath
@@ -160,7 +145,12 @@ class EISAsRun():
     @property
     def eis_str(self):
         """Reformat result table to be (mostly) backwards compatible"""
-        return self.results.as_array().view(np.recarray)
+        if self.results is None:
+            return None
+        elif len(self.results) == 0:
+            return []
+        else:
+            return self.results.as_array().view(np.recarray)
     
     def check_date(self, test_date, quiet=False):
         """Check if a given date is AFTER the last date_end in the catalog"""
@@ -457,37 +447,88 @@ class EISAsRun():
         t1 = None
         if 'date' in kwargs:
             input_date = kwargs.pop('date')
-            if isinstance(input_date, int):
-                input_date = list(input_date) # Note: use with care!
+            # Pre-process to ensure all inputs are given as a list
             if isinstance(input_date, str):
                 if ',' in input_date:
                     input_date = input_date.split(',')
                 else:
                     input_date = [input_date]
-            if isinstance(input_date, (list, tuple)):
-                if input_date[0] is None or input_date[0] == '':
-                    # don't bother searching by date
-                    pass
+            elif isinstance(input_date, TimeRange):
+                # Sunpy TimeRange object
+                input_date = [input_date.start.isot, input_date.end.isot]
+            elif isinstance(input_date, tuple):
+                input_date = list(input_date)
+            elif not isinstance(input_date, list):
+                # Pack everything else into a 1 element list (will convert later)
+                input_date = [input_date]
+
+            try:
+                # Convert all inputs to strings and sanitize
+                for di in range(min(2, len(input_date))):
+                    if input_date[di] is None:
+                        input_date[di] = 'none'
+                    elif isinstance(input_date[di], (int, float)):
+                        # USE WITH CARE!
+                        # int inputs _could_ be a date like "202204010000"
+                        # or, if the 2nd list element, they could be # days
+                        input_date[di] = str(input_date[di])
+                    elif isinstance(input_date[di], str):
+                        # Clean whitespace, convert to lowercase, & parse special
+                        input_date[di] = str(input_date[di]).strip().casefold()
+                        if input_date[di] in ['start', 'launch']:
+                            input_date[di] = self.first_date_obs
+                        elif input_date[di] in ['now', 'today', 'end']:
+                            input_date[di] = time.strftime('%Y-%m-%dT%H:%M')
+                    elif isinstance(input_date[di], (datetime, np.datetime64)):
+                        # Base Python and numpy datetime objects
+                        input_date[di] = np.datetime_as_string(np.datetime64(input_date[di]))
+                    elif isinstance(input_date[di], Time):
+                        # Astropy time objects
+                        input_date[di] = input_date[di].isot
+                    else:
+                        # Invalid data type
+                        raise TypeError
+
+                if input_date[0] in ['none', '']:
+                    if len(input_date) > 1 and input_date[1] in ['none', '']:
+                        # Neither date given, don't bother searching by date
+                        pass
+                    else:
+                        # Search 1 day period ENDING at the input time
+                        t1 = utc2tai(input_date[1])
+                        t0 = t1 - 86400.0 # start 1 day BEFORE
                 else:
-                    t0 = utc2tai(str(input_date[0]))
-                    if len(input_date) == 1:
+                    t0 = utc2tai(input_date[0])
+                    if len(input_date) == 1 or input_date[1] in ['none', '']:
                         # No end time given
                         t1 = t0 + 86400.0 # just add a day
-                    elif (len(str(input_date[1])) < 4 
-                          or str(input_date[1]).lower() == 'none'):
+                    elif ((input_date[1].startswith(('+','-')) 
+                           and input_date[1].count('-') <= 1)
+                    or (input_date[1].replace('.','',1).isdecimal()
+                        and input_date[0].count('.') == 0)):
+                        # End time given as number of DAYS after the start
+                        t1 = t0 + float(input_date[1])*86400.0 # shift by N days
+                    elif len(input_date[1]) < 4:
                         # Invalid end time dtype or length
                         t1 = t0 + 86400.0 # just add a day
                     else:
-                        t1 = utc2tai(str(input_date[1]))
+                        t1 = utc2tai(input_date[1])
+
+                if t0 is not None and t1 is not None:
+                    # Ensure t0 is always BEFORE t1
+                    if t0 > t1:
+                        t0, t1 = t1, t0
                     k_vals = (t0, t1,)
                     query = query+next_sep+'date_obs BETWEEN ? and ?'
                     next_sep = ' AND '
-            else:
-                print(f'ERROR: {input_date} is not a valid date string!'
+            except:
+                # Catch errors for bad input date values and exit cleanly
+                print(f'ERROR: {input_date} is not a valid date format!'
                      +f' Please input a date similar to YYYY-MM-DD HH:MM',
                       file=sys.stderr)
-                self.mk_obs_list()
-                return None # Don't just search the entire database!
+                self.results = [] # clear all old results 
+                self.skipped_obs = []
+                return None
 
         # Loop over all remaining keys, ignoring any that are not in the DB
         for key in kwargs:

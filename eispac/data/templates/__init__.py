@@ -38,4 +38,4 @@ def fit_template_filenames():
     Return a list of all available fitting template files.
     """
     rootdir = pathlib.Path(os.path.dirname(eispac.__file__)) / "data" / "templates"
-    return list(rootdir.glob('*.template.h5'))
+    return sorted(list(rootdir.glob('*.template.h5')))

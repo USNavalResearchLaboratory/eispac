@@ -11,9 +11,9 @@ def find_eis_cat(dir=None, quiet=False):
 
     Search priority:
     1) User input dir
-    2) SolarSoft (SSW) IDL installation, if available and EIS is configured
+    2) Current working dir 
     3) User home dir
-    4) Current working dir 
+    4) SolarSoft (SSW) IDL installation, if available and EIS is configured
 
     Parameters
     ----------
@@ -33,14 +33,14 @@ def find_eis_cat(dir=None, quiet=False):
     """
 
     # Validate user input dir
-    if dir is None:
+    if dir is None or str(dir).lower() == 'none':
         input_dir = None
     elif not isinstance(dir, (str, pathlib.Path)):
         input_dir = None
         if not quiet:
-            print('WARNING: Input dir is not a valid string or pathlib.Path'
-                +' object. Reverting to default search pattern.', 
-                file=sys.stderr)
+            print(f'WARNING: {dir} is not a valid string or pathlib.Path object'
+                 +f' Will search CWD, user home, and SSW dir for the EIS as-run'
+                 +f' catalog.', file=sys.stderr)
     else:
         # Ensure pathlib.Path points to a valid dir (not a file)
         input_dir = pathlib.Path(dir).resolve()
@@ -49,8 +49,8 @@ def find_eis_cat(dir=None, quiet=False):
         elif not input_dir.is_dir():
             input_dir = None
             if not quiet:
-                print('WARNING: Input dir not found! Reverting to default'
-                    +' search pattern.', file=sys.stderr)
+                print(f'WARNING: {dir} not found! Will search CWD, user home,'
+                     +f' and SSW dir for the EIS as-run catalog.', file=sys.stderr)
 
     # Assemble list of search locations
     test_path_list = []
@@ -58,8 +58,14 @@ def find_eis_cat(dir=None, quiet=False):
     # (1) Check user input dir
     if input_dir is not None:
         test_path_list.append(input_dir / 'eis_cat.sqlite')
+    
+    # (2) Check in current working directory
+    test_path_list.append(pathlib.Path.cwd() / 'eis_cat.sqlite')
 
-    # (2) Check for SSW instalation
+    # (3) Check in user's home dir
+    test_path_list.append(pathlib.Path.home() / 'eis_cat.sqlite')
+
+    # (4) Check for SSW instalation
     ssw_dir = os.environ.get('SSW') # should exist if SSW is fully configured
     if ssw_dir is None:
         # Search for SSW in common installation directories
@@ -68,25 +74,26 @@ def find_eis_cat(dir=None, quiet=False):
             if os.path.isdir(test_ssw_dir):
                 ssw_dir = test_ssw_dir
                 break
+
     if ssw_dir is not None:
+        # Search for catalog inside SSW (if SSW is found)
         test_path_list.append(pathlib.Path(ssw_dir) / 'hinode' / 'eis' / 
                               'database' / 'catalog' / 'eis_cat.sqlite')
-
-    # (3) Check in user's home dir
-    test_path_list.append(pathlib.Path.home() / 'eis_cat.sqlite')
-
-    # (4) Check in current working directory
-    test_path_list.append(pathlib.Path.cwd() / 'eis_cat.sqlite')
 
     # Finally, search all paths and return the first eis_cat found
     for PATH in test_path_list:
         if PATH.is_file():
-            if not quiet:
-                print(f'Found eis_cat.sqlite database!')
-                print(f'   filepath: {PATH}')
-            return PATH
+            if os.access(PATH, os.W_OK):
+                if not quiet:
+                    print(f'Found eis_cat.sqlite database!')
+                    print(f'   filepath: {PATH}')
+                return PATH
+            else:
+                if not quiet:
+                    print(f'Found database but do not have write permissions. Skipping...')
+                    print(f'   filepath: {PATH}')
     
     # If no catalog found, return none
     if not quiet:
-        print(f'WARNING: No eis_cat.sqlite database found!', file=sys.stderr)
+        print(f'WARNING: No writable eis_cat.sqlite database found!', file=sys.stderr)
     return None
