@@ -18,7 +18,8 @@ __all__ = ['eis_catalog']
 import sys
 import time
 import os
-import re
+import pathlib
+import argparse
 import urllib
 import ssl
 import certifi
@@ -45,7 +46,7 @@ def get_remote_image_dir(filename):
 
 class Top(QtWidgets.QWidget):
 
-    def __init__(self, dbfile, parent=None):
+    def __init__(self, cat_filepath, parent=None):
         super(Top, self).__init__(parent)
         self.file_list = None
         self.selected_file = None
@@ -55,7 +56,7 @@ class Top(QtWidgets.QWidget):
         self.default_end_time = '2018-05-29 23:59' # '29-May-2018 23:59'
         self.default_button_width = 150 #165 #130
         self.default_topdir = os.path.join(os.getcwd(), 'data_eis')
-        self.dbfile = dbfile
+        self.dbfile = str(pathlib.Path(cat_filepath).resolve())
         self.db_loaded = False
         self.context_imgNX = 768 #512
         self.context_imgNY = 768 #512
@@ -87,20 +88,25 @@ class Top(QtWidgets.QWidget):
         self.sindex_dict = {0:'0 (1" slit)', 2:'2 (2" slit)',
                             3:'3 (40" slot)', 1:'1 (266" slot)'}
         
-        # Check for EIS database
-        if os.path.isfile(self.dbfile):
+        # Load EIS as-run catalog (will also search other common dirs)
+        if os.path.isfile(self.dbfile) or os.path.isdir(self.dbfile):
             self.d = EISAsRun(self.dbfile)
-            self.db_loaded = True
-        else:
+            if self.d is not None:
+                self.db_loaded = True
+                self.dbfile = str(pathlib.Path(self.d.cat_filepath).resolve())
+
+        
+        if self.db_loaded == False:
             # Ask if the user wants to download a copy of the database
-            ask_db = QtWidgets.QMessageBox.question(self, 'Missing database',
-                        'No EIS as-run database found\n'
-                        'Would you like to download a local copy?',
+            ask_db = QtWidgets.QMessageBox.question(self, 'Missing eis_cat.sqlite',
+                        'No EIS as-run catalog found.\n'
+                        'Would you like to download a copy to your home directory?',
                         QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
             if ask_db == QtWidgets.QMessageBox.Yes:
-                self.dbfile = download_db()
+                self.dbfile = download_db() # will download to home dir
                 if not str(self.dbfile).endswith('.part'):
                     self.d = EISAsRun(self.dbfile)
+                    self.db_loaded = True
                 else:
                     print('Failed to download EIS database!')
             else:
@@ -167,10 +173,7 @@ class Top(QtWidgets.QWidget):
         self.db_info = QtWidgets.QLabel(self)
         self.db_info.setFixedWidth(4*self.default_button_width)
         self.db_info.setFont(self.small_font)
-        if os.path.isfile(self.dbfile):
-            self.update_db_file_label()
-        else:
-            self.db_info.setText('Unable to locate DB: ' + self.dbfile)
+        self.update_db_file_label()
 
         self.grid.addWidget(self.quit, self.gui_row, 0)
         self.grid.addWidget(self.download_db, self.gui_row, 1)
@@ -180,9 +183,12 @@ class Top(QtWidgets.QWidget):
         self.gui_row += 1
 
     def update_db_file_label(self):
-         t = 'DB file: '+os.path.abspath(self.dbfile)+'\nDownload date: '+ \
-                time.ctime(os.path.getmtime(self.dbfile)).lstrip().rstrip()
-         self.db_info.setText(t)
+        if os.path.isfile(self.dbfile):
+            t = 'DB file: '+os.path.abspath(self.dbfile)+'\nDownload date: '+ \
+                    time.ctime(os.path.getmtime(self.dbfile)).lstrip().rstrip()
+        else:
+            t = 'Unable to locate DB: ' + self.dbfile
+        self.db_info.setText(t)
 
     def event_download_db(self):
         self.tabs.setCurrentIndex(0) #switch to details tab
@@ -289,13 +295,13 @@ class Top(QtWidgets.QWidget):
     def select_dates(self):
         """Set time range and make button for running the search"""
         title = QtWidgets.QLabel(self)
-        title.setText('Select Time Range')
+        title.setText('Date Range [start, end)')
         title.setFont(self.default_font)
         self.grid.addWidget(title, self.gui_row, 0, 1, 2)
         self.gui_row += 1
 
         start_t = QtWidgets.QLabel(self)
-        start_t.setText('Start Time')
+        start_t.setText('Start')
         start_t.setFont(self.default_font)
         self.start_time = QtWidgets.QLineEdit(self)
         self.start_time.setFixedWidth(self.default_button_width)
@@ -306,7 +312,7 @@ class Top(QtWidgets.QWidget):
         self.gui_row += 1
 
         end_t = QtWidgets.QLabel(self)
-        end_t.setText('End Time')
+        end_t.setText('End (or # days)')
         end_t.setFont(self.default_font)
         self.end_time = QtWidgets.QLineEdit(self)
         self.end_time.setFixedWidth(self.default_button_width)
@@ -338,18 +344,16 @@ class Top(QtWidgets.QWidget):
         self.gui_row -= 4
 
     def event_time_recent(self):
-        end_time = datetime.utcnow()
+        end_time = datetime.now()
         start_time = end_time - timedelta(weeks=3)
-        fmt = '%Y-%m-%d' #'%d-%b-%Y'
-        start_time_s = start_time.strftime(fmt+' 00:00')
-        end_time_s = end_time.strftime(fmt+' 23:59')
+        start_time_s = start_time.strftime('%Y-%m-%d 00:00')
+        end_time_s = end_time.strftime('%Y-%m-%d 23:59')
         self.start_time.setText(start_time_s)
         self.end_time.setText(end_time_s)
 
     def event_time_mission(self):
-        fmt = '%Y-%m-%d' #'%d-%b-%Y'
         start_time_s = '2006-10-21 00:00'
-        end_time_s = datetime.utcnow().strftime(fmt+' 23:59')
+        end_time_s = datetime.now().strftime('%Y-%m-%d 23:59')
         self.start_time.setText(start_time_s)
         self.end_time.setText(end_time_s)
 
@@ -441,7 +445,7 @@ class Top(QtWidgets.QWidget):
                                     +'button above.')
             return
         else:
-            self.info_detail.append('Searching database. Please wait...')
+            self.info_detail.append('Searching catalog. Please wait...')
         self.table_m.clearContents()
         self.table_m.setRowCount(1)
         QtWidgets.QApplication.processEvents() # update gui while user waits
@@ -516,6 +520,7 @@ class Top(QtWidgets.QWidget):
         self.table_m.setHorizontalHeaderLabels(headers)
         for i in range(len(headers)):
             self.table_m.setColumnWidth(i, widths[i])
+        self.table_m.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.grid.addWidget(self.table_m, self.gui_row, 0, 1, 6)
         self.grid.setRowStretch(self.gui_row, 1)
         self.gui_row += 1
@@ -576,6 +581,10 @@ class Top(QtWidgets.QWidget):
             fstring = '{:0.1f}'.format(info[row][5])
             item = QtWidgets.QTableWidgetItem(fstring)
             self.table_m.setItem(new_row_ind, 5, item)
+            if info[row][9] in [3, 1]:
+                # Color slot rows a slightly darker gray
+                for col_j in range(6):
+                    self.table_m.item(new_row_ind, col_j).setBackground(QtGui.QColor(222,222,222))
             self.file_list.append(info[row][6])
 
         # Update filter count label
@@ -895,35 +904,14 @@ class OutLog:
 
 #-#-#-#-# MAIN #-#-#-#-#
 def eis_catalog():
-    if len(sys.argv) == 2:
-        # option 1 - user inputs the file
-        db_file = sys.argv[1]
-    else:
-        # option 2a - use file from SSW (fully configured environments)
-        ssw_dir = os.environ.get('SSW')
-        if ssw_dir is None:
-            # option 2b - use file from SSW (search for SSW installation)
-            print('NOTICE: "SSW" environment variable not found.')
-            print('   Searching common installation directories...')
-            for test_dir in ['/usr/local/ssw', os.path.expanduser('~')+'/ssw',
-                             'C:\\ssw', 'D:\\ssw']:
-                if os.path.isdir(test_dir):
-                    ssw_dir = test_dir
-                    print('SSW found in '+ssw_dir)
-                    break
-        if ssw_dir is not None:
-            db_file = os.path.join(ssw_dir, 'hinode', 'eis', 'database',
-                                   'catalog', 'eis_cat.sqlite')
-        else:
-            # option 3 - use local database stored within eispac
-            print('WARNING: No SSW installation found.')
-            print('   Attempting to use local eis database.')
-            import eispac
-            module_dir = os.path.dirname(eispac.download.__file__)
-            db_file = os.path.join(module_dir, 'eis_cat.sqlite')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('cat_filepath', nargs='?', default='.',
+                        help='[optional] Dir or file containing "eis_cat.sqlite".'
+                            +'\nIf not given, will automatically search for the catalog')
 
+    args = parser.parse_args()
     app = QtWidgets.QApplication([])
-    topthing = Top(db_file)
+    topthing = Top(args.cat_filepath)
 
     sys.exit(app.exec_())
 
