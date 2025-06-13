@@ -9,7 +9,8 @@ __all__ = ['ccd_offset']
 
 @u.quantity_input
 def ccd_offset(wavelength:u.Angstrom) ->u.pixel:
-    """Calculate the spatial offset of a line relative to He II 256 Å
+    r"""
+    Calculate the spatial offset of a line relative to He II 256 Å
 
     Spatial offset of the specified wavelength relative
     to He II 256 Å. If you see a feature in the He II 256 image at
@@ -17,6 +18,7 @@ def ccd_offset(wavelength:u.Angstrom) ->u.pixel:
     :math:`Y^{\prime}` for any other wavelength :math:`\lambda` is,
 
     .. math::
+
         Y^{\prime} = Y - o(\lambda),
 
     where :math:`o(\lambda)` is the CCD offset.
@@ -36,7 +38,7 @@ def ccd_offset(wavelength:u.Angstrom) ->u.pixel:
       from Fe VIII 185.21 Å and Si VII 275.35 Å
 
     .. note:: This routine is a (nearly) verbatim translation of the IDL version of
-              eis_ccd_offset written by Peter Young. The above documentation has
+              ``eis_ccd_offset`` written by Peter Young. The above documentation has
               been adapted from that routine.
 
     Parameters
@@ -47,8 +49,8 @@ def ccd_offset(wavelength:u.Angstrom) ->u.pixel:
     Returns
     -------
     offset : `~numpy.ndarray`
-        The spatial offset between the specified wavelength and He II 256.32.
-        The value represents how many pixels above He II 256.32 the specified
+        The spatial offset between the specified wavelength and He II 256.32 Å.
+        The value represents how many pixels above He II 256.32 Å the specified
         wavelength sits on the EIS detectors.
 
     References
@@ -68,7 +70,7 @@ def ccd_offset(wavelength:u.Angstrom) ->u.pixel:
     wavelength = np.atleast_1d(wavelength)
     # Calculate the offset for all lines in the shortwave band
     short_long_base_offset = 18.5 * u.pixel
-    offset_fe_8 = wavelength-185.21*u.Angstrom
+    offset_fe_8 = wavelength - 185.21*u.Angstrom
     offset_si_7_he_2 = 275.35*u.Angstrom - 256.32*u.Angstrom
     offset = grating_tilt*offset_fe_8 + short_long_base_offset + grating_tilt*offset_si_7_he_2
     # Find and calculate the offset for all lines in the longwave band
