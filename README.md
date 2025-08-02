@@ -23,7 +23,7 @@ Python environment. The general approach is as follows:
 
 ## Citing EISPAC
 
-If you use EISPAC in your reaserch, please consider citing the
+If you use EISPAC in your research, please consider citing the
 [JOSS paper](https://joss.theoj.org/papers/10.21105/joss.04914).
 
 ## Getting Started
