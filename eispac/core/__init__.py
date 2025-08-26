@@ -14,3 +14,5 @@ from .fitting_functions import *
 from .generate_astropy_model import *
 from .fit_spectra import *
 from .fit_spectra_astropy import *
+from .fetch_context_image import *
+from .coalign_observations import *
