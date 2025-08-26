@@ -141,3 +141,13 @@ def test_step_exptime(test_eis_map):
     assert test_eis_map._step_exptime is None
     assert len(test_eis_map.step_exptime) == test_eis_map.meta['naxis1']
     assert test_eis_map.step_exptime[0] == 61.9
+
+
+def test_set_date(test_eis_map):
+    test_eis_map._set_date('2010-10-10T10:10:10.100')
+    assert test_eis_map.date.isot == '2010-10-10T10:10:10.100'
+
+
+def test_set_reference_date(test_eis_map):
+    test_eis_map._set_reference_date('2010-10-10T10:10:10.100')
+    assert test_eis_map.reference_date.isot == '2010-10-10T10:10:10.100'

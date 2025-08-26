@@ -10,7 +10,7 @@ import astropy.wcs
 import astropy.units as u
 from astropy.nddata import StdDevUncertainty
 import sunpy.coordinates as coords
-from eispac.core.eiscube import EISCube
+from eispac.core.eiscube import EISCube, _make_wcs_from_cube_index
 from eispac.core.read_wininfo import read_wininfo
 from eispac.instr.calc_read_noise import calc_read_noise
 
@@ -149,7 +149,8 @@ def read_cube(filename=None, window=0, exp_set='sum', apply_radcal=True, radcal=
             if type(val[0]) == np.bytes_:
                 val = val.astype(np.str_) # convert bytes to unicode
             if val.size == 1:
-                val = val[0]
+                # val = val[0]
+                val = val.item() # Extract single-value to a Python scaler
             index[key] = val
 
         meta['index'] = index
@@ -161,7 +162,8 @@ def read_cube(filename=None, window=0, exp_set='sum', apply_radcal=True, radcal=
             if type(val[0]) == np.bytes_:
                 val = val.astype(np.str_) # convert bytes to unicode
             if val.size == 1:
-                val = val[0]
+                # val = val[0]
+                val = val.item() # Extract single-value to a Python scaler
             pointing[key] = val
 
         meta['pointing'] = pointing
@@ -182,7 +184,7 @@ def read_cube(filename=None, window=0, exp_set='sum', apply_radcal=True, radcal=
         # Read time and duration information
         try:
             meta['date_obs'] = np.array(f_head['times/date_obs']).astype(np.str_)
-            meta['date_obs_format'] = np.array(f_head['times/time_format']).astype(np.str_)[0]
+            meta['date_obs_format'] = str(np.array(f_head['times/time_format']).astype(np.str_)[0])
         except KeyError:
             # Estimate missing or broken timestamps (ideally, never used)
             print('WARNING: the header file has missing or incomplete date_obs' 
@@ -440,9 +442,7 @@ def read_cube(filename=None, window=0, exp_set='sum', apply_radcal=True, radcal=
         # NB: For some reason, the order of axes in the WCS is reversed relative
         #     to the data array inside an NDCube. We should take care to fully
         #     document this for our users.
-        clean_wcs = astropy.wcs.WCS(output_hdr, fix=True)
-        clean_wcs = clean_wcs.swapaxes(0,1) # swap x with y
-        clean_wcs = clean_wcs.swapaxes(0,2) # now swap y with wavelength
+        clean_wcs = _make_wcs_from_cube_index(output_hdr)
 
         # Add a user-supplied constant value to the count array
         if count_offset is not None:

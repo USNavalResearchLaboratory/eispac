@@ -10,8 +10,34 @@ from astropy.nddata import StdDevUncertainty
 from astropy.convolution import convolve, CustomKernel
 from astropy.coordinates import SkyCoord
 from sunpy.coordinates import frames
+from sunpy.time import parse_time
 from ndcube import __version__ as ndcube_ver
 from ndcube import NDCube
+from eispac.core.eismap import EISMap
+
+def _make_wcs_from_cube_index(index_dict):
+    """Internal helper function for creating an WCS from an EIS FITS index
+    """
+    if not isinstance(index_dict, dict):
+        print('ERROR: invalid input type for genearting a WCS. Please input a'
+             +' dict containing an EIS FITS header or index', file=sys.stderr)
+        return None
+    
+    # Copy input dict and add extra date keys
+    # (astropy does not recognize the commonly used "date_obs" key )
+    temp_dict = copy.deepcopy(index_dict)
+    for KEY in ['date_obs', 'date_beg', 'date_avg', 'date_end']:
+        temp_dict[KEY.replace('_', '-')] = temp_dict[KEY]
+
+    # Create the WCS object
+    # NB: For some reason, the order of axes in the WCS is reversed relative
+    #     to the data array inside an NDCube. It is often worth reminding
+    #     oversleves of this and repeating it in the user documentation.
+    new_wcs = astropy.wcs.WCS(temp_dict, relax=True, fix=False)
+    new_wcs = new_wcs.swapaxes(0,1) # swap x with y
+    new_wcs = new_wcs.swapaxes(0,2) # now swap y with wavelength
+
+    return new_wcs
 
 class EISCube(NDCube):
     """EIS Level-1 Data Cube
@@ -293,54 +319,120 @@ class EISCube(NDCube):
 
         return output_cube
 
-    def sum_spectra(self, wave_range=None, units=u.Angstrom):
-        """Sum the data along the spectral axis.
+    def shift_reference_coord(self, x_shift : u.arcsec, y_shift : u.arcsec):
+        """Shift the reference value of the coordinate grid
+
+        Returns a new EISCube with the coordiante grid shifted. Used when 
+        coaligning with a reference image. See EISCube.meta['notes'] for a 
+        record of the applied shift.
 
         Parameters
         ----------
-        wave_range : list of ints, floats, or `~astropy.units.Quantity`
+        x_shift : `~astropy.units.Quantity`
+            The shift to apply to the Longitude (Solar-X) coordinate.
+        y_shift : `~astropy.units.Quantity`
+            The shift to apply to the Latitude (Solar-Y) coordinate
+
+        Returns
+        -------
+        outout_cube : `EISCube` class instance
+            A new EISCube with the coordinate grid shifted
+        """
+        
+        old_x = self.meta['mod_index']['crval1'] # units of [arcsec]
+        old_y = self.meta['mod_index']['crval2']
+        sx = x_shift.to('arcsec').value
+        sy = y_shift.to('arcsec').value
+
+        # Update mod_index
+        new_meta = copy.deepcopy(self.meta)
+        new_meta['notes'].append(f'Shifted ref coord by {sx} (X), {sy} (Y) [arcsec]')
+        new_meta['mod_index']['crval1'] = old_x + sx
+        new_meta['mod_index']['crval2'] = old_y + sy
+        
+        # Pack everything up in a new EISCube
+        new_wcs = _make_wcs_from_cube_index(new_meta['mod_index'])
+        output_cube = EISCube(self.data, wcs=new_wcs, uncertainty=self.uncertainty,
+                              wavelength=self.wavelength, radcal=self.radcal,
+                              meta=new_meta, unit=self.unit,
+                              mask=self.mask)
+        
+        return output_cube
+
+    def _set_reference_date(self, date):
+        """Update the reference date for the WCS and coordinate frame
+
+        USE WITH CARE! This method replaces the .wcs object and is intended 
+        for internal use to update the coordinate frame after coaligning the 
+        observation with the EISPAC function "coalign_observations". The name 
+        of this method MUST match the method defined by EISMap (which is based on
+        the sunpy Map object). 
+        """
+
+        new_date_obs = parse_time(date).utc.isot
+        old_date_obs = self.meta['mod_index']['date_obs']
+        self.meta['mod_index']['date_obs'] = new_date_obs
+        self.meta['notes'].append(f"DATE_OBS changed from {old_date_obs} to {new_date_obs}")
+        new_wcs = _make_wcs_from_cube_index(self.meta['mod_index'])
+        self._wcs = new_wcs # carefully update the wcs
+
+    def sum_spectra(self, wave_range=None, units=u.Angstrom, return_map=False):
+        """Sum the data along the spectral axis.
+
+        Important note: this function is helpful for taking a quick look at the
+        data. No fitting or data moments have been calculated!
+
+        Parameters
+        ----------
+        wave_range : list of ints, floats, or `~astropy.units.Quantity`, optional
             Wavelength range to sum over. Values can be input as either
             [min, max] or [center, half width]. Units can be specified using
             either Astropy units instances or by inputting a pair of ints or
             floats and then also using the "units" keyword. If wave_range is set
             to None, then entire spectra will be summed over. Default is None.
-        units : str or `~astropy.units.Quantity`
+        units : str or `~astropy.units.Quantity`, optional
             Units to be used for the wavelength range if wave_range is given a
             list of ints or floats. Will be ignored if either wave_range is None
             or is given a list with Astropy units. Default is 'Angstrom'.
+        return_map : bool, optional
+            If set to "True", will return a 2D EISMap instead of a generic NDCube.
+            Default is "False"
 
         Returns
         -------
-        output_cube : `NDCube` class instance
-            A new 2D `NDCube` class instance containing the summed data (NB: not
-            a full EISCube!)
+        output_cube : `NDCube` or `EISCube` class instance
+            A 2D `NDCube` or `EISMap` class instance containing the summed data 
+            NB: not a full EISCube and does NOT contain fit intensities!
         """
-        if wave_range is None:
-            # Sum over entire wavelength axis and return an NDCube
-            try:
-                new_wcs = self.wcs.dropaxis(0)
-            except:
-                new_wcs = copy.deepcopy(self[:,:,0].wcs)
-            sum_data = np.sum(self.data, axis=2)
-            new_meta = copy.deepcopy(self.meta)
-            new_meta['notes'].append('Summed over entire wavelength axis.')
-            return NDCube(sum_data, new_wcs, meta=new_meta)
-
+        # First, check and make sure there is a corrected wavelength array
+        try:
+            # Note: the corrected wavelength has units of [Angstrom]
+            w_coords = np.mean(self.wavelength, axis=(0,1))
+        except KeyError:
+            print('ERROR: missing or invalid corrected wavelength array.')
+            return None
+        
         # Validate input wavelength range
-        if isinstance(wave_range, (list, tuple)):
-            use_range = [0, 0]
-            range_units = ['unknown', 'unknown']
-            print('Summing EISCube spectra over a select wavelength range.')
+        full_wavelength_sum = False
+        if wave_range is None:
+            # Sum over entire wavelength axis (automatically sets "wave_range")
+            full_wavelength_sum = True
+            wave_range = [w_coords[0], w_coords[-1]]*u.Angstrom
+        elif isinstance(wave_range, (list, tuple, u.Quantity)):
+            if not full_wavelength_sum:
+                print('Summing EISCube spectra over a select wavelength range.')
             if len(wave_range) != 2:
-                print('Error: invalid number of wave_range values. Please input'
+                print('ERROR: invalid number of wave_range values. Please input'
                      +' a list or tuple with exactly two elements.',
                      file=sys.stderr)
                 return None
         else:
-            print('Error: invalid wave_range type. Please input either None or'
+            print('ERROR: invalid wave_range type. Please input either None or'
                  +' a list (or tuple) with two elements.', file=sys.stderr)
             return None
 
+        use_range = [0, 0]
+        range_units = ['unknown', 'unknown']
         for w in range(2):
             if isinstance(wave_range[w], u.Quantity):
                 # Parse an astropy.units.Quantity and convert as needed
@@ -352,7 +444,7 @@ class EISCube(NDCube):
                     use_range[w] = wave_range[w].to('Angstrom').value
                     range_units[w] = u.Angstrom
                 else:
-                    print('Error: invalid wavelength unit. Please input a pixel'
+                    print('ERROR: invalid wavelength unit. Please input a pixel'
                     +' or length unit.', file=sys.stderr)
                     return None
             else:
@@ -366,13 +458,13 @@ class EISCube(NDCube):
                     use_range[w] = float(wave_range[w])*u_scale
                     range_units[w] = u.Angstrom
                 else:
-                    print('Error: invalid wavelength unit. Please input a pixel'
+                    print('ERROR: invalid wavelength unit. Please input a pixel'
                          +' or length unit.', file=sys.stderr)
                     return None
 
         # Check for consistent units
         if range_units[0] != range_units[1]:
-            print('Error: mismatched units. Please input the same units for'
+            print('ERROR: mismatched units. Please input the same units for'
                  +' both wave_range elements or use the "units" keyword',
                  file=sys.stderr)
             return None
@@ -391,12 +483,7 @@ class EISCube(NDCube):
             w_indices[w] = int(round(use_range[w]))
         elif range_units[0] == u.Angstrom:
             # Find the closest pixel location on the average wavelength axis
-            try:
-                # Note: the corrected wavelength has units of [Angstrom]
-                w_coords = np.mean(self.wavelength, axis=(0,1))
-            except KeyError:
-                print('Error: missing or invalid corrected wavelength array.')
-                return None
+            # Remember: w_coords is the MEAN corrected wavelength in [Angstroms]
             for w in range(2):
                 abs_w_diff = np.abs(w_coords - use_range[w])
                 w_indices[w] = np.argmin(abs_w_diff)
@@ -407,9 +494,43 @@ class EISCube(NDCube):
             new_wcs = copy.deepcopy(self[:,:,0].wcs)
         sum_data = np.sum(self.data[:,:,w_indices[0]:w_indices[1]+1], axis=2)
         new_meta = copy.deepcopy(self.meta)
-        new_meta['notes'].append('Summed wavelength axis over the range of '
-                                +str(use_range)+' '+str(range_units[0]))
-        return NDCube(sum_data, new_wcs, meta=new_meta)
+        new_meta['wave'] = np.array([w_coords[w_indices[0]], w_coords[w_indices[1]]])
+        if full_wavelength_sum:
+            new_meta['notes'].append('Summed over entire wavelength axis')
+        else:
+            new_meta['notes'].append('Summed wavelength axis over the range of '
+                                    +str(use_range)+' '+str(range_units[0]))
+        
+        if not return_map:
+            return NDCube(sum_data, new_wcs, meta=new_meta)
+        else:
+            # Fetch index from the meta structure, cut out spectral data and update
+            hdr_dict = new_meta['mod_index']
+            for KEY in ['cname3', 'crval3', 'crpix3', 
+                        'cdelt3', 'ctype3', 'cunit3', 'naxis3']:
+                void = hdr_dict.pop(KEY, None)
+            hdr_dict['naxis'] = 2
+            hdr_dict['history'] = new_meta['notes'][-1]
+
+
+            hdr_dict['measrmnt'] = 'data sum'
+            sum_errs = np.sqrt(np.sum(self.uncertainty.array[:,:,w_indices[0]:w_indices[1]+1]**2, axis=2))
+
+            # Check the line_id string and update as needed
+            id_wave = float(hdr_dict['line_id'].split()[-1])
+            if id_wave < new_meta['wave'][0] or id_wave > new_meta['wave'][-1]:
+                new_id_wave = np.mean(new_meta['wave'])
+                hdr_dict['line_id'] = f'unknown I {new_id_wave:.3f}'
+
+            date_obs_arr = self.meta.get('date_obs', None)
+            exptime_arr = self.meta.get('duration', None)
+            output_map = EISMap(sum_data, hdr_dict, 
+                                uncertainty=StdDevUncertainty(sum_errs), 
+                                step_date_obs=date_obs_arr, 
+                                step_exptime=exptime_arr)
+            output_map.plot_settings['cmap'] = 'gist_heat'
+            
+            return output_map
 
     def smooth_cube(self, width=3, **kwargs):
         """Smooth the data along one or more spatial axes.
@@ -454,6 +575,7 @@ class EISCube(NDCube):
             return None
 
         coord_ax = ['y', 'x', 'w']
+        index_ax_num = ['2', '1', '3']
         for w in range(len(wid_list)-1):
             # Parse a astropy.units.Quantity and convert to units of pixels
             if isinstance(wid_list[w], u.Quantity):
@@ -466,7 +588,9 @@ class EISCube(NDCube):
                 else:
                     try:
                         # Note: y & x scales are in units of [arcsec]/[pixel]
-                        ax_scale = self.meta['pointing'][coord_ax[w]+'_scale']
+                        #       wave scale is in units of [Angstrom]/[pixel]
+                        # ax_scale = self.meta['pointing'][coord_ax[w]+'_scale']
+                        ax_scale = self.meta['mod_index']['cdelt'+index_ax_num[w]]
                     except KeyError:
                         print('Error: missing '+coord_ax[w]+'-axis scale.')
                         return None
@@ -606,7 +730,7 @@ class EISCube(NDCube):
                  +f' points will be incorrect.')
             
         # Check SkyCoord obstime
-        cube_date_obs = self.meta['mod_index']['date_obs']
+        cube_date_beg = self.meta['mod_index']['date_beg']
         cube_date_end = self.meta['mod_index']['date_end']
         if input_coords.obstime is None:
             input_obstime = 'unknown'
@@ -617,10 +741,10 @@ class EISCube(NDCube):
             pass # Don't check and print warnings if asked to be quiet
         elif input_obstime == 'unknown':
             print(f'WARNING: Unknown obstime for input coords. Will assume'
-                 +f' the coords are valid for times near {cube_date_obs}.')
-        elif ((input_obstime < cube_date_obs) or (input_obstime > cube_date_end)):
+                 +f' the coords are valid for times near {cube_date_beg}.')
+        elif ((input_obstime < cube_date_beg) or (input_obstime > cube_date_end)):
             print(f'WARNING: Input coords have obstime={input_obstime} while'
-                 +f' this EISCube is from {cube_date_obs} to {cube_date_end}.'
+                 +f' this EISCube is from {cube_date_beg} to {cube_date_end}.'
                  +f' Please consider transforming input coords to match.')
         
         # Convert input coords to [arcsec] and extract value arrays
@@ -713,7 +837,7 @@ class EISCube(NDCube):
         new_meta['date_obs'] = ex_date_obs
         new_meta['duration'] = ex_duration
 
-        # Create new 'extracted' dict in teh metadata
+        # Create new 'extracted' dict in the metadata
         new_meta['extracted'] = {}
         new_meta['extracted']['coord_x'] = ex_x_vals
         new_meta['extracted']['coord_y'] = ex_y_vals
@@ -728,7 +852,7 @@ class EISCube(NDCube):
         
         # Pack everything up in a new EISCube
         ex_errs = StdDevUncertainty(ex_errs)
-        new_wcs = astropy.wcs.WCS(new_meta['mod_index'], fix=True)
+        new_wcs = _make_wcs_from_cube_index(new_meta['mod_index'])
         # wcs_mask = (np.array(tuple(reversed(self.wcs.array_shape))) <= 1).tolist()
 
         output_cube = EISCube(ex_data, wcs=new_wcs, uncertainty=ex_errs,

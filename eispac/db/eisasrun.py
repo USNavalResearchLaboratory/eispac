@@ -73,7 +73,7 @@ class EISAsRun():
         # Get reference timestamps
         # Note: the tl_id filter is needed due to an odd engi raster 
         #       with a June 2025 timestamp (as of Feb of 2025)
-        #       Likewise, the ll_id filder is needed for first date_obs
+        #       Likewise, the ll_id filter is needed for first date_obs
         self.cur.execute('select MAX(date_mod), * from eis_experiment where tl_id > 10000')
         self.last_date_mod = tai2utc(self.cur.fetchall()[-1]['date_mod'])
         self.cur.execute('select MIN(date_obs), * from eis_experiment where date_obs > 0 and ll_id > 0')
@@ -300,7 +300,8 @@ class EISAsRun():
                 t_start = loop_m_row['date_obs'] - 43200 # 12 hr BEFORE
                 t_end = loop_m_row['date_end'] + 43200 # 12 hr AFTER
                 exp_string = ('filename, date_obs, date_end, xcen, ycen,'
-                                +' fovx, fovy, tl_id, rast_acr, rast_id')
+                             +' fovx, fovy, tl_id, rast_acr, rast_id,'
+                             +' xws, yws, saa, hlz')
                 self.cur.execute('SELECT '+exp_string+' FROM'
                                 +' eis_experiment WHERE tl_id==?'
                                 +' AND date_obs BETWEEN ? and ?',
@@ -426,7 +427,8 @@ class EISAsRun():
                 
         if primary_db.lower().startswith('eis_exp'):
             select_cols = ('filename, date_obs, date_end, xcen, ycen,'
-                          +' fovx, fovy, tl_id, rast_acr, rast_id')
+                          +' fovx, fovy, tl_id, rast_acr, rast_id,' 
+                          +' xws, yws, saa, hlz')
             text_cols = ['rast_acr', 'll_acr']
             valid_cols = self.exp_cols
         elif primary_db.lower().startswith('eis_main'):
@@ -656,6 +658,8 @@ def _make_obs_dict(exp_row, ll_row, rast_row, main_row):
     row['ycen'] = -9999 if exp_row['ycen'] is None else exp_row['ycen']
     row['fovx'] = exp_row['fovx']
     row['fovy'] = exp_row['fovy']
+    row['xws'] = exp_row['xws'] if 'xws' in exp_row.keys() else -1
+    row['yws'] = exp_row['yws'] if 'yws' in exp_row.keys() else -1
     row['tl_id'] = exp_row['tl_id']
     row['rast_acr'] = exp_row['rast_acr']
     row['rast_id'] = exp_row['rast_id']
@@ -671,10 +675,14 @@ def _make_obs_dict(exp_row, ll_row, rast_row, main_row):
     row['sci_obj'] = main_row['sci_obj']
     row['sci_obj'] = row['sci_obj'][0:-1].rstrip()
     row['target'] = main_row['target']
+    # IN/OUT South Atlantic Anomoly (energetic particles)
+    row['saa'] = exp_row['saa'] if 'saa' in exp_row.keys() else 'N/A'
+    # IN/OUT High Latitude Zone (auroral precipitation)
+    row['hlz'] = exp_row['hlz'] if 'hlz' in exp_row.keys() else 'N/A'
 
     # Info from the raster database
     # row['acronym'] = rast_row['acronym'] # This is a duplicate of rast_acr!!!
-    row['title'] = rast_row['title']
+    row['title'] = rast_row['title'] # one line summary of technical specs
     row['rastertype'] = rast_row['rastertype']
     row['scan_fm_nsteps'] = rast_row['scan_fm_nsteps']
     row['scan_fm_stepsize'] = rast_row['scan_fm_stepsize']

@@ -108,6 +108,10 @@ class EISMap(sunpy.map.GenericMap):
         elif self.meta['measrmnt'].lower().startswith('wid'):
             self.plot_settings['cmap'] = 'viridis'
             default_mask = self.data == 0
+        else:
+            # Unknown measurement, use default colormap and settings
+            self.plot_settings['cmap'] = 'gray'
+            default_mask = np.isnan(self.data) # only mask NaNs
 
         # Set the default mask (ignored if the user input their own mask)
         if self.mask is None:
@@ -168,19 +172,65 @@ class EISMap(sunpy.map.GenericMap):
 
     @property
     def reference_date(self):
-        """
-        The reference date for the coordinate system
+        """The reference date for the coordinate system
 
         According to Section 2.4 of
         `EIS Software Note 9 <https://solarb.mssl.ucl.ac.uk/SolarB/eis_docs/eis_notes/09_POINTING/eis_swnote_09.pdf>`_,
-        the pointing keywords are defined at the start of the raster. As such, this property returns the
-        time at the beginning of the raster.
+        the pointing keywords are defined at the start of the raster. As such, 
+        this property usually returns the time at the beginning of the raster. 
+        However, if they map has been coaligned with a reference map using the
+        "coalign_observations" function, then the "date_obs" will have been set
+        to match the reference map time. This gives more accurate coordinate
+        transformations after coalignment.
 
-        .. note:: This property is overridden because `sunpy.map.GenericMap` sets
-                  this to be the ``.date_average`` which in this case is the midpoint
-                  of the raster.
+        .. note:: This property is overridden because `sunpy.map.GenericMap` 
+                  sets this to be the ``.date_average`` which in this case is 
+                  the midpoint of the raster.
         """
-        return self.date_start
+        return self._date_obs or self.date_start
+    
+    def _set_reference_date(self, date):
+        """Sets the reference date by changing .meta["date_obs"] 
+        """
+
+        self._set_date(date)
+
+    @property
+    def date(self):
+        """The observation time (date_obs)
+
+        Usually, this will be the start time of the EIS observation. For scanning
+        rasters, this corresponds to the time of the westernmost slit position 
+        (i.e. right edge of the image). For sit-and-stare observations, this will
+        be the LEFT edge of the image.
+
+        However, if a scanning raster has been coaligned with a reference map
+        using the "coalign_observations" function in EISPAC, then the "date_obs"
+        will have been set to match the reference map time.
+
+        See Also
+        --------
+        reference_date : The reference date for the the coordinate system
+        date_start : The start time of the EIS observation
+        date_end : The end time of the EIS observation
+        date_average : The midpoint of the EIS observation
+        """
+
+        return self._date_obs
+
+    def _set_date(self, date):
+        """Set the observation time by setting DATE_OBS.
+
+        Notes
+        -----
+        The Hinode mission uses the "date_obs" keyword, which is slightly
+        different from the FITS v4.0 recommendation of "date-obs". In order to
+        maintain mission standards while also conforming to FITS v4.0, we must
+        keep BOTH "date_obs" and "date-obs"   
+        """
+        for keyword in ['date_obs', 'date-obs']:
+            if keyword in self.meta:
+                self.meta[keyword] = parse_time(date).utc.isot
 
     @property
     def duration(self):
