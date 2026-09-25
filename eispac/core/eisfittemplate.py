@@ -67,9 +67,16 @@ class EISFitTemplate:
     Attributes
     ----------
     template : dict
-        Dictoary of template paramaters
+        Dictionary of template paramaters
     parinfo : list of dicts
         List of parameter constraint dicts
+    funcinfo : dict
+        Dictionary of basic fitting function details (auto-generated from template)
+
+    Methods
+    -------
+    view()
+        Display an example image for templates packaged with EISPAC
     """
 
     def __init__(self, filename=None, template=None, parinfo=None, **kwargs):
@@ -166,6 +173,7 @@ class EISFitTemplate:
         #       and more easily check the template values of n_gauss and n_poly
         self._validate_parinfo_list()
         self._validate_template_dict()
+        self._check_param_values() # Only warns of issues, does not fix them
 
     def _validate_parinfo_list(self):
         """Helper function for validating the length and keys of .parinfo
@@ -398,6 +406,33 @@ class EISFitTemplate:
         self.template['fit'] = np.zeros(3*n_gauss + n_poly)
         for p in range(3*n_gauss + n_poly):
             self.template['fit'][p] = self.parinfo[p]['value']
+
+    def _check_param_values(self):
+        """Helper function for checking parameter values and warning the user of issues
+        """
+        # Check that the wmin and wmax values are reasonable
+        wmax = self.template['wmax']
+        wmin = self.template['wmin']
+        if wmin > wmax:
+            print(f'Warning: wmin ({wmin}) is larger than wmax ({wmax})! '
+                 +f'Please check and fix before attempting line fitting.', 
+                 file=sys.stderr)
+
+        if wmax - wmin > 10:
+            print(f'Warning: wmin and wmax define a very large wavelength range '
+                 +f'of {wmax-wmin}! Please use caution when fitting EIS '
+                 +f'observations with wide spectral windows', file=sys.stderr)
+
+        # Check that all centroids are within the wavelength range
+        n_gauss = self.template['n_gauss']
+        for g in range(n_gauss):
+            cent_val = self.parinfo[3*g+1]['value']
+            if (wmax - cent_val)*(cent_val - wmin) < 0:
+                print(f'Warning: centroid for Gaussian {g} has a default value '
+                     +f'of {cent_val}, which is outside of the fitting wavelength '
+                     +f'range of [{wmin}, {wmax}]', file=sys.stderr)
+
+        # TO-DO: add checks for limits and other default values (peak, width, bkg?)
 
     def __repr__(self):
         rows = []

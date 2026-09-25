@@ -21,3 +21,8 @@ def test_fit_filepath():
 @pytest.fixture
 def test_template_filepath():
     return get_fit_template_filepath('fe_12_192_394.1c.template.h5')
+
+
+@pytest.fixture
+def test_toml_template_filepath():
+    return get_test_filepath('fe_12_192_394.1c.template.toml')

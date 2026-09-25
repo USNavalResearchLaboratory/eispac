@@ -18,7 +18,8 @@ def scale_guess(x, y, param, n_gauss, n_poly):
     param : array_like
         Model fit parameters. There must be 3*n_gauss + n_poly param values.
         For each Gaussian component, the parameters are assumed to have the
-        following order: [peak, centroid, width]
+        order of [peak, centroid, width]. Polynomial background terms (if any)
+        should be at the end and in INCREASING order (e.g. c0, c1, c2, etc.)
     n_gauss : int, optional
         Number of Gaussian components. Default is "1"
     n_poly : int, optional
@@ -31,39 +32,43 @@ def scale_guess(x, y, param, n_gauss, n_poly):
         Array of scaled model parameters.
     """
 
-    # check inputs
+    # Check inputs
     n_param = len(param)
     if n_param != 3*n_gauss+n_poly:
         print(' ! input parameter sizes do not match ... stopping')
         sys.exit()
 
-    # copy the input data
+    # Copy the input data
     newparam = param.copy()
 
-    # get background from data
+    # Get background from data (mean of 3 lowest values)
     bkg_data = np.mean(np.sort(y)[0:3])
 
-    # get background from guess
+    # Get background from guess
+    # TO-DO: check scaling of higher order terms
     if n_poly > 0:
-        bkg = param[3*n_gauss::]
-        bkg_guess = np.median(np.sort(np.polyval(bkg,x))[0:3])
+        bkg_p = param[3*n_gauss::]
+        # bkg_guess = np.polyval(bkg_p,x) #outdated API. HIGHEST order first
+        bkg_guess = np.polynomial.polynomial.polyval(x, bkg_p) # LOWEST order first
         # scale background
-        scale = bkg_data/bkg_guess
-        newparam[3*n_gauss::] = bkg*scale
+        scale = bkg_data/np.median(np.sort(bkg_guess)[0:3])
+        newparam[3*n_gauss::] = bkg_p*scale
         # compute new background
-        bkg = newparam[3*n_gauss::]
-        new_bkg = np.polyval(bkg,x)
+        bkg_p = newparam[3*n_gauss::]
+        # new_bkg = np.polyval(bkg_p,x)
+        new_bkg = np.polynomial.polynomial.polyval(x, bkg_p)
     else:
         new_bkg = np.zeros(len(x))
 
-    # compute new peaks
+    # Compute new peaks
     for n in range(n_gauss):
-        p = param[3*n:3*n+3]
-        peak = p[0]
-        cent = p[1]
+        gauss_p = param[3*n:3*n+3]
+        peak = gauss_p[0]
+        cent = gauss_p[1]
         indx = np.abs(x-cent).argmin()
-        new_peak = y[indx]-new_bkg[indx]
-        if new_peak < 0: new_peak = 0.0
+        new_peak = y[indx] - new_bkg[indx]
+        if new_peak < 0: 
+            new_peak = 0.0
         newparam[3*n] = new_peak
 
     return newparam

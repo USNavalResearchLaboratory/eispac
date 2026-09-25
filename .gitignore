@@ -1,4 +1,11 @@
+# Assorted OS files
 .DS_Store
+__MACOSX/
+.localized
+.AppleDouble
+.LSOverride
+Thumbs.db
+.Trash-*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

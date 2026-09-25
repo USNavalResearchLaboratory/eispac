@@ -1,0 +1,95 @@
+[build-system]
+requires = ["setuptools>=61.0", "setuptools-scm>=8.0.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eispac"
+dynamic = ["version"]
+description = "Python analysis tools for Hinode / EIS data"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "NRL EISPAC Development Team"}
+]
+requires-python = ">=3.10"
+keywords = ["solar", "sun", "physics", "spectroscopy", "Hinode", "EIS"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy>=1.18",
+    "scipy>=1.4",
+    "matplotlib>=3.1",
+    "h5py>=2.9",
+    "astropy>=4.2.1",
+    "sunpy[net,map]>=4.0",
+    "ndcube>=2.0.0",
+    "parfive>=1.5",
+    "python-dateutil>=2.8",
+    "packaging>=19.0",
+    'tomli>=1.1.0; python_version < "3.11"',
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=4.6.3",
+    "pytest-astropy",
+]
+docs = [
+    "sphinx>=4.0.2",
+    "sphinx-automodapi>=0.13",
+    "sphinx-rtd-theme",
+]
+dev = [
+    "eispac[test,docs]",
+]
+all = [
+    "eispac[test,docs]",
+]
+
+[project.urls]
+Homepage = "https://github.com/USNavalResearchLaboratory/eispac"
+Data = "https://eis.nrl.navy.mil/"
+Documentation = "https://eispac.readthedocs.io/"
+
+[project.scripts]
+eis_catalog = "scripts.eis_catalog:eis_catalog"
+eis_explore_raster = "scripts.eis_explore_raster:eis_explore_raster"
+eis_browse_templates = "scripts.eis_browse_templates:eis_browse_templates"
+eis_download_files = "scripts.eis_download_files:eis_download_files"
+eis_fit_files = "scripts.eis_fit_files:eis_fit_files"
+eis_plot_fit = "scripts.eis_plot_fit:eis_plot_fit"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["eispac*", "scripts*"]
+
+[tool.setuptools.package-data]
+"eispac.data.ref" = ["*.txt"]
+"eispac.data.test" = ["*.h5"]
+"eispac.data.templates" = ["*.template.*"]
+
+[tool.setuptools_scm]
+write_to = "eispac/_version.py"
+version_scheme = "no-guess-dev"
+local_scheme = "no-local-version"
+
+[tool.pytest.ini_options]
+testpaths = ["eispac"]
+norecursedirs = [".tox", "build", "docs/_build", "docs/generated", "*.egg-info", "examples", ".jupyter", ".history", "tools"]
+doctest_plus = "enabled"
+text_file_format = "rst"
+addopts = "--doctest-modules"
+doctest_optionflags = ["NORMALIZE_WHITESPACE", "ELLIPSIS"]
+remote_data_strict = true
